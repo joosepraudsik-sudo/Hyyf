@@ -1,0 +1,20 @@
+[project]
+name = "siil"
+version = "0.1.0"
+description = "Korilase kompass - seente leidmise tõenäosuse kaart Eesti metsadele"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy",
+    "scipy",
+    "rasterio",
+    "geopandas",
+    "pyproj",
+    "shapely",
+    "pandas",
+    "requests",
+    "matplotlib",
+]
+
+[tool.uv]
+package = false
