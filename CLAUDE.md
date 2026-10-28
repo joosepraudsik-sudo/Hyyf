@@ -16,6 +16,7 @@ Suhtluskeel kasutajaga: **eesti keel**. Kood ja koodikommentaarid võivad olla i
 - **Hostimine:** tasuta. Cloudflare Pages (leht + igapäevased väikesed failid) ja Cloudflare R2 (staatilised kaardiruudud PMTiles failina). Aluskaart ja ortofoto otse Maa- ja Ruumiameti teenustest.
 - **Kood:** avalik GitHubi repo. Igapäevane ilmaarvutus GitHub Actionsis.
 - **Andmekaust:** kohapeal kuni 20–30 GB.
+- **Täpsus ja kuvamine:** arvutus käib 10 m ruudustikul, aga tegelik detailsus on eraldise tasemel (1–5 ha) ja ilm 2,5 km. Kasutajale näidatakse ümbruse hinnangut (u 100 m raadius, metsa lahtrite keskmine), avaldatakse u 50 m ruudustikuna. Arvutused peavad jääma kergeks: tulemus peab mahtuma Cloudflare'i tasuta paketti.
 
 ## Mudeli ülesehitus
 
@@ -75,6 +76,7 @@ Peremeespuu (mänd parim, kuusk ja kask segus head), metsa vanus (noor kuni valm
 
 - Sademete tänase seisu arvutame ise: radar, korrigeeritud jaamadega.
 - Arenduseks sobib Open-Meteo archive API (`models=era5_land`), aga see on tasuta ainult mitteäriliseks kasutuseks; tootmises otseallikad.
+- Open-Meteo `era5_land` **ei anna sademeid ega ET0** (kõik tühjad). Arenduses võetakse need `models=era5` (u 31 km) pealt, temperatuur ERA5-Landist.
 
 ### Valideerimine
 - eElurikkus / PlutoF, GBIF: harilikku kukeseent väga vähe.
@@ -94,7 +96,12 @@ uv run python -I skriptid/lae_testala.py   # andmed/ (u 1 GB)
 uv run python -I skriptid/ruudustik.py     # andmed/testala_5458/ruudustik/*.tif, 10 m
 uv run python -I skriptid/kasvukoht.py     # valjund/sobivus, veereziim, ilmaruut, tegurid
 uv run python -I skriptid/kaart.py         # valjund/*.png
+uv run python -I skriptid/viljumine.py     # valjund/viljumine_5458.csv (punkt x klass x päev)
+uv run python -I skriptid/graafik.py       # valjund/hooajad_5458.png
+uv run python -I skriptid/soojuskaart.py 2023-08-15 2025-09-13   # valjund/soojuskaart_5458.png
 ```
+
+Viljumismudel (`viljumine.py`): veerežiimi klassi kaupa mullavee ämber (P − vahetus − KC·ET0·stress, põhjavee põhi märgadel klassidel) → niiskuse skoor; hooaeg = kraadipäevad > 5 °C × 6–13 nädala tagune niiskus; algus = märgumise tõuge või püsiv niiskus × temperatuur; küpsemine 170 kraadipäeva > 4 °C (max 45 päeva); viljakehade säilimine 0,95/päev, põud 0,88, külm 0,5. Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
 
 Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobivus = tegurite kaalutud geomeetriline keskmine.
 

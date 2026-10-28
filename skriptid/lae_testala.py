@@ -20,6 +20,12 @@ MR = ("https://gsavalik.envir.ee/geoserver/metsaregister/ows?service=WFS&version
 MULD = ("https://teenus.maaamet.ee/ows/mullakaart?service=WFS&version=1.0.0"
         f"&request=GetFeature&bbox={BBOX}")
 
+# Weather points (lat, lon): sheet corners slightly inset + centre
+ILMAPUNKTID = {
+    "edel": (58.165, 27.075), "loe": (58.235, 27.080), "keskel": (58.197, 27.147),
+    "kirre": (58.230, 27.220), "kagu": (58.160, 27.215),
+}
+
 session = requests.Session()
 session.headers["User-Agent"] = "siil-korilase-kompass/0.1"
 
@@ -86,19 +92,18 @@ def main():
     fetch("https://geoportaal.maaruum.ee/docs/muld/mullalegend.pdf", eesti / "mullalegend.pdf")
 
     print("4/4 Ilm (ERA5-Land 2023-2026, Open-Meteo, ainult arenduseks)")
-    points = {  # corners slightly inset + centre of the sheet
-        "edel": (58.165, 27.075), "loe": (58.235, 27.080), "keskel": (58.197, 27.147),
-        "kirre": (58.230, 27.220), "kagu": (58.160, 27.215),
-    }
     daily = ("temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
              "et0_fao_evapotranspiration,soil_moisture_0_to_7cm_mean,"
              "soil_moisture_7_to_28cm_mean,soil_temperature_0_to_7cm_mean")
-    for name, (lat, lon) in points.items():
-        url = ("https://archive-api.open-meteo.com/v1/archive"
-               f"?latitude={lat}&longitude={lon}&start_date=2023-04-01&end_date=2026-10-20"
-               f"&daily={daily}&models=era5_land&timezone=Europe%2FTallinn")
-        fetch(url, ROOT / "ilm" / f"era5land_{name}.json")
-        time.sleep(1)
+    # Open-Meteo has no precipitation / ET0 for era5_land -> take those from ERA5 (~31 km)
+    daily_era5 = "precipitation_sum,rain_sum,snowfall_sum,et0_fao_evapotranspiration"
+    for name, (lat, lon) in ILMAPUNKTID.items():
+        for model, variables in [("era5_land", daily), ("era5", daily_era5)]:
+            url = ("https://archive-api.open-meteo.com/v1/archive"
+                   f"?latitude={lat}&longitude={lon}&start_date=2023-01-01&end_date=2026-10-20"
+                   f"&daily={variables}&models={model}&timezone=Europe%2FTallinn")
+            fetch(url, ROOT / "ilm" / f"{model.replace('_', '')}_{name}.json")
+            time.sleep(1)
 
     print(f"\nValmis. Andmed: {ROOT}")
 

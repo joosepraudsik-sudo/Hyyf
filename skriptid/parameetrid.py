@@ -60,6 +60,51 @@ MULD_GLEISTUNUD = 0.75     # ...g
 MULD_NORK_GLEI = 0.90      # ...(g)
 MULD_HAPE = {"K": 0.60, "KI": 0.85, "L": 1.00, "E": 0.95, "G": 0.85, "D": 0.85, "A": 0.70}
 
+# ================= Dynamic moisture and fruiting model =================
+
+# Soil water bucket per water regime class:
+#   kp   plant-available water capacity of the mycelium / root zone, mm
+#   pohi groundwater floor as fraction of kp (capillary rise keeps storage above it)
+#   tous daily rate at which storage relaxes towards the floor when below it
+#   marg score of a saturated bucket (waterlogging hurts wet sites, not sands that drain)
+VEEREZIIM = {
+    1: dict(nimi="kuiv", kp=45, pohi=0.00, tous=0.00, marg=1.00),
+    2: dict(nimi="värske", kp=80, pohi=0.15, tous=0.02, marg=0.95),
+    3: dict(nimi="niiske", kp=110, pohi=0.40, tous=0.05, marg=0.75),
+    4: dict(nimi="märg", kp=140, pohi=0.70, tous=0.10, marg=0.40),
+    5: dict(nimi="kuivendatud turvas", kp=120, pohi=0.35, tous=0.04, marg=0.70),
+}
+VAHETUS = 0.20          # canopy interception: share of daily rain ...
+VAHETUS_MAX = 2.5       # ... up to this many mm/day
+KC = 0.85               # forest-floor evapotranspiration = KC * ET0 * stress
+KC_STRESS = 0.5         # below this relative storage, evapotranspiration declines linearly
+
+# Relative storage w (0..1) -> moisture score for fruiting (saturated end set per class 'marg')
+NIISKUS = [(0.0, 0.0), (0.20, 0.0), (0.45, 1.0), (0.90, 1.0)]
+
+# Season (hooaeg): degree days above 5 C since 1 Jan, and moisture of 6-13 weeks before
+KRAADIPAEV_ALUS = 5.0
+HOOAEG_KP = [(0, 0.0), (450, 0.0), (750, 1.0)]      # roughly late June -> mid July
+HOOAEG_NIISKUS_AKEN = (91, 42)                       # days back: from, to
+HOOAEG_NIISKUS = [(0.0, 0.3), (0.25, 0.3), (0.55, 1.0), (1.0, 1.0)]
+
+# Initiation (hoovõtt): wetting pulse or sustained good moisture, scaled by temperature
+TOUKE_DW = 0.30          # rise of w over 3 days that counts as a full pulse
+TOUKE_PUSIV = 0.30       # initiation from sustained good moisture without a pulse
+ALGUS_TEMP = [(-10, 0.0), (7, 0.0), (12, 1.0), (21, 1.0), (27, 0.2), (40, 0.0)]  # Tmean, C
+
+# Delay from initiation to mature fruit bodies: thermal time above 4 C
+VIIVITUS_ALUS = 4.0
+VIIVITUS_KP = 170        # ~ 12 days at 18 C, ~ 28 days at 10 C
+VIIVITUS_MAX = 45        # days; primordia not mature by then are lost (autumn cold)
+
+# Fruit bodies (viljakeha): daily survival of the standing crop
+ELU_PAEV = 0.95          # half-life ~ 2 weeks in good conditions
+ELU_POUD = 0.88          # when w below 0.2 (tolerates moderate drought)
+ELU_KULM = 0.50          # frost: Tmin below KULM_PIIR
+KULM_PIIR = -1.5
+INDEKS_SKAALA = 3.0     # index = 1 - exp(-crop / INDEKS_SKAALA)
+
 # Weights of the weighted geometric mean
 KAALUD = {
     "puuliik": 0.25,
