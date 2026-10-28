@@ -163,14 +163,17 @@ def main():
     soil_score, soil_wet = soil_table()
     f = {
         "puuliik": stand_raster("puuliik"),
-        "kasvukoht": stand_raster("kasvukoht"),
         "vanus": stand_raster("vanus"),
+        "valgus": interp(cover, P.VALGUS),
+        "kasvukoht": stand_raster("kasvukoht"),
         "muld": soil_score[soil_idx],
-        "katvus": interp(cover, P.KATVUS),
         "mikroniiskus": interp(twi, P.TWI),
+        "tihedus": interp(cover, P.TIHEDUS),
     }
-    log_s = sum(P.KAALUD[k] * np.log(np.clip(v, 0.01, 1)) for k, v in f.items())
-    suit = np.where(forest, np.exp(log_s / sum(P.KAALUD.values())), np.nan).astype(np.float32)
+    limit = np.prod([np.clip(f[k], 0, 1) ** e for k, e in P.PIIRAVAD.items()], axis=0)
+    log_s = sum(w * np.log(np.clip(f[k], 0.01, 1)) for k, w in P.KAALUD.items())
+    mean = np.exp(log_s / sum(P.KAALUD.values()))
+    suit = np.where(forest, limit * mean, np.nan).astype(np.float32)
 
     regime = np.where(forest, st["reziim"].to_numpy()[row], 0).astype(np.int16)
     mineral = (regime >= 1) & (regime <= 3)
@@ -205,7 +208,9 @@ def main():
     for k, v in f.items():
         print(f"  {k:13s} keskmine {np.nanmean(v[forest]):.2f}")
     print("Sobivus (5/25/50/75/95):", np.percentile(s, [5, 25, 50, 75, 95]).round(2))
-    print("Sobivus >= 0.7:", f"{(s >= 0.7).mean():.1%} metsast")
+    for lo, hi, name in [(0.7, 1.01, "ideaalne/väga hea >= 0.7"), (0.4, 0.7, "hea 0.4-0.7"),
+                         (0.15, 0.4, "kehv 0.15-0.4"), (0, 0.15, "sobimatu < 0.15")]:
+        print(f"  {name:26s} {((s >= lo) & (s < hi)).mean():.1%} metsast")
     print("Veereziim:", {int(k): f"{v / forest.sum():.0%}" for k, v in zip(*np.unique(regime[forest], return_counts=True))})
 
 

@@ -37,8 +37,11 @@ KASVUKOHT_PUUDUB = (0.40, 2)
 # Stand age (years) -> score, piecewise linear (young to maturing best)
 VANUS = [(0, 0.0), (10, 0.0), (25, 1.0), (100, 1.0), (160, 0.6), (300, 0.6)]
 
-# Canopy cover (fraction > 5 m in 30 m window) -> score: open to medium best
-KATVUS = [(0.0, 0.10), (0.15, 0.10), (0.40, 1.0), (0.80, 1.0), (1.0, 0.75)]
+# Canopy cover (fraction > 5 m in 30 m window), split in two:
+#   VALGUS  limiting: no trees (clearcut, open land) -> near zero
+#   TIHEDUS preference: medium cover best, very dense somewhat worse
+VALGUS = [(0.0, 0.05), (0.15, 0.05), (0.40, 1.0), (1.0, 1.0)]
+TIHEDUS = [(0.0, 1.0), (0.80, 1.0), (1.0, 0.75)]
 
 # Topographic wetness index -> score (micro-moisture); very wet hollows are poor
 TWI = [(0, 0.85), (6, 0.85), (7.5, 1.0), (10, 1.0), (13, 0.6), (30, 0.5)]
@@ -105,12 +108,17 @@ ELU_KULM = 0.50          # frost: Tmin below KULM_PIIR
 KULM_PIIR = -1.5
 INDEKS_SKAALA = 3.0     # index = 1 - exp(-crop / INDEKS_SKAALA)
 
-# Weights of the weighted geometric mean
+# Suitability = limiting factors (multiplied) x weighted geometric mean of the others.
+# Limiting: without a host tree of fruiting age under some canopy there are no chanterelles,
+# however good the soil. Exponent < 1 softens the host score (spruce 0.75 -> 0.81).
+PIIRAVAD = {
+    "puuliik": 0.75,
+    "vanus": 1.0,
+    "valgus": 1.0,
+}
 KAALUD = {
-    "puuliik": 0.25,
-    "kasvukoht": 0.22,
-    "vanus": 0.13,
-    "muld": 0.15,
-    "katvus": 0.15,
-    "mikroniiskus": 0.10,
+    "kasvukoht": 0.45,
+    "muld": 0.30,
+    "mikroniiskus": 0.15,
+    "tihedus": 0.10,
 }

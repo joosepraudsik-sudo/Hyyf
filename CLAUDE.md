@@ -107,7 +107,7 @@ Leht (`leht/`, staatiline, MapLibre GL 4.7.1): 50 m ruudu kohta 5 baiti S_c (üm
 
 Viljumismudel (`viljumine.py`): veerežiimi klassi kaupa mullavee ämber (P − vahetus − KC·ET0·stress, põhjavee põhi märgadel klassidel) → niiskuse skoor; hooaeg = kraadipäevad > 5 °C × 6–13 nädala tagune niiskus; algus = märgumise tõuge või püsiv niiskus × temperatuur; küpsemine 170 kraadipäeva > 4 °C (max 45 päeva); viljakehade säilimine 0,95/päev, põud 0,88, külm 0,5. Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
 
-Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobivus = tegurite kaalutud geomeetriline keskmine.
+Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobivus = piiravad tegurid (puuliik^0,75 × vanus × valgus, korrutatakse) × ülejäänute kaalutud geomeetriline keskmine (kasvukoht 0,45, muld 0,30, mikroniiskus 0,15, tihedus 0,10). Piiravad, sest ilma sobiva peremeespuuta, viljumisealise puistu ja võrastikuta kukeseeni ei ole, olgu muld kui tahes hea.
 
 ## Järgmised sammud
 
