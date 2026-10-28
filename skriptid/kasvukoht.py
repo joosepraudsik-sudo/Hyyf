@@ -54,7 +54,7 @@ def stand_table():
 
     s1, s2 = layer("1"), layer("2")
     e1 = el[el["rinne_kood"] == "1"]
-    n_hosts = e1[(e1["score"] >= 0.6) & (e1["osakaal"] >= 20)].groupby("eraldis_id").size()
+    n_hosts = e1[(e1["score"] >= 0.6) & (e1["osakaal"] >= P.SEGU_MIN)].groupby("eraldis_id").size()
     age1 = e1[e1["enamus"] == True].groupby("eraldis_id")["vanus"].max()  # noqa: E712
 
     st = st.set_index("id")
@@ -146,7 +146,8 @@ def soil_table():
     tex = np.array([texture_score(f) for f in m["Lihtloimis"]], dtype=object)
     tex_s = tex[:, 0].astype(float)
     acid = np.where(tex[:, 1].astype(bool), acid * P.KARBONAATNE_KORES, acid)
-    score = wet ** 0.45 * tex_s ** 0.35 * acid ** 0.20
+    a = P.MULD_ASTMED
+    score = wet ** a["niiskus"] * tex_s ** a["loimis"] * acid ** a["hape"]
     # index 0 = no soil polygon -> neutral
     return np.concatenate([[0.7], score]), np.concatenate([[1.0], wet])
 
@@ -196,10 +197,11 @@ def main():
         "sidusus": interp(forest_share(cover, profile["transform"].a), P.SIDUSUS),
         "tihedus": interp(cover, P.TIHEDUS),
     }
+    # forest points: additive, each factor worth at most its weight (sum of weights = 100 points);
+    # limiting factors multiply, so good soil can never make up for missing host trees
     limit = np.prod([np.clip(f[k], 0, 1) ** e for k, e in P.PIIRAVAD.items()], axis=0)
-    log_s = sum(w * np.log(np.clip(f[k], 0.01, 1)) for k, w in P.KAALUD.items())
-    mean = np.exp(log_s / sum(P.KAALUD.values()))
-    suit = np.where(forest, limit * mean, np.nan).astype(np.float32)
+    points = sum(w * np.clip(f[k], 0, 1) for k, w in P.KAALUD.items()) / sum(P.KAALUD.values())
+    suit = np.where(forest, limit * points, np.nan).astype(np.float32)
 
     regime = np.where(forest, st["reziim"].to_numpy()[row], 0).astype(np.int16)
     mineral = (regime >= 1) & (regime <= 3)

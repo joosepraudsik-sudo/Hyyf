@@ -71,8 +71,20 @@ input[type="date"] {
 .nupurida { display: flex; gap: 6px; }
 .nupurida button { flex: 1; padding: 6px 4px; }
 #paevad button small { display: block; font-size: 11px; opacity: .75; }
+#paevad button .silt-pp { font-size: 10px; text-transform: uppercase; letter-spacing: .03em; opacity: .9; }
+.pp-markus { display: inline-block; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+             padding: 1px 6px; border-radius: 4px; background: var(--pind-2); border: 1px solid var(--joon); margin-right: 4px; }
 input[type="range"] { width: 100%; accent-color: var(--rohk); }
 
+.pea-nupud { display: flex; align-items: center; gap: 10px; }
+.luliti { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; cursor: pointer; user-select: none; }
+.luliti input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.luliti-rada { position: relative; width: 36px; height: 20px; border-radius: 10px; background: var(--joon); transition: background .15s; flex: none; }
+.luliti-rada::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
+                      background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s; }
+.luliti input:checked + .luliti-rada { background: #1e8a3e; }
+.luliti input:checked + .luliti-rada::after { transform: translateX(16px); }
+.luliti input:focus-visible + .luliti-rada { outline: 2px solid var(--rohk); outline-offset: 2px; }
 .lulitid { margin-bottom: 12px; }
 .lulitid button { font-size: 13px; }
 .arv { text-align: right; font-variant-numeric: tabular-nums; color: var(--tint-2); }
@@ -101,7 +113,10 @@ input[type="range"] { width: 100%; accent-color: var(--rohk); }
            border-top: 1px solid var(--joon); font-weight: 600; }
 .sel-osa small { flex-basis: 100%; font-weight: 400; font-size: 11px; color: var(--tint-2); }
 .sel-read { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
-.sel-read li { display: grid; grid-template-columns: 1fr 70px 26px; gap: 2px 8px; align-items: center; font-size: 12px; }
+.sel-read li { display: grid; grid-template-columns: 1fr 56px 46px; gap: 2px 8px; align-items: center; font-size: 12px; }
+.sel-read .arv { font-weight: 600; color: var(--tint); }
+.arvutus { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--pind-2); font-size: 12px; display: grid; gap: 3px; }
+.kaardi-giid { font-weight: 700; font-size: 16px; color: #1f1f1f; }
 .sel-read .pohjus { grid-column: 1 / -1; color: var(--tint-2); font-size: 11px; margin-top: -2px; }
 .mark { font-size: 10px; color: var(--tint-2); border: 1px solid var(--joon); border-radius: 4px; padding: 0 3px; }
 .riba { height: 7px; border-radius: 4px; background: var(--pind-2); overflow: hidden; }
@@ -138,6 +153,14 @@ input[type="range"] { width: 100%; accent-color: var(--rohk); }
 #giid th { text-align: left; font-weight: 600; color: var(--tint-2); font-size: 12px; border-bottom: 1px solid var(--joon); padding: 4px 0; }
 #giid td { padding: 3px 0; border-bottom: 1px solid var(--joon); }
 #giid th:last-child, #giid td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+.valemikast { margin: 12px 0; padding: 12px 14px; border-radius: 10px; background: var(--pind-2); border: 1px solid var(--joon);
+              display: grid; gap: 6px; font-size: 15px; }
+.valemikast small { color: var(--tint-2); font-size: 11px; }
+.vk { font-weight: 700; }
+.vk.hinne { color: var(--rohk); }
+.naide { border: 1px solid var(--joon); border-radius: 10px; padding: 4px 12px 8px; }
+#giid tr.summa td { font-weight: 700; border-bottom: 2px solid var(--joon); }
 
 #selgitus { border-top: 0; padding-top: 4px; }
 .tagasi { margin-bottom: 10px; padding: 4px 10px; font-size: 13px; }

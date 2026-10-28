@@ -111,9 +111,11 @@ Kasutaja varasema mudeli ideedest on kasutusel: samblikumännikud halvemad, TWI 
 
 Lehe giid ("Kuidas hinne tekib?") ehitatakse `window.SIIL.juhend` põhjal, mille `eksport.py` võtab otse `parameetrid.py`-st – parameetrite muutmisel uueneb ka giid.
 
-Leht: režiimid "Kus täna otsida" ja "Head metsad"; 3 klassi (väga hea / hea / võimalik, alla läve ei joonistata); 5 parimat kohta (≥ 500 m vahega); klõps näitab Koht × Aeg ja iga teguri skoori koos põhjusega (eraldise koosseis, vanus, kasvukoht, muld, katvus, TWI). Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
+Leht: lüliti "Seenekaart" päises; režiimid "Kus täna otsida" ja "Head metsad"; 3 klassi värvidega roheline (väga suur tõenäosus, ≥ 65), oranž (hea koht, ≥ 50), kollane (võimalik, ≥ 35), alla läve ei joonistata, kihi läbipaistvus 0,55; 5 parimat kohta (≥ 500 m vahega); klõps näitab arvutust rida-realt (metsa punktid X/max, kordajad ×, Koht × Aeg = hinne) koos põhjustega; "?" nupp kaardil ja paneelis avab punktitabeli.
 
-Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobivus = piiravad tegurid (puuliik^0,75 × vanus × valgus, korrutatakse) × ülejäänute kaalutud geomeetriline keskmine (kasvukoht 0,36, muld 0,24, mikroniiskus/TWI 0,12, ökotoon 0,10, metsamassiivi sidusus 0,09, tihedus 0,09). Vanus: alla 15 a 0, 15→40 a tõuseb, 40–120 a täis, 180 a juures 0,7. Ökotoon: kaugus soo-kasvukohast või turvasmullast, 20–200 m täis hinne, 400 m+ 0,7 (järved veel puudu). Piiravad, sest ilma sobiva peremeespuuta, viljumisealise puistu ja võrastikuta kukeseeni ei ole, olgu muld kui tahes hea.
+Ilm tänaseni: ERA5 (~5 p viivitusega) + Open-Meteo forecast API (`past_days=14`, `forecast_days=4`, mullatemperatuur tunniandmetest), `lae_testala.py` laeb prognoosi iga kord uuesti. Leht avaneb tänasel päeval, prognoosipäevad on märgitud. Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
+
+Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobivus (Koht) = metsa punktid × kordajad. Metsa punktid on liidetavad, iga kategooria annab kuni oma kaalu (kokku 100): kasvukoht 36, muld 24, mikroniiskus/TWI 12, ökotoon 10, metsamassiivi sidusus 9, tihedus 9. Kordajad (0–1, korrutatakse): puuliik^0,75 × vanus × valgus. Puuliigid: mänd 0,95, kuusk 0,75, kask 0,70; segametsa boonus +0,10, kui kaks sobivat liiki on kumbki ≥ 10% (männi enamusega segamets = parim). Vanus: alla 15 a 0, 15→40 a tõuseb, 40–120 a täis, 180 a juures 0,7. Ökotoon: kaugus soo-kasvukohast või turvasmullast, 20–200 m täis hinne, 400 m+ 0,7 (järved veel puudu). Piiravad, sest ilma sobiva peremeespuuta, viljumisealise puistu ja võrastikuta kukeseeni ei ole, olgu muld kui tahes hea.
 
 ## Järgmised sammud
 

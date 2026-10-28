@@ -5,14 +5,16 @@ All scores are 0..1, 1 = optimal.
 """
 
 # Host tree suitability by species (metsaregister puuliik_kood).
-# Pine best; spruce and birch good, especially in mixtures; oak and beech-family hosts fair.
+# Best: pine-dominated mixed forest with scattered spruce and/or birch (more host roots, dappled
+# light). Pure pine very good; pure spruce weaker (dark, needle litter, poor ground vegetation).
 PUULIIK = {
-    "MA": 1.00, "KU": 0.75, "KS": 0.70, "TA": 0.60, "LH": 0.50, "HB": 0.40,
+    "MA": 0.95, "KU": 0.75, "KS": 0.70, "TA": 0.60, "LH": 0.50, "HB": 0.40,
     "NU": 0.50, "TS": 0.50, "SD": 0.60, "PN": 0.30, "SA": 0.20, "VA": 0.20,
     "JA": 0.20, "LV": 0.20, "LM": 0.15, "RE": 0.10, "PP": 0.20,
 }
 PUULIIK_MUU = 0.20
-SEGU_BOONUS = 0.10        # >= 2 host species (score >= 0.6) each >= 20 %
+SEGU_BOONUS = 0.10        # >= 2 host species (score >= 0.6) each >= SEGU_MIN %
+SEGU_MIN = 10             # "scattered" admixture is enough
 TEINE_RINNE_KAAL = 0.3    # weight of the 2nd storey relative to the 1st
 
 # Forest site type (kasvukoht_kood): (suitability, water regime class)
@@ -73,6 +75,8 @@ MULD_GLEISTUNUD_G = 0.50   # LG, LkG, LPG ... gley variants
 MULD_GLEISTUNUD = 0.75     # ...g
 MULD_NORK_GLEI = 0.90      # ...(g)
 MULD_HAPE = {"K": 0.60, "KI": 0.85, "L": 1.00, "E": 0.95, "G": 0.85, "D": 0.85, "A": 0.70}
+# soil score = wetness^a x texture^b x acidity^c (wetness matters most)
+MULD_ASTMED = {"niiskus": 0.45, "loimis": 0.35, "hape": 0.20}
 
 # ================= Dynamic moisture and fruiting model =================
 
@@ -124,7 +128,8 @@ ELU_KULM = 0.50          # frost: Tmin below KULM_PIIR
 KULM_PIIR = -1.5
 INDEKS_SKAALA = 6.0     # index = min(1, crop / INDEKS_SKAALA); linear so halving the crop halves it
 
-# Suitability = limiting factors (multiplied) x weighted geometric mean of the others.
+# Suitability = limiting factors (multiplied) x forest points. Forest points are additive: each
+# factor gives at most its weight in points (weights sum to 1 = 100 points), easy to explain.
 # Limiting: without a host tree of fruiting age under some canopy there are no chanterelles,
 # however good the soil. Exponent < 1 softens the host score (spruce 0.75 -> 0.81).
 PIIRAVAD = {

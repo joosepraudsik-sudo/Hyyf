@@ -40,8 +40,27 @@ def load_weather(point):
         "tmuld": land["soil_temperature_0_to_7cm_mean"],
         "p": era5["precipitation_sum"],
         "et0": era5["et0_fao_evapotranspiration"],
-    })
-    return wx.dropna()
+    }).dropna()
+    wx["allikas"] = "era5"
+
+    # after the end of ERA5: recent model analysis and the forecast
+    fc_path = WX / f"prognoos_{point}.json"
+    if fc_path.exists():
+        fc = json.loads(fc_path.read_text("utf-8"))
+        d = pd.DataFrame(fc["daily"])
+        d = d.set_index(pd.to_datetime(d.pop("time")))
+        h = pd.DataFrame(fc["hourly"])
+        h = h.set_index(pd.to_datetime(h.pop("time")))
+        recent = pd.DataFrame({
+            "t": d["temperature_2m_mean"],
+            "tmin": d["temperature_2m_min"],
+            "tmuld": h["soil_temperature_6cm"].resample("D").mean(),
+            "p": d["precipitation_sum"],
+            "et0": d["et0_fao_evapotranspiration"],
+        }).dropna()
+        recent["allikas"] = np.where(recent.index.date > pd.Timestamp.today().date(), "prognoos", "analuus")
+        wx = pd.concat([wx, recent[recent.index > wx.index.max()]])
+    return wx
 
 
 def water_balance(wx, regime):
@@ -116,6 +135,7 @@ def main():
         wx = load_weather(point)
         for regime in P.VEEREZIIM:
             d = simulate(wx, regime)
+            d["allikas"] = wx["allikas"]
             d.insert(0, "klass", regime)
             d.insert(0, "punkt", point)
             rows.append(d)

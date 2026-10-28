@@ -112,6 +112,7 @@ def guide(site_names):
         "puuliik": sorted(([PUUD.get(k, k), round(v * 100)] for k, v in P.PUULIIK.items()), key=lambda r: -r[1]),
         "puuliik_muu": round(P.PUULIIK_MUU * 100),
         "segu_boonus": round(P.SEGU_BOONUS * 100),
+        "segu_min": P.SEGU_MIN,
         "teine_rinne": P.TEINE_RINNE_KAAL,
         "kasvukoht": sorted(([site_names.get(k, k), round(v[0] * 100)] for k, v in P.KASVUKOHT.items()),
                             key=lambda r: -r[1]),
@@ -127,6 +128,7 @@ def guide(site_names):
                          ["tugevalt gleistunud", round(P.MULD_GLEISTUNUD_G * 100)],
                          ["gleistunud", round(P.MULD_GLEISTUNUD * 100)], ["nõrgalt gleistunud", round(P.MULD_NORK_GLEI * 100)],
                          ["hästi dreenitud", 100]],
+        "muld_astmed": P.MULD_ASTMED,
         "muld_hape": [["leetunud (happeline)", round(P.MULD_HAPE["L"] * 100)], ["leetjas", round(P.MULD_HAPE["KI"] * 100)],
                       ["lubjarikas", round(P.MULD_HAPE["K"] * 100)]],
         "aeg": {
@@ -220,8 +222,12 @@ def main():
     days = cube.index
     arr = np.stack([cube[col].reindex(columns=pd.MultiIndex.from_product([names, CLASSES])).to_numpy()
                     .reshape(len(days), len(names), len(CLASSES)) for col in TIME_COLS], axis=-1)
+    source = fr.groupby("kuupaev")["allikas"].first().reindex(days)
+    today = pd.Timestamp.today().normalize()
     fruiting = {
-        "allikas": "ERA5 / ERA5-Land (Open-Meteo), arendusandmed",
+        "allikas": "ERA5 / ERA5-Land kuni ~5 päeva tagasi, edasi mudelianalüüs ja prognoos (Open-Meteo), arendusandmed",
+        "tana": f"{today:%Y-%m-%d}",
+        "paeva_allikas": source.fillna("era5").tolist(),
         "kuupaevad": [f"{x:%Y-%m-%d}" for x in days],
         "ilmapunktid": names,
         "klassid": CLASSES,

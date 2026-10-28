@@ -5,11 +5,14 @@
 
 const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 
-// Display classes per mode: [lower bound, label, colour]; below the last bound nothing is drawn
+// Display classes per mode: [lower bound, label, colour]; below the last bound nothing is drawn.
+// Thresholds are deliberately high: the map should send people to few, really good places.
+// Colours differ in lightness too (OKLab L 0.56 / 0.73 / 0.84), so they separate for colour-blind users.
 const KLASSID = {
-  tana: [[0.45, "Väga hea", "#8f3312"], [0.30, "Hea", "#eb6834"], [0.18, "Võimalik", "#f6b48f"]],
-  koht: [[0.70, "Väga hea mets", "#8f3312"], [0.50, "Hea mets", "#eb6834"], [0.30, "Keskmine mets", "#f6b48f"]],
+  tana: [[0.65, "Väga suur tõenäosus", "#1e8a3e"], [0.50, "Hea koht", "#f08a00"], [0.35, "Võimalik", "#f2c40f"]],
+  koht: [[0.80, "Väga hea mets", "#1e8a3e"], [0.65, "Hea mets", "#f08a00"], [0.50, "Keskmine mets", "#f2c40f"]],
 };
+const KIHI_TUGEVUS = 0.55;
 const PARIMAID = 5;
 const PARIM_VAHE_M = 500;    // best spots at least this far apart
 const PARIM_YMBER_M = 300;   // good forest counted within this radius of a spot
@@ -22,7 +25,7 @@ const TEGUR_NIMI = { puuliik: "Puuliigid", vanus: "Puistu vanus", valgus: "Valgu
   kasvukoht: "Metsatüüp", muld: "Muld", mikroniiskus: "Maastiku niiskus", okotoon: "Soo serv (ökotoon)",
   sidusus: "Metsamassiiv", tihedus: "Võra tihedus" };
 
-const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [] };
+const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [], kihtNahtav: true };
 const canvas = document.createElement("canvas");
 
 // ---------- data ----------
@@ -91,7 +94,8 @@ function joonista() {
   else {
     map.addSource("hinnang", { type: "image", url, coordinates: meta.nurgad });
     map.addLayer({ id: "hinnang", type: "raster", source: "hinnang",
-                   paint: { "raster-opacity": 0.78, "raster-resampling": "nearest", "raster-fade-duration": 0 } });
+                   layout: { visibility: olek.kihtNahtav ? "visible" : "none" },
+                   paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "nearest", "raster-fade-duration": 0 } });
   }
   const kohad = parimadKohad(v, kl);
   uuendaPaneel(kl, kohad);
@@ -130,8 +134,16 @@ function uuendaMarkerid(kohad) {
     el.textContent = i + 1;
     el.title = `${i + 1}. koht – hinne ${hinne(k.parim)}`;
     el.onclick = (e) => { e.stopPropagation(); naitaSelgitust(k.lnglat); };
+    el.hidden = !olek.kihtNahtav;
     return new maplibregl.Marker({ element: el }).setLngLat(k.lnglat).addTo(map);
   });
+}
+
+function lulitaKiht(nahtav) {
+  olek.kihtNahtav = nahtav;
+  if (map.getLayer("hinnang")) map.setLayoutProperty("hinnang", "visibility", nahtav ? "visible" : "none");
+  olek.markerid.forEach((m) => (m.getElement().hidden = !nahtav));
+  document.getElementById("kiht-luliti").checked = nahtav;
 }
 
 // ---------- panel ----------
@@ -149,7 +161,8 @@ function uuendaPaneel(kl, kohad) {
   for (let k = 0; k < 4; k++) {
     const i = p0 + k, d = vilj.kuupaevad[i];
     const b = document.createElement("button");
-    b.innerHTML = `${k === 0 ? "P" : "P+" + k}<small>${d ? d.slice(8) + "." + d.slice(5, 7) : "–"}</small>`;
+    const silt = d === vilj.tana ? "täna" : vilj.paeva_allikas[i] === "prognoos" ? "prognoos" : "";
+    b.innerHTML = `${k === 0 ? "P" : "P+" + k}<small>${d ? d.slice(8) + "." + d.slice(5, 7) : "–"}</small>${silt ? `<small class="silt-pp">${silt}</small>` : ""}`;
     b.disabled = !d || d.slice(0, 4) !== vilj.kuupaevad[p0].slice(0, 4);
     b.classList.toggle("aktiivne", i === paev);
     b.onclick = () => { olek.paev = i; joonista(); };
@@ -164,10 +177,14 @@ function uuendaPaneel(kl, kohad) {
     `<li><span class="lapp" style="background:${c}"></span><span>${nimi}</span><span class="arv">${Math.round(ha[j])} ha</span></li>`).join("");
 
   const kv = document.getElementById("kokkuvote");
+  const allikas = vilj.paeva_allikas[paev];
+  const paevaMarkus = allikas === "prognoos" ? `<span class="pp-markus">Prognoos</span> `
+    : vilj.kuupaevad[paev] === vilj.tana ? `<span class="pp-markus">Täna</span> ` : "";
   if (!tana) kv.textContent = "Metsad, kus kasvukoht sobib kukeseenele – ilmast sõltumata.";
-  else if (ha[0] + ha[1] < 5) kv.innerHTML = `<b>Kehv aeg.</b> ${aegPohjus(paev)}`;
-  else if (ha[0] + ha[1] < 100) kv.innerHTML = `<b>Leidub üksikuid häid kohti</b> – kokku ${Math.round(ha[0] + ha[1])} ha. ${aegPohjus(paev)}`;
-  else kv.innerHTML = `<b>Hea aeg – tasub minna.</b> Väga häid ja häid metsi kokku ${Math.round(ha[0] + ha[1])} ha.`;
+  else if (ha[0] + ha[1] < 5 && ha[2] >= 50) kv.innerHTML = `${paevaMarkus}<b>Tagasihoidlik aeg.</b> Kõrge hindega kohti pole, võimalikke ${Math.round(ha[2])} ha. ${aegPohjus(paev)}`;
+  else if (ha[0] + ha[1] < 5) kv.innerHTML = `${paevaMarkus}<b>Kehv aeg.</b> ${aegPohjus(paev)}`;
+  else if (ha[0] + ha[1] < 100) kv.innerHTML = `${paevaMarkus}<b>Leidub üksikuid häid kohti</b> – kokku ${Math.round(ha[0] + ha[1])} ha. ${aegPohjus(paev)}`;
+  else kv.innerHTML = `${paevaMarkus}<b>Hea aeg – tasub minna.</b> Väga häid ja häid metsi kokku ${Math.round(ha[0] + ha[1])} ha.`;
 
   const ol = document.getElementById("parimad");
   ol.innerHTML = kohad.length ? "" : `<li class="tuhi">Häid kohti selle päeva kohta ei ole.</li>`;
@@ -233,9 +250,11 @@ function tegurid(i) {
     sidusus: `${mets}% 300 m ümbrusest on mets${mets < 50 ? " – väike tukk, kuivab kiiresti" : ""}`,
     tihedus: katvus > 80 ? `väga tihe (${katvus}%), maapinnale jõuab vähe valgust` : "parajalt valgust",
   };
-  const piiravad = olek.meta.piiravad.map((nimi) => ({ nimi, v: t(nimi), pohjus: pohjus[nimi], piirav: true }));
-  const kaalutud = Object.keys(olek.meta.kaalud).map((nimi) => ({ nimi, v: t(nimi), pohjus: pohjus[nimi], kaal: olek.meta.kaalud[nimi] }));
-  return [...piiravad, ...kaalutud];
+  // multipliers (0..1, limiting) and forest points (each worth at most its weight x 100)
+  const astmed = window.SIIL.juhend.piiravad;
+  const kordajad = Object.keys(astmed).map((nimi) => ({ nimi, x: t(nimi) ** astmed[nimi], pohjus: pohjus[nimi] }));
+  const punktid = Object.entries(olek.meta.kaalud).map(([nimi, w]) => ({ nimi, p: t(nimi) * w * 100, max: w * 100, pohjus: pohjus[nimi] }));
+  return { kordajad, punktid };
 }
 
 // time part for day d, point p, class position j
@@ -258,41 +277,58 @@ function ajaSelgitus(d, p, j) {
   return { indeks, trend, read, kokku };
 }
 
-function riba(v, vihje) {
-  return `<span class="riba${vihje ? " nork" : ""}"><span style="width:${Math.round(v * 100)}%"></span></span><span class="arv">${hinne(v)}</span>`;
+const kord = (x) => "×" + x.toFixed(2).replace(".", ",");
+const pk = (x) => String(Math.round(x));
+
+function riba(osa, nork) {
+  return `<span class="riba${nork ? " nork" : ""}"><span style="width:${Math.round(Math.min(1, osa) * 100)}%"></span></span>`;
 }
 
 function naitaSelgitust(lnglat) {
   const i = rakk(lnglat[0] ?? lnglat.lng, lnglat[1] ?? lnglat.lat);
   if (i < 0 || olek.kiht.ilmapunkt[i] === 255) return;
   const p = olek.kiht.ilmapunkt[i];
-  const koht = kohaSobivus(i);
   // class that contributes most to this cell
   const j = olek.klassid.map((c) => olek.kiht["S" + c][i]).reduce((b, x, jj, a) => (x > a[b] ? jj : b), 0);
   const aeg = ajaSelgitus(olek.paev, p, j);
   const tana = olek.reziim === "tana";
-  const kokku = tana ? vaartus(i) : koht;
 
-  const tg = tegurid(i);
-  const nork = tg.reduce((a, b) => (b.v < a.v ? b : a));
+  // this 50 m cell, computed exactly as the model does: forest points x multipliers = Koht
+  const { kordajad, punktid } = tegurid(i);
+  const summa = punktid.reduce((s, r) => s + r.p, 0);
+  const kordaja = kordajad.reduce((s, r) => s * r.x, 1);
+  const koht = summa / 100 * kordaja;
+  const kokku = tana ? koht * aeg.indeks : koht;
+  const kaardil = tana ? vaartus(i) : kohaSobivus(i);
+
+  // weakest link: lowest multiplier, or the factor losing the most points
+  const halvimKordaja = kordajad.reduce((a, b) => (b.x < a.x ? b : a));
+  const enimKaotus = punktid.reduce((a, b) => (b.max - b.p > a.max - a.p ? b : a));
+  const nork = halvimKordaja.x < 0.6 ? { nimi: halvimKordaja.nimi, pohjus: halvimKordaja.pohjus } : enimKaotus;
   let lause;
-  if (koht < 0.3) lause = `Mets ei sobi hästi: ${TEGUR_NIMI[nork.nimi].toLowerCase()} – ${nork.pohjus}.`;
-  else if (!tana) lause = koht >= 0.7 ? "Väga hea kukeseene mets." : `Hea mets, kuid ${TEGUR_NIMI[nork.nimi].toLowerCase()} alandab hinnet.`;
-  else if (aeg.indeks < 0.2) lause = `Mets on ${koht >= 0.6 ? "hea" : "keskmine"}, aga aeg on vale. ${aeg.kokku}`;
-  else if (kokku >= 0.3) lause = "Hea mets ja hea aeg – tasub otsida.";
-  else lause = `Keskmine: ${koht < 0.6 ? "mets on keskpärane" : "seeni on veel vähe"}.`;
+  if (koht < 0.35) lause = `Mets ei sobi hästi: ${TEGUR_NIMI[nork.nimi].toLowerCase()} – ${nork.pohjus}.`;
+  else if (!tana) lause = koht >= 0.75 ? "Väga hea kukeseene mets." : `Hea mets, kuid ${TEGUR_NIMI[nork.nimi].toLowerCase()} alandab hinnet.`;
+  else if (aeg.indeks < 0.25) lause = `Mets on ${koht >= 0.65 ? "hea" : "keskmine"}, aga aeg on vale. ${aeg.kokku}`;
+  else if (kokku >= 0.45) lause = "Hea mets ja hea aeg – tasub otsida.";
+  else lause = `Keskmine: ${koht < 0.65 ? "mets on keskpärane" : "seeni on veel vähe"}.`;
 
-  const rida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi] || r.nimi}${r.piirav ? ' <span class="mark" title="Piirav tegur: korrutab kogu hinnet">×</span>' : ` <span class="mark" title="Kaal">${Math.round(r.kaal * 100)}%</span>`}</span>${riba(r.v, r === nork && r.v < 0.9)}<span class="pohjus">${r.pohjus}</span></li>`;
+  const kordRida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span>${riba(r.x, r.x < 0.9)}<span class="arv">${kord(r.x)}</span><span class="pohjus">${r.pohjus}</span></li>`;
+  const punktRida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span>${riba(r.p / r.max, r.p < 0.75 * r.max)}<span class="arv">${pk(r.p)}/${pk(r.max)}</span><span class="pohjus">${r.pohjus}</span></li>`;
   const html = `
     <div class="sel-pea"><span class="sel-arv">${hinne(kokku)}</span><span>${lause}</span></div>
-    ${tana ? `<div class="valem">Koht ${hinne(koht)} × Aeg ${hinne(aeg.indeks)}</div>` : ""}
-    <div class="sel-osa">Koht <span class="arv">${hinne(koht)}</span><small>100 m ümbruse keskmine; tegurid selle 50 m ruudu kohta</small></div>
-    <ul class="sel-read">${tg.map(rida).join("")}</ul>
-    ${tana ? `<div class="sel-osa">Aeg <span class="arv">${hinne(aeg.indeks)}</span><small>${olek.meta.klassid[olek.klassid[j]]} mets · seeni ${aeg.trend}</small></div>
-    <ul class="sel-read">${aeg.read.map((r) => `<li><span class="tegur">${r.nimi}</span>${riba(r.v, r.v < 0.5)}<span class="pohjus">${r.pohjus}</span></li>`).join("")}</ul>
-    <p class="sel-markus">Seened tekivad 1–3 nädalat pärast vihma. „Aeg“ näitab, kui palju neid praegu metsas on.</p>` : ""}
-    <p class="sel-markus">× piirav tegur (korrutab kogu hinnet) · % kaal ülejäänud tegurite keskmises</p>
-    <button class="giid-nupp vaike-nupp" onclick="avaGiid()"><span class="ikoon-ring">?</span> Kuidas hinne tekib?</button>`;
+    <div class="arvutus">
+      <div>Metsa punktid <b>${pk(summa)}</b>/100 × kordajad <b>${kord(kordaja)}</b> = Koht <b>${hinne(koht)}</b></div>
+      ${tana ? `<div>Koht <b>${hinne(koht)}</b> × Aeg <b>${hinne(aeg.indeks)}%</b> = hinne <b>${hinne(kokku)}</b></div>` : ""}
+    </div>
+    <div class="sel-osa">Metsa punktid <span class="arv">${pk(summa)}/100</span><small>iga kategooria annab kuni oma maksimumi</small></div>
+    <ul class="sel-read">${punktid.map(punktRida).join("")}</ul>
+    <div class="sel-osa">Kordajad <span class="arv">${kord(kordaja)}</span><small>korrutavad metsa punkte: ilma sobivate ja piisavalt vanade puudeta seeni pole</small></div>
+    <ul class="sel-read">${kordajad.map(kordRida).join("")}</ul>
+    ${tana ? `<div class="sel-osa">Aeg <span class="arv">${hinne(aeg.indeks)}%</span><small>kui palju seeni praegu metsas on (${olek.meta.klassid[olek.klassid[j]]} mets) · ${aeg.trend}</small></div>
+    <ul class="sel-read">${aeg.read.map((r) => `<li><span class="tegur">${r.nimi}</span>${riba(r.v, r.v < 0.5)}<span class="arv">${hinne(r.v)}%</span><span class="pohjus">${r.pohjus}</span></li>`).join("")}</ul>
+    <p class="sel-markus">Need tingimused määravad, kas uusi seeni tekib. Seened on korjatavad 1–3 nädalat pärast vihma.</p>` : ""}
+    <p class="sel-markus">Arvutus on selle 50 m ruudu kohta. Kaardi värv on 100 m ümbruse keskmine: ${hinne(kaardil)}.</p>
+    <button class="giid-nupp vaike-nupp" onclick="avaGiid()"><span class="ikoon-ring">?</span> Punktitabel</button>`;
   peidaSelgitus();
   if (innerWidth > 640) {
     olek.popup = new maplibregl.Popup({ maxWidth: "340px", className: "selgitus" })
@@ -322,16 +358,26 @@ function peidaSelgitus() {
 
 const nr = (x) => String(x).replace(".", ",");
 
-// piecewise-linear curve [[x, points], ...] -> readable rows
-function kover(punktid, yhik = "") {
+// piecewise-linear curve [[x, score 0..100], ...] -> readable rows; fy formats the score
+function kover(punktid, yhik = "", fy = (y) => `${y}`) {
   const read = [];
   for (let i = 0; i + 1 < punktid.length; i++) {
     const [x0, y0] = punktid[i], [x1, y1] = punktid[i + 1];
     if (x1 === x0) continue;
     const vahemik = i === 0 && x0 <= 0 ? `alla ${nr(x1)}${yhik}` : x1 >= 10000 || i === punktid.length - 2 && y0 === y1 ? `üle ${nr(x0)}${yhik}` : `${nr(x0)}–${nr(x1)}${yhik}`;
-    read.push([vahemik, y0 === y1 ? `${y0}` : `${y0} → ${y1}`]);
+    read.push([vahemik, y0 === y1 ? fy(y0) : `${fy(y0)} → ${fy(y1)}`]);
   }
   return read;
+}
+
+// value of a curve at x (same linear interpolation as the model)
+function kohal(punktid, x) {
+  if (x <= punktid[0][0]) return punktid[0][1];
+  for (let i = 1; i < punktid.length; i++) {
+    const [x0, y0] = punktid[i - 1], [x1, y1] = punktid[i];
+    if (x <= x1) return y0 + (y1 - y0) * (x - x0) / (x1 - x0);
+  }
+  return punktid.at(-1)[1];
 }
 
 const tabel = (read, pais = ["", "punkte"]) =>
@@ -341,35 +387,80 @@ const osa = (pealkiri, sisu, lahti = false) => `<details${lahti ? " open" : ""}>
 
 function giidHtml() {
   const J = window.SIIL.juhend, A = J.aeg, k = KLASSID.tana;
-  const kaalud = Object.entries(J.kaalud).map(([n, w]) =>
-    `<li><span>${TEGUR_NIMI[n]}</span><span class="riba"><span style="width:${w * 250}%"></span></span><span class="arv">${Math.round(w * 100)}%</span></li>`).join("");
+  const max = Object.fromEntries(Object.entries(J.kaalud).map(([n, w]) => [n, Math.round(w * 100)]));
+  const p = (n) => (y) => pk(y / 100 * max[n]);            // score 0..100 -> points of category n
+  const x = (y) => kord(y / 100);                          // score 0..100 -> multiplier
+  const ylevaade = Object.entries(max).map(([n, m]) =>
+    `<li><span>${TEGUR_NIMI[n]}</span><span class="riba"><span style="width:${m / 36 * 100}%"></span></span><span class="arv">${m} p</span></li>`).join("");
+
+  // worked example, computed with the same rules
+  const M = J.muld_astmed;
+  const mullaP = (loimis, niiskus, hape) => max.muld * (loimis / 100) ** M.loimis * (niiskus / 100) ** M.niiskus * (hape / 100) ** M.hape;
+  const puuMA = J.puuliik.find((r) => r[0] === "mänd")[1], puuKU = J.puuliik.find((r) => r[0] === "kuusk")[1];
+  const n2 = {
+    kasvukoht: max.kasvukoht * J.kasvukoht.find((r) => r[0] === "pohla")[1] / 100,
+    muld: mullaP(J.loimis.find((r) => r[0] === "saviliiv")[1], J.muld_niiskus.find((r) => r[0] === "nõrgalt gleistunud")[1], 100),
+    mikroniiskus: max.mikroniiskus * kohal(J.twi, 8) / 100,
+    okotoon: max.okotoon * kohal(J.okotoon, 300) / 100,
+    sidusus: max.sidusus * kohal(J.sidusus, 90) / 100,
+    tihedus: max.tihedus * kohal(J.tihedus, 95) / 100,
+  };
+  const nSumma = Object.values(n2).reduce((a, b) => a + b, 0);
+  const nPuu = Math.min(1, (0.6 * puuMA + 0.4 * puuKU) / 100 + J.segu_boonus / 100) ** J.piiravad.puuliik;
+  const nKord = nPuu * kohal(J.vanus, 55) / 100 * kohal(J.valgus, 95) / 100;
+  const nKoht = nSumma / 100 * nKord, nAeg = 0.6;
+
   return `
-  <p class="giid-juhis"><b>Hinne (0–100) = Koht × Aeg.</b> „Koht“ ütleb, kas mets sobib kukeseenele, „Aeg“ ütleb, kas ilm on viimastel nädalatel seeni tekitanud. Näide: Koht 80 × Aeg 50 → hinne 40.</p>
-  <ul class="giid-klassid">${k.map(([piir, nimi, c]) => `<li><span class="lapp" style="background:${c}"></span>${nimi}: hinne ${Math.round(piir * 100)} või rohkem</li>`).join("")}
+  <div class="valemikast">
+    <div><span class="vk">Metsa punktid</span> <small>0–100</small> × <span class="vk">Kordajad</span> <small>0–1</small> = <span class="vk">Koht</span></div>
+    <div><span class="vk">Koht</span> × <span class="vk">Aeg</span> <small>0–100%</small> = <span class="vk hinne">Hinne</span></div>
+  </div>
+  <ul class="giid-klassid">${k.map(([piir, nimi, c]) => `<li><span class="lapp" style="background:${c}"></span><b>${nimi}</b>: hinne ${Math.round(piir * 100)} või rohkem</li>`).join("")}
     <li><span class="lapp tuhi-lapp"></span>alla ${Math.round(k.at(-1)[0] * 100)} – kaardil ei näidata</li></ul>
 
-  <h3>Koht – kas mets sobib</h3>
-  <p><b>1. samm – piiravad tegurid korrutatakse.</b> Kukeseen elab ainult koos elava puuga, seega kui üks neist on null, on ka koht null – olgu muld kui tahes hea:</p>
-  <ul class="giid-loend">${Object.keys(J.piiravad).map((n) => `<li><b>${TEGUR_NIMI[n]}</b></li>`).join("")}</ul>
-  <p><b>2. samm – ülejäänud tegurid annavad kaalutud keskmise.</b> Kehv tegur tõmbab hinnet alla, head tegurid ei korva seda täielikult.</p>
-  <ul class="giid-kaalud">${kaalud}</ul>
-  <p class="vaike">Iga tegur annab 0–100 punkti (100 = ideaalne). Allpool on kõigi tegurite punktitabelid.</p>
+  <h3>1. Metsa punktid – kokku 100</h3>
+  <p>Iga kategooria annab kuni oma maksimumi. Punktid liidetakse.</p>
+  <ul class="giid-kaalud">${ylevaade}</ul>
+  ${osa(`Metsatüüp – kuni ${max.kasvukoht} p`, `${tabel(J.kasvukoht.map(([n, y]) => [n, p("kasvukoht")(y)]), ["kasvukohatüüp", "punkte"])}<p class="vaike">Kõige parem üksiknäitaja: võtab kokku mulla niiskuse, viljakuse ja alustaimestiku. Liiga viljakas (naadi, angervaksa) – lopsakas rohustu; liiga kuiv (sambliku) – porosamblik ja kõrvetav päike.</p>`)}
+  ${osa(`Muld – kuni ${max.muld} p`, `${tabel([
+      ["liiv, kuiv, happeline", pk(mullaP(100, 100, 100))],
+      ["saviliiv, nõrgalt gleistunud", pk(mullaP(90, 90, 100))],
+      ["saviliiv, gleistunud", pk(mullaP(90, 75, 100))],
+      ["liivsavi, gleimuld (märg)", pk(mullaP(65, 35, 85))],
+      ["savi, lubjarikas", pk(mullaP(35, 100, 60))],
+      ["turvasmuld", pk(mullaP(30, 10, 100))]], ["muld (näited)", "punkte"])}
+    <p class="vaike">Mulla punktid tulevad kolmest omadusest: liigniiskus (kaalub kõige rohkem), lõimis (liiv parim, savi halvim) ja happesus (happeline parim, lubjarikas ja paekivine halvem). Allikas: Maa- ja Ruumiameti mullakaart.</p>`)}
+  ${osa(`Maastiku niiskus – kuni ${max.mikroniiskus} p`, `${tabel(kover(J.twi, "", p("mikroniiskus")), ["märgumisindeks (TWI)", "punkte"])}<p class="vaike">TWI näitab kõrgusmudeli järgi, kuhu vesi koguneb: väike = seljak, kuivab kiiresti; suur = lohk või kraav, seisev vesi lämmatab seeneniidistiku. Parim on parasniiske nõlv.</p>`)}
+  ${osa(`Soo serv (ökotoon) – kuni ${max.okotoon} p`, `${tabel(kover(J.okotoon, " m", p("okotoon")), ["kaugus soost/rabast", "punkte"])}<p class="vaike">Mineraalmullal mets soo või raba lähedal: puu juured saavad hapnikku, soo hoiab öise udu ja õhuniiskuse – seened ei kuiva.</p>`)}
+  ${osa(`Metsamassiiv – kuni ${max.sidusus} p`, `${tabel(kover(J.sidusus, "%", p("sidusus")), [`metsa osakaal ${J.sidusus_raadius} m ümbruses`, "punkte"])}<p class="vaike">Suur katkematu mets hoiab mikrokliimat; väike tukk põllu või tee ääres kuivab kiiresti.</p>`)}
+  ${osa(`Võra tihedus – kuni ${max.tihedus} p`, `${tabel(kover(J.tihedus, "%", p("tihedus")), ["võrastiku katvus", "punkte"])}<p class="vaike">Kõige parem on täpiline valgus. Kottpime kuusik saab vähem.</p>`)}
 
-  ${osa("Puuliigid ×", `${tabel(J.puuliik, ["puuliik", "punkte"])}<p class="vaike">Muud liigid ${J.puuliik_muu}. Punktid kaalutakse liigi osakaaluga ülemises rindes; alumine rinne läheb arvesse ${Math.round(J.teine_rinne * 100)}% kaaluga. Segametsa boonus +${J.segu_boonus}, kui kaks sobivat liiki on kumbki vähemalt 20%. Mõju on veidi pehmendatud: kuusik (75) annab lõpphindele teguri 0,81.</p>`)}
-  ${osa("Puistu vanus ×", `${tabel(kover(J.vanus, " a"), ["vanus", "punkte"])}<p class="vaike">Noored puud kulutavad süsiniku oma kasvule; seeneniidistik vajab aastakümneid, et muutuda viljakaks. Vanus arvestatakse metsaregistri inventeerimisest tänasesse.</p>`)}
-  ${osa("Valgus (võrastik olemas) ×", `${tabel(kover(J.valgus, "%"), ["võrastiku katvus", "punkte"])}<p class="vaike">Katvus = kui suur osa maast on üle 5 m kõrguste puude all (lidar). Raiesmik ja lage maa ≈ 0.</p>`)}
-  ${osa("Metsatüüp", `${tabel(J.kasvukoht, ["kasvukohatüüp", "punkte"])}<p class="vaike">Kõige parem üksiknäitaja: võtab kokku mulla niiskuse, viljakuse ja alustaimestiku. Liiga viljakas (naadi, angervaksa) – lopsakas rohustu; liiga kuiv (sambliku) – porosamblik ja kõrvetav päike.</p>`)}
-  ${osa("Muld", `${tabel(J.loimis, ["lõimis", "punkte"])}${tabel(J.muld_niiskus, ["liigniiskus", "punkte"])}${tabel(J.muld_hape, ["happesus", "punkte"])}<p class="vaike">Mulla hinne = niiskus (kaalub kõige rohkem) × lõimis × happesus. Paekivine kores alandab happesust. Allikas: Maa- ja Ruumiameti mullakaart.</p>`)}
-  ${osa("Maastiku niiskus", `${tabel(kover(J.twi), ["märgumisindeks (TWI)", "punkte"])}<p class="vaike">TWI näitab kõrgusmudeli järgi, kuhu vesi koguneb: väike = seljak, kuivab kiiresti; suur = lohk või kraav, seisev vesi lämmatab seeneniidistiku. Parim on parasniiske nõlv.</p>`)}
-  ${osa("Soo serv (ökotoon)", `${tabel(kover(J.okotoon, " m"), ["kaugus soost/rabast", "punkte"])}<p class="vaike">Liivasel mineraalmullal mets soo või raba lähedal: mänd saab juurtele hapnikku, soo hoiab öise udu ja õhuniiskuse – viljakehad ei kuiva. Soo = metsaregistri soo-kasvukohad ja mullakaardi turvasmullad.</p>`)}
-  ${osa("Metsamassiiv", `${tabel(kover(J.sidusus, "%"), [`metsa osakaal ${J.sidusus_raadius} m ümbruses`, "punkte"])}<p class="vaike">Suur katkematu mets hoiab mikrokliimat; väike tukk põllu või tee ääres kuivab kiiresti.</p>`)}
-  ${osa("Võra tihedus", `${tabel(kover(J.tihedus, "%"), ["võrastiku katvus", "punkte"])}<p class="vaike">Kõige parem on täpiline valgus (hõre kuni keskmine liitus). Kottpime kuusik on halvem.</p>`)}
+  <h3>2. Kordajad – korrutavad metsa punkte</h3>
+  <p>Kukeseen elab ainult koos elava puuga. Kordaja ×1,00 ei muuda midagi, ×0,50 poolitab, ×0 nullib – olgu muld kui tahes hea.</p>
+  ${osa("Puuliigid", `${tabel(J.puuliik.map(([n, y]) => [`puhas ${n}`, x(100 * (y / 100) ** J.piiravad.puuliik)]), ["puistu", "kordaja"])}
+    <p class="vaike"><b>Parim on männi enamusega segamets</b>, kus kasvab hajusalt kuuske või kaske (×1,00): kui kaks sobivat liiki on kumbki vähemalt ${J.segu_min}%, tuleb boonus. Liigid kaalutakse osakaaluga; alumine rinne läheb arvesse ${Math.round(J.teine_rinne * 100)}% kaaluga.</p>`)}
+  ${osa("Puistu vanus", `${tabel(kover(J.vanus, " a", x), ["vanus", "kordaja"])}<p class="vaike">Noored puud kulutavad süsiniku oma kasvule; seeneniidistik vajab aastakümneid, et muutuda viljakaks.</p>`)}
+  ${osa("Valgus (võrastik olemas)", `${tabel(kover(J.valgus, "%", x), ["võrastiku katvus", "kordaja"])}<p class="vaike">Katvus = kui suur osa maast on üle 5 m kõrguste puude all (lidar). Raiesmik ja lage maa ≈ 0.</p>`)}
 
-  <h3>Aeg – kas seeni on praegu metsas</h3>
-  ${osa("Mulla niiskus", `<p>Iga päev arvutatakse mulla veevaru: vihm miinus aurumine. Sama vihm mõjub eri metsades erinevalt, sest „veeämber“ on eri suurusega: ${Object.values(A.reziim).map((r) => `${r.nimi} ${r.kp} mm`).join(", ")}. Märgades metsades hoiab põhjavesi veevaru üleval, kuid liiga märg on halb.</p>${tabel(kover(A.niiskus.map(([x, y]) => [Math.round(x * 100), y]), "%"), ["veevaru täidetus", "punkte"])}`, true)}
-  ${osa("Hooaeg", `<p>Suvi peab olema piisavalt soe: kraadipäevad üle ${nr(A.kp_alus)} °C alates 1. jaanuarist.</p>${tabel(kover(A.hooaeg_kp), ["kraadipäevi", "punkte"])}<p class="vaike">Arvesse läheb ka 6–13 nädala tagune niiskus: kuiv kevadsuvi vähendab seeni hiljem.</p>`)}
-  ${osa("Soojus uute seente tekkeks", `${tabel(kover(A.algus_temp, " °C"), ["õhu keskmine temperatuur", "punkte"])}${tabel(kover(A.mulla_temp, " °C"), [`mulla temperatuur (${A.mulla_temp_aken} p keskmine)`, "punkte"])}<p class="vaike">Sügisel jaheneva mullaga uusi seeni enam ei teki – nii lõpeb hooaeg.</p>`)}
-  ${osa("Viivitus ja säilimine", `<ul class="giid-loend"><li>Vihm käivitab viljumise, aga seened on korjatavad alles ${A.viivitus_kp} kraadipäeva (üle ${nr(A.viivitus_alus)} °C) pärast: soojaga ~12 päeva, jahedaga ~4 nädalat. Kui ${A.viivitus_max} päevaga ei küpse, alged hukkuvad.</li><li>Valmis seentest kaob iga päev ~${A.elu}%, jahedaga (alla ${nr(A.jahe)} °C) ~${A.elu_jahe}%, öökülmaga (alla ${nr(A.kulm)} °C) pooled.</li><li>Seetõttu määrab ka 3 päeva prognoosi peamiselt juba möödunud ilm.</li></ul>`)}
+  <h3>3. Aeg – kui palju seeni praegu metsas on</h3>
+  <p>Aeg (0–100%) tuleb ilmast. Uued seened tekivad, kui kolm tingimust on korraga täidetud; korjatavaks saavad nad 1–3 nädala pärast ja püsivad umbes kaks nädalat.</p>
+  ${osa("Mulla niiskus", `<p>Iga päev arvutatakse mulla veevaru: vihm miinus aurumine. Sama vihm mõjub eri metsades erinevalt, sest „veeämber“ on eri suurusega: ${Object.values(A.reziim).map((r) => `${r.nimi} ${r.kp} mm`).join(", ")}.</p>${tabel(kover(A.niiskus.map(([xx, y]) => [Math.round(xx * 100), y]), "%", (y) => y + "%"), ["veevaru täidetus", "tingimus täidetud"])}`)}
+  ${osa("Hooaeg", `<p>Suvi peab olema piisavalt soe: kraadipäevad üle ${nr(A.kp_alus)} °C alates 1. jaanuarist. Arvesse läheb ka 6–13 nädala tagune niiskus.</p>${tabel(kover(A.hooaeg_kp, "", (y) => y + "%"), ["kraadipäevi", "tingimus täidetud"])}`)}
+  ${osa("Soojus", `${tabel(kover(A.algus_temp, " °C", (y) => y + "%"), ["õhu keskmine temperatuur", "tingimus täidetud"])}${tabel(kover(A.mulla_temp, " °C", (y) => y + "%"), [`mulla temperatuur (${A.mulla_temp_aken} p keskmine)`, "tingimus täidetud"])}<p class="vaike">Sügisel jaheneva mullaga uusi seeni enam ei teki – nii lõpeb hooaeg.</p>`)}
+  ${osa("Viivitus ja säilimine", `<ul class="giid-loend"><li>Seened on korjatavad ${A.viivitus_kp} kraadipäeva (üle ${nr(A.viivitus_alus)} °C) pärast vihma: soojaga ~12 päeva, jahedaga ~4 nädalat.</li><li>Valmis seentest kaob iga päev ~${A.elu}%, jahedaga ~${A.elu_jahe}%, öökülmaga pooled.</li><li>Seetõttu määrab ka 3 päeva prognoosi peamiselt juba möödunud ilm.</li></ul>`)}
+
+  <h3>Näide</h3>
+  <div class="naide">
+    <p>Pohla kasvukoht, saviliiv, männik 6 osa mändi + 4 osa kuuske, 55 a, 300 m soost, suur mets:</p>
+    <table><tbody>
+      ${Object.entries(n2).map(([nn, v]) => `<tr><td>${TEGUR_NIMI[nn]}</td><td>${pk(v)}/${max[nn]}</td></tr>`).join("")}
+      <tr class="summa"><td>Metsa punktid</td><td>${pk(nSumma)}/100</td></tr>
+      <tr><td>Kordajad: puud ${kord(nPuu)} · vanus ×1,00 · valgus ×1,00</td><td>${kord(nKord)}</td></tr>
+      <tr class="summa"><td>Koht = ${pk(nSumma)} × ${kord(nKord).slice(1)}</td><td>${hinne(nKoht)}</td></tr>
+      <tr><td>Aeg (hea seeneaeg)</td><td>${hinne(nAeg)}%</td></tr>
+      <tr class="summa"><td>Hinne = ${hinne(nKoht)} × ${nr(nAeg)}</td><td>${hinne(nKoht * nAeg)}</td></tr>
+    </tbody></table>
+  </div>
 
   <p class="markus">Kõik numbrid on ekspertteadmistel põhinevad hüpoteesid. Mudelit ei ole veel päris leidudega kontrollitud.</p>`;
 }
@@ -406,6 +497,17 @@ const map = new maplibregl.Map({ container: "kaart", style: kaardiStiil(), cente
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
 map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
 map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), "top-right");
+// scoring guide always one click away, also when the panel is collapsed
+map.addControl({
+  onAdd() {
+    const div = document.createElement("div");
+    div.className = "maplibregl-ctrl maplibregl-ctrl-group";
+    div.innerHTML = `<button class="kaardi-giid" type="button" title="Punktitabel – kuidas hinne tekib">?</button>`;
+    div.querySelector("button").onclick = avaGiid;
+    return div;
+  },
+  onRemove() {},
+}, "top-right");
 
 // data comes from andmed/testala_5458.js (window.SIIL), a plain script so file:// works too;
 // only wait for the style, not for all basemap tiles ("load")
@@ -422,7 +524,10 @@ map.once("style.load", () => {
   map.fitBounds([m.nurgad[3], m.nurgad[1]], {
     padding: { top: 40, right: 40, left: lai ? 340 : 20, bottom: lai ? 40 : innerHeight * 0.45 + 20 }, duration: 0,
   });
-  valiKuupaev(olek.vilj.kuupaevad.length - 4);   // demo: "today" = 3 days before the last date
+  // open on today if the data covers it, otherwise on the last measured day
+  const tana = olek.vilj.kuupaevad.indexOf(olek.vilj.tana);
+  const viimaneMoot = olek.vilj.paeva_allikas.lastIndexOf("analuus");
+  valiKuupaev(tana >= 0 ? tana : Math.max(viimaneMoot, olek.vilj.kuupaevad.length - 4));
 });
 
 map.on("mousemove", (e) => {
@@ -452,6 +557,7 @@ document.querySelectorAll("#aluskaart button").forEach((b) => b.onclick = () => 
     map.setLayoutProperty(x.dataset.kiht, "visibility", x === b ? "visible" : "none");
   });
 });
+document.getElementById("kiht-luliti").onchange = (e) => lulitaKiht(e.target.checked);
 document.getElementById("giid-nupp").onclick = avaGiid;
 document.getElementById("giid-sulge").onclick = () => document.getElementById("giid").close();
 document.getElementById("giid").addEventListener("click", (e) => {

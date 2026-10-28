@@ -30,8 +30,8 @@ session = requests.Session()
 session.headers["User-Agent"] = "siil-korilase-kompass/0.1"
 
 
-def fetch(url, path: Path, **kw):
-    if path.exists() and path.stat().st_size > 0:
+def fetch(url, path: Path, refresh=False, **kw):
+    if not refresh and path.exists() and path.stat().st_size > 0:
         print(f"  olemas: {path.name}")
         return
     print(f"  laen: {path.name}")
@@ -104,6 +104,17 @@ def main():
                    f"&daily={variables}&models={model}&timezone=Europe%2FTallinn")
             fetch(url, ROOT / "ilm" / f"{model.replace('_', '')}_{name}.json")
             time.sleep(1)
+
+    # ERA5 lags ~5 days: the last two weeks up to today and the next 3 days come from the
+    # forecast API (model analysis + forecast). Always refreshed.
+    print("   + viimased 14 paeva ja 3 paeva prognoos (Open-Meteo forecast)")
+    for name, (lat, lon) in ILMAPUNKTID.items():
+        url = ("https://api.open-meteo.com/v1/forecast"
+               f"?latitude={lat}&longitude={lon}&past_days=14&forecast_days=4"
+               "&daily=temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
+               "et0_fao_evapotranspiration&hourly=soil_temperature_6cm&timezone=Europe%2FTallinn")
+        fetch(url, ROOT / "ilm" / f"prognoos_{name}.json", refresh=True)
+        time.sleep(1)
 
     print(f"\nValmis. Andmed: {ROOT}")
 

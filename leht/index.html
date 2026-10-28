@@ -17,14 +17,21 @@
         <h1>Siil</h1>
         <span class="alapealkiri">korilase kompass</span>
       </div>
-      <button id="ahenda" class="ikoon" aria-expanded="true" aria-controls="sisu" title="Peida paneel">–</button>
+      <div class="pea-nupud">
+        <label class="luliti" title="Näita või peida seenekaart">
+          <input type="checkbox" id="kiht-luliti" checked>
+          <span class="luliti-rada" aria-hidden="true"></span>
+          <span>Seenekaart</span>
+        </label>
+        <button id="ahenda" class="ikoon" aria-expanded="true" aria-controls="sisu" title="Peida paneel">–</button>
+      </div>
     </header>
 
     <div id="sisu">
       <section id="selgitus" hidden></section>
       <p class="liik">Harilik kukeseen <i>Cantharellus cibarius</i></p>
 
-      <button id="giid-nupp" class="giid-nupp"><span class="ikoon-ring">?</span> Kuidas hinne tekib?</button>
+      <button id="giid-nupp" class="giid-nupp"><span class="ikoon-ring">?</span> Punktitabel – kuidas hinne tekib</button>
 
       <div id="reziim" class="nupurida lulitid" role="group" aria-label="Mida kaart näitab">
         <button data-reziim="tana" class="aktiivne">Kus täna otsida</button>
@@ -67,7 +74,7 @@
 
   <dialog id="giid" aria-labelledby="giid-pealkiri">
     <header class="giid-pea">
-      <h2 id="giid-pealkiri">Kuidas hinne tekib</h2>
+      <h2 id="giid-pealkiri">Punktitabel – kuidas hinne tekib</h2>
       <button class="ikoon" id="giid-sulge" title="Sulge">✕</button>
     </header>
     <div id="giid-sisu"></div>
