@@ -37,6 +37,7 @@ def load_weather(point):
     wx = pd.DataFrame({
         "t": land["temperature_2m_mean"],
         "tmin": land["temperature_2m_min"],
+        "tmuld": land["soil_temperature_0_to_7cm_mean"],
         "p": era5["precipitation_sum"],
         "et0": era5["et0_fao_evapotranspiration"],
     })
@@ -82,7 +83,9 @@ def simulate(wx, regime):
     # initiation: wetting pulse or sustained moisture
     dw = w - np.concatenate([np.full(3, w[0]), w[:-3]])
     pulse = np.clip(dw / P.TOUKE_DW, 0, 1)
-    init = np.maximum(pulse, P.TOUKE_PUSIV) * moist * interp(t, P.ALGUS_TEMP) * season
+    soil_t = wx["tmuld"].rolling(P.MULLA_TEMP_AKEN, min_periods=1).mean().to_numpy()
+    temp = interp(t, P.ALGUS_TEMP) * interp(soil_t, P.MULLA_TEMP)
+    init = np.maximum(pulse, P.TOUKE_PUSIV) * moist * temp * season
 
     # thermal-time delay to mature fruit bodies
     ct = np.cumsum(np.maximum(t - P.VIIVITUS_ALUS, 0))
@@ -92,15 +95,17 @@ def simulate(wx, regime):
     np.add.at(arrivals, mature_day[ok], init[ok])
 
     # standing crop of fruit bodies
-    surv = np.where(w < 0.2, P.ELU_POUD, P.ELU_PAEV) * np.where(tmin < P.KULM_PIIR, P.ELU_KULM, 1.0)
+    surv = np.where(w < 0.2, P.ELU_POUD, P.ELU_PAEV)
+    surv = np.where(t < P.JAHE_PIIR, np.minimum(surv, P.ELU_JAHE), surv)
+    surv = surv * np.where(tmin < P.KULM_PIIR, P.ELU_KULM, 1.0)
     crop = np.empty(len(t))
     b = 0.0
     for i in range(len(t)):
         b = b * surv[i] + arrivals[i]
         crop[i] = b
     return pd.DataFrame({
-        "w": w, "niiskus": moist, "hooaeg": season, "algus": init, "saak": crop,
-        "indeks": 1 - np.exp(-crop / P.INDEKS_SKAALA),
+        "w": w, "niiskus": moist, "hooaeg": season, "temperatuur": temp, "algus": init, "saak": crop,
+        "indeks": np.minimum(1, crop / P.INDEKS_SKAALA),
     }, index=wx.index)
 
 

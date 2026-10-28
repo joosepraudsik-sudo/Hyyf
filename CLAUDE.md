@@ -105,9 +105,15 @@ python -m http.server 8000 --directory leht   # leht: http://localhost:8000
 
 Leht (`leht/`, staatiline, MapLibre GL 4.7.1): 50 m ruudu kohta 5 baiti S_c (ümbruse sobivus × [klass = c]) + ilmapunkt; brauser arvutab hinnangu = Σ_c indeks(punkt, c, päev) · S_c. Aluskaardid `https://tiles.maaamet.ee/tm/tms/1.0.0/{hallkaart|kaart|foto}@GMC/{z}/{x}/{y}.{png|jpg}` (TMS-skeem, CORS lubatud).
 
-Viljumismudel (`viljumine.py`): veerežiimi klassi kaupa mullavee ämber (P − vahetus − KC·ET0·stress, põhjavee põhi märgadel klassidel) → niiskuse skoor; hooaeg = kraadipäevad > 5 °C × 6–13 nädala tagune niiskus; algus = märgumise tõuge või püsiv niiskus × temperatuur; küpsemine 170 kraadipäeva > 4 °C (max 45 päeva); viljakehade säilimine 0,95/päev, põud 0,88, külm 0,5. Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
+Viljumismudel (`viljumine.py`): veerežiimi klassi kaupa mullavee ämber (P − vahetus − KC·ET0·stress, põhjavee põhi märgadel klassidel) → niiskuse skoor; hooaeg = kraadipäevad > 5 °C × 6–13 nädala tagune niiskus; algus = märgumise tõuge või püsiv niiskus × õhutemperatuur (9→14 °C) × mullatemperatuur (5 p keskmine, 10→14 °C); küpsemine 170 kraadipäeva > 4 °C (max 30 päeva); viljakehade säilimine 0,93/päev, põud või jahe (< 10 °C) 0,88, külm 0,5; indeks = saak / 6 (lineaarne).
 
-Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobivus = piiravad tegurid (puuliik^0,75 × vanus × valgus, korrutatakse) × ülejäänute kaalutud geomeetriline keskmine (kasvukoht 0,45, muld 0,30, mikroniiskus 0,15, tihedus 0,10). Piiravad, sest ilma sobiva peremeespuuta, viljumisealise puistu ja võrastikuta kukeseeni ei ole, olgu muld kui tahes hea.
+Kasutaja varasema mudeli ideedest on kasutusel: samblikumännikud halvemad, TWI optimum 7,3–10 (vanas mudelis 8,6), metsamassiivi sidusus, ökotoon (soo serv), vanus (kompromiss: vanas mudelis > 50–80 a). Kasutamata: kalle (optimum 6° karistaks tasaseid nõmmemännikuid), sammaldetüüp ja harvesterirööpad (andmed puuduvad).
+
+Lehe giid ("Kuidas hinne tekib?") ehitatakse `window.SIIL.juhend` põhjal, mille `eksport.py` võtab otse `parameetrid.py`-st – parameetrite muutmisel uueneb ka giid.
+
+Leht: režiimid "Kus täna otsida" ja "Head metsad"; 3 klassi (väga hea / hea / võimalik, alla läve ei joonistata); 5 parimat kohta (≥ 500 m vahega); klõps näitab Koht × Aeg ja iga teguri skoori koos põhjusega (eraldise koosseis, vanus, kasvukoht, muld, katvus, TWI). Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
+
+Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobivus = piiravad tegurid (puuliik^0,75 × vanus × valgus, korrutatakse) × ülejäänute kaalutud geomeetriline keskmine (kasvukoht 0,36, muld 0,24, mikroniiskus/TWI 0,12, ökotoon 0,10, metsamassiivi sidusus 0,09, tihedus 0,09). Vanus: alla 15 a 0, 15→40 a tõuseb, 40–120 a täis, 180 a juures 0,7. Ökotoon: kaugus soo-kasvukohast või turvasmullast, 20–200 m täis hinne, 400 m+ 0,7 (järved veel puudu). Piiravad, sest ilma sobiva peremeespuuta, viljumisealise puistu ja võrastikuta kukeseeni ei ole, olgu muld kui tahes hea.
 
 ## Järgmised sammud
 

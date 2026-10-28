@@ -21,9 +21,17 @@
     </header>
 
     <div id="sisu">
+      <section id="selgitus" hidden></section>
       <p class="liik">Harilik kukeseen <i>Cantharellus cibarius</i></p>
 
-      <section>
+      <button id="giid-nupp" class="giid-nupp"><span class="ikoon-ring">?</span> Kuidas hinne tekib?</button>
+
+      <div id="reziim" class="nupurida lulitid" role="group" aria-label="Mida kaart näitab">
+        <button data-reziim="tana" class="aktiivne">Kus täna otsida</button>
+        <button data-reziim="koht">Head metsad</button>
+      </div>
+
+      <section id="paeva-osa">
         <label for="kuupaev" class="silt">Päev</label>
         <div class="kuupaev-rida">
           <button id="eelmine" class="ikoon" title="Eelmine päev">‹</button>
@@ -34,16 +42,14 @@
       </section>
 
       <section>
-        <div class="silt">Leidmise hinnang</div>
-        <div class="legend-riba"></div>
-        <div class="legend-sildid"><span>vähe</span><span>keskmiselt</span><span>palju</span></div>
-        <p id="hover" class="vaike">Liigu kaardil või klõpsa metsal.</p>
+        <p id="kokkuvote" class="kokkuvote"></p>
+        <ul id="legend" class="legend"></ul>
       </section>
 
       <section>
-        <div class="silt">Viljumine veerežiimi järgi</div>
-        <ul id="klassid"></ul>
-        <p class="vaike">Sama vihm mõjub eri metsades erinevalt: põuaga on paremad niisked, vihmase ilmaga kuivad metsad.</p>
+        <div class="silt">Parimad kohad</div>
+        <ol id="parimad" class="parimad"></ol>
+        <p class="vaike">Klõpsa kohal kaardil, et näha, miks ta selle hinde sai.</p>
       </section>
 
       <section>
@@ -53,13 +59,19 @@
           <button data-kiht="kaart">Kaart</button>
           <button data-kiht="foto">Foto</button>
         </div>
-        <label class="silt vaike" for="labipaistvus">Kihi tugevus</label>
-        <input type="range" id="labipaistvus" min="0" max="100" value="80">
       </section>
 
       <p class="markus">Arendusversioon: testala Põlvamaal, ilm ERA5 (minevikuandmed), mudel valideerimata. Hinnang on suhteline, mitte tõenäosus.</p>
     </div>
   </aside>
+
+  <dialog id="giid" aria-labelledby="giid-pealkiri">
+    <header class="giid-pea">
+      <h2 id="giid-pealkiri">Kuidas hinne tekib</h2>
+      <button class="ikoon" id="giid-sulge" title="Sulge">✕</button>
+    </header>
+    <div id="giid-sisu"></div>
+  </dialog>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
   <script src="andmed/testala_5458.js"></script>

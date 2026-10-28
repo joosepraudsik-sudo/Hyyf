@@ -17,6 +17,8 @@ import geopandas as gpd
 import numpy as np
 import pandas as pd
 import rasterio
+from scipy.ndimage import distance_transform_edt
+from scipy.signal import fftconvolve
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import parameetrid as P  # noqa: E402
@@ -68,6 +70,12 @@ def stand_table():
     age = age + (YEAR - inv_year).fillna(0).clip(lower=0)
     age_score = pd.Series(interp(age.fillna(-1), P.VANUS), index=st.index).where(age.notna(), 0.5)
 
+    # composition formula of the 1st storey, e.g. "6MA3KS1KU" (tenths)
+    tenths = e1.assign(k=(e1["osakaal"] / 10).round().astype(int)).query("k > 0")
+    formula = (tenths.sort_values("osakaal", ascending=False).groupby("eraldis_id")
+               .apply(lambda g: "".join(f"{k}{s}" for k, s in zip(g["k"], g["puuliik_kood"])),
+                      include_groups=False))
+
     site = st["kasvukoht_kood"].map(lambda k: P.KASVUKOHT.get(k, P.KASVUKOHT_PUUDUB))
     return pd.DataFrame({
         "puuliik": host,
@@ -75,6 +83,9 @@ def stand_table():
         "kasvukoht": site.map(lambda t: t[0]),
         "reziim": site.map(lambda t: t[1]).astype(np.uint8),
         "kuivendatud": st["kuivendatud"].fillna(False).astype(bool),
+        "koosseis": formula.reindex(st.index).fillna(st["peapuuliik_kood"]).fillna(""),
+        "vanus_a": age.round(),
+        "kasvukoht_kood": st["kasvukoht_kood"].fillna(""),
     })
 
 
@@ -142,6 +153,16 @@ def soil_table():
 
 # ---------- model ----------
 
+def forest_share(cover, res):
+    """Share of cells with tree cover within SIDUSUS_RAADIUS (edges of the sheet: known cells only)."""
+    r = int(P.SIDUSUS_RAADIUS / res)
+    yy, xx = np.mgrid[-r:r + 1, -r:r + 1]
+    disk = (xx ** 2 + yy ** 2 <= r ** 2).astype(float)
+    trees = fftconvolve((cover > 0.3).astype(float), disk, mode="same")
+    known = fftconvolve(np.ones_like(cover, dtype=float), disk, mode="same")
+    return np.clip(trees / known, 0, 1)
+
+
 def main():
     OUT.mkdir(exist_ok=True)
     stand_id, profile = read("eraldis.tif")
@@ -161,6 +182,9 @@ def main():
         return np.where(forest, st[col].to_numpy()[row], np.nan)
 
     soil_score, soil_wet = soil_table()
+    # ecotone: distance to mire site types or peat soils (inside the sheet only)
+    wet = (stand_raster("reziim") == 4) | (soil_wet[soil_idx] <= P.MULD_TURVAS + 0.05)
+    mire_m = distance_transform_edt(~wet) * profile["transform"].a
     f = {
         "puuliik": stand_raster("puuliik"),
         "vanus": stand_raster("vanus"),
@@ -168,6 +192,8 @@ def main():
         "kasvukoht": stand_raster("kasvukoht"),
         "muld": soil_score[soil_idx],
         "mikroniiskus": interp(twi, P.TWI),
+        "okotoon": interp(mire_m, P.OKOTOON),
+        "sidusus": interp(forest_share(cover, profile["transform"].a), P.SIDUSUS),
         "tihedus": interp(cover, P.TIHEDUS),
     }
     limit = np.prod([np.clip(f[k], 0, 1) ** e for k, e in P.PIIRAVAD.items()], axis=0)
@@ -194,6 +220,8 @@ def main():
         d.write(regime, 1)
     with rasterio.open(OUT / "ilmaruut_5458.tif", "w", **dict(base, dtype="uint32", nodata=0)) as d:
         d.write(np.where(forest, weather, 0).astype(np.uint32), 1)
+    with rasterio.open(OUT / "soo_kaugus_5458.tif", "w", **dict(base, dtype="float32", nodata=np.nan)) as d:
+        d.write(mire_m.astype(np.float32), 1)
     with rasterio.open(OUT / "tegurid_5458.tif", "w",
                        **dict(base, count=len(f), dtype="float32", nodata=np.nan)) as d:
         for i, (k, v) in enumerate(f.items(), 1):
@@ -207,6 +235,8 @@ def main():
     print("Katvus metsas (5/25/50/75/95):", np.percentile(cover[forest], [5, 25, 50, 75, 95]).round(2))
     for k, v in f.items():
         print(f"  {k:13s} keskmine {np.nanmean(v[forest]):.2f}")
+    print("Soo/turba ala:", f"{wet.mean():.1%} testalast;",
+          "metsa kaugus soost (5/25/50/75/95 m):", np.percentile(mire_m[forest], [5, 25, 50, 75, 95]).round())
     print("Sobivus (5/25/50/75/95):", np.percentile(s, [5, 25, 50, 75, 95]).round(2))
     for lo, hi, name in [(0.7, 1.01, "ideaalne/väga hea >= 0.7"), (0.4, 0.7, "hea 0.4-0.7"),
                          (0.15, 0.4, "kehv 0.15-0.4"), (0, 0.15, "sobimatu < 0.15")]:

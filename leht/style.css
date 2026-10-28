@@ -6,7 +6,6 @@
   --joon: #e2e2de;
   --rohk: #b8461b;
   --vari: 0 4px 24px rgba(0, 0, 0, .14);
-  --ramp: linear-gradient(90deg, #fbe3d3, #f4a77f, #eb6834, #b8461b, #6e2508);
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -74,19 +73,76 @@ input[type="date"] {
 #paevad button small { display: block; font-size: 11px; opacity: .75; }
 input[type="range"] { width: 100%; accent-color: var(--rohk); }
 
-.legend-riba { height: 10px; border-radius: 5px; background: var(--ramp); }
-.legend-sildid { display: flex; justify-content: space-between; font-size: 11px; color: var(--tint-2); margin-top: 4px; }
-
-#klassid { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-#klassid li { display: grid; grid-template-columns: 110px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
-.riba { height: 8px; border-radius: 4px; background: var(--pind-2); overflow: hidden; }
-.riba > span { display: block; height: 100%; background: var(--rohk); border-radius: 4px; }
+.lulitid { margin-bottom: 12px; }
+.lulitid button { font-size: 13px; }
 .arv { text-align: right; font-variant-numeric: tabular-nums; color: var(--tint-2); }
 
-.maplibregl-popup-content { background: var(--pind); color: var(--tint); border-radius: 10px; box-shadow: var(--vari); font: inherit; padding: 10px 12px; }
+.kokkuvote { margin: 0 0 10px; font-size: 13px; }
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.legend li { display: grid; grid-template-columns: 16px 1fr auto; align-items: center; gap: 8px; font-size: 13px; }
+.lapp { width: 16px; height: 12px; border-radius: 3px; }
+
+.parimad { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.parimad button { width: 100%; display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; text-align: left; padding: 6px 8px; }
+.parimad .tuhi { font-size: 12px; color: var(--tint-2); }
+.parimad small { display: block; font-size: 11px; color: var(--tint-2); }
+.nr, .marker { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%;
+               background: var(--tint); color: var(--pind); font-size: 12px; font-weight: 700; }
+.marker { width: 26px; height: 26px; padding: 0; border: 2px solid #fff; background: #1f1f1f; color: #fff;
+          box-shadow: 0 1px 4px rgba(0, 0, 0, .4); cursor: pointer; }
+
+.maplibregl-popup-content { background: var(--pind); color: var(--tint); border-radius: 10px; box-shadow: var(--vari); font: inherit; padding: 12px 14px; }
 .maplibregl-popup-tip { border-top-color: var(--pind) !important; border-bottom-color: var(--pind) !important; }
-.popup-arv { font-size: 20px; font-weight: 600; }
-.popup-rida { font-size: 12px; color: var(--tint-2); }
+.selgitus .maplibregl-popup-content { max-height: 60vh; overflow-y: auto; }
+.sel-pea { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: center; font-size: 13px; }
+.sel-arv { font-size: 26px; font-weight: 700; line-height: 1; }
+.valem { font-size: 12px; color: var(--tint-2); margin-top: 6px; }
+.sel-osa { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 12px; padding-top: 8px;
+           border-top: 1px solid var(--joon); font-weight: 600; }
+.sel-osa small { flex-basis: 100%; font-weight: 400; font-size: 11px; color: var(--tint-2); }
+.sel-read { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 6px; }
+.sel-read li { display: grid; grid-template-columns: 1fr 70px 26px; gap: 2px 8px; align-items: center; font-size: 12px; }
+.sel-read .pohjus { grid-column: 1 / -1; color: var(--tint-2); font-size: 11px; margin-top: -2px; }
+.mark { font-size: 10px; color: var(--tint-2); border: 1px solid var(--joon); border-radius: 4px; padding: 0 3px; }
+.riba { height: 7px; border-radius: 4px; background: var(--pind-2); overflow: hidden; }
+.riba > span { display: block; height: 100%; background: var(--tint-2); border-radius: 4px; }
+.riba.nork > span { background: var(--rohk); }
+.sel-markus { font-size: 11px; color: var(--tint-2); margin: 8px 0 0; }
+.giid-nupp { width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px;
+             margin-bottom: 12px; padding: 8px 10px; font-weight: 600; border: 1.5px solid var(--rohk); color: var(--tint); }
+.giid-nupp:hover { background: var(--pind-2); }
+.vaike-nupp { margin: 10px 0 0; padding: 6px 10px; font-size: 12px; }
+.ikoon-ring { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+              background: var(--rohk); color: #fff; font-size: 13px; font-weight: 700; }
+
+#giid { width: min(640px, calc(100% - 32px)); max-height: calc(100% - 48px); padding: 0; border: 0; border-radius: 14px;
+        background: var(--pind); color: var(--tint); box-shadow: var(--vari); }
+#giid::backdrop { background: rgba(0, 0, 0, .45); }
+.giid-pea { position: sticky; top: 0; display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 18px; background: var(--pind); border-bottom: 1px solid var(--joon); }
+.giid-pea h2 { margin: 0; font-size: 18px; }
+#giid-sisu { padding: 4px 18px 18px; font-size: 14px; }
+#giid-sisu h3 { font-size: 15px; margin: 20px 0 6px; }
+#giid-sisu p { margin: 8px 0; }
+.giid-juhis { font-size: 15px; }
+.giid-klassid, .giid-loend, .giid-kaalud { margin: 8px 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.giid-loend { list-style: disc; padding-left: 20px; }
+.giid-klassid li { display: flex; align-items: center; gap: 8px; }
+.tuhi-lapp { border: 1px dashed var(--tint-2); }
+.giid-kaalud li { display: grid; grid-template-columns: 150px 1fr 40px; gap: 8px; align-items: center; font-size: 13px; }
+.giid-kaalud .riba > span { background: var(--rohk); }
+#giid details { border: 1px solid var(--joon); border-radius: 8px; margin: 6px 0; padding: 0 12px; }
+#giid summary { cursor: pointer; padding: 9px 0; font-weight: 600; }
+#giid details[open] { padding-bottom: 10px; }
+#giid table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
+#giid th { text-align: left; font-weight: 600; color: var(--tint-2); font-size: 12px; border-bottom: 1px solid var(--joon); padding: 4px 0; }
+#giid td { padding: 3px 0; border-bottom: 1px solid var(--joon); }
+#giid th:last-child, #giid td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+
+#selgitus { border-top: 0; padding-top: 4px; }
+.tagasi { margin-bottom: 10px; padding: 4px 10px; font-size: 13px; }
+.tapp { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid #1f1f1f;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
 
 #paneel.ahendatud #sisu { display: none; }
 

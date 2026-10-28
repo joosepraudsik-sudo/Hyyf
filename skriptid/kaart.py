@@ -76,7 +76,9 @@ def main():
     # factor panels + water regime
     with rasterio.open(OUT / "tegurid_5458.tif") as d:
         factors = [(d.descriptions[i], d.read(i + 1)) for i in range(d.count)]
-    fig, axes = plt.subplots(2, 4, figsize=(16, 8.6), dpi=110, facecolor=SURFACE)
+    ncol = 3
+    nrow = -(-(len(factors) + 1) // ncol)
+    fig, axes = plt.subplots(nrow, ncol, figsize=(4 * ncol, 4.3 * nrow), dpi=110, facecolor=SURFACE)
     for ax, (name, arr) in zip(axes.flat, factors):
         base(ax, hs)
         ax.imshow(np.ma.masked_invalid(arr), cmap=SUIT, vmin=0, vmax=1, extent=EXTENT,

@@ -18,8 +18,8 @@ TEINE_RINNE_KAAL = 0.3    # weight of the 2nd storey relative to the 1st
 # Forest site type (kasvukoht_kood): (suitability, water regime class)
 # Water regime: 1 dry, 2 fresh, 3 moist, 4 wet (paludified / mire), 5 drained peat
 KASVUKOHT = {
-    # dry, poor - chanterelle classic pine heaths, but drought-prone
-    "SM": (0.70, 1), "KN": (0.65, 1), "PH": (1.00, 1), "LL": (0.50, 1),
+    # dry, poor - lichen (Cladonia) and heather heaths too dry and sun-exposed; cowberry heath best
+    "SM": (0.45, 1), "KN": (0.50, 1), "PH": (1.00, 1), "LL": (0.50, 1),
     # fresh, mesotrophic - optimum
     "MS": (1.00, 2), "JP": (0.95, 2), "JM": (0.80, 2), "KL": (0.45, 2),
     # fresh, fertile - lush herb layer, more nitrogen
@@ -34,8 +34,9 @@ KASVUKOHT = {
 }
 KASVUKOHT_PUUDUB = (0.40, 2)
 
-# Stand age (years) -> score, piecewise linear (young to maturing best)
-VANUS = [(0, 0.0), (10, 0.0), (25, 1.0), (100, 1.0), (160, 0.6), (300, 0.6)]
+# Stand age (years) -> score. Chanterelles start fruiting in 20-30 y pine stands, but the
+# mycelium network needs decades to become productive: full score from 40 y.
+VANUS = [(0, 0.0), (15, 0.0), (40, 1.0), (120, 1.0), (180, 0.7), (300, 0.7)]
 
 # Canopy cover (fraction > 5 m in 30 m window), split in two:
 #   VALGUS  limiting: no trees (clearcut, open land) -> near zero
@@ -44,7 +45,17 @@ VALGUS = [(0.0, 0.05), (0.15, 0.05), (0.40, 1.0), (1.0, 1.0)]
 TIHEDUS = [(0.0, 1.0), (0.80, 1.0), (1.0, 0.75)]
 
 # Topographic wetness index -> score (micro-moisture); very wet hollows are poor
-TWI = [(0, 0.85), (6, 0.85), (7.5, 1.0), (10, 1.0), (13, 0.6), (30, 0.5)]
+# optimum ~8.6; below 6.5 droughty ridges, above 11 hollows and ditch bottoms
+TWI = [(0, 0.60), (6.5, 0.65), (7.3, 1.0), (10.0, 1.0), (11.0, 0.6), (30, 0.5)]
+
+# Forest continuity: share of land with trees (> 5 m, cover > 0.3) within SIDUSUS_RAADIUS.
+# Large continuous forest keeps a stable microclimate; small patches by fields and roads dry out.
+SIDUSUS_RAADIUS = 300    # m
+SIDUSUS = [(0.0, 0.5), (0.25, 0.5), (0.75, 1.0), (1.0, 1.0)]
+
+# Ecotone: distance (m) from a mire / peat area. Mineral forest next to a mire keeps air humidity
+# (night fog) while roots still get oxygen. Wet areas = mire site types (regime 4) + peat soils.
+OKOTOON = [(0, 0.8), (20, 1.0), (200, 1.0), (400, 0.7), (100000, 0.7)]
 TWI_MARJEM = 12.5   # above: water regime one class wetter
 TWI_KUIVEM = 5.5    # below: one class drier
 
@@ -94,19 +105,24 @@ HOOAEG_NIISKUS = [(0.0, 0.3), (0.25, 0.3), (0.55, 1.0), (1.0, 1.0)]
 # Initiation (hoovõtt): wetting pulse or sustained good moisture, scaled by temperature
 TOUKE_DW = 0.30          # rise of w over 3 days that counts as a full pulse
 TOUKE_PUSIV = 0.30       # initiation from sustained good moisture without a pulse
-ALGUS_TEMP = [(-10, 0.0), (7, 0.0), (12, 1.0), (21, 1.0), (27, 0.2), (40, 0.0)]  # Tmean, C
+ALGUS_TEMP = [(-10, 0.0), (9, 0.0), (14, 1.0), (22, 1.0), (27, 0.2), (40, 0.0)]  # Tmean, C
+# Soil temperature (0-7 cm, 5-day mean): primordia need warm soil; ends the season in autumn
+MULLA_TEMP = [(-10, 0.0), (10, 0.0), (14, 1.0), (40, 1.0)]
+MULLA_TEMP_AKEN = 5
 
 # Delay from initiation to mature fruit bodies: thermal time above 4 C
 VIIVITUS_ALUS = 4.0
 VIIVITUS_KP = 170        # ~ 12 days at 18 C, ~ 28 days at 10 C
-VIIVITUS_MAX = 45        # days; primordia not mature by then are lost (autumn cold)
+VIIVITUS_MAX = 30        # days; primordia not mature by then are lost (autumn cold)
 
 # Fruit bodies (viljakeha): daily survival of the standing crop
-ELU_PAEV = 0.95          # half-life ~ 2 weeks in good conditions
+ELU_PAEV = 0.93          # half-life ~ 10 days in good conditions
 ELU_POUD = 0.88          # when w below 0.2 (tolerates moderate drought)
+ELU_JAHE = 0.88          # when Tmean below JAHE_PIIR: no growth, fruit bodies age and rot
+JAHE_PIIR = 10.0
 ELU_KULM = 0.50          # frost: Tmin below KULM_PIIR
 KULM_PIIR = -1.5
-INDEKS_SKAALA = 3.0     # index = 1 - exp(-crop / INDEKS_SKAALA)
+INDEKS_SKAALA = 6.0     # index = min(1, crop / INDEKS_SKAALA); linear so halving the crop halves it
 
 # Suitability = limiting factors (multiplied) x weighted geometric mean of the others.
 # Limiting: without a host tree of fruiting age under some canopy there are no chanterelles,
@@ -117,8 +133,10 @@ PIIRAVAD = {
     "valgus": 1.0,
 }
 KAALUD = {
-    "kasvukoht": 0.45,
-    "muld": 0.30,
-    "mikroniiskus": 0.15,
-    "tihedus": 0.10,
+    "kasvukoht": 0.36,
+    "muld": 0.24,
+    "mikroniiskus": 0.12,
+    "okotoon": 0.10,
+    "sidusus": 0.09,
+    "tihedus": 0.09,
 }
