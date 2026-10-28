@@ -5,12 +5,15 @@ regime class c, the neighbourhood mean of suitability * [class == c]. The browse
   value = sum_c index(point, c, day) * S_c
 which equals soojuskaart.py exactly, without one map per day.
 
-  kasvukoht_5458.bin   uint8, bands x rows x cols: S_1..S_5 (0..255), weather point (255 = no forest)
-  kasvukoht_5458.json  grid size, corner coordinates (lon, lat), band layout
-  viljumine_5458.json  dates, points, index per date as uint8 [point][class]
+Everything goes into one script file, leht/andmed/testala_5458.js (window.SIIL = {...}), so the
+page also works when index.html is opened straight from disk (file:// blocks fetch):
+  meta       grid size, corner coordinates (lon, lat), band layout
+  rakud      base64 uint8, bands x rows x cols: S_1..S_5 (0..255), weather point (255 = no forest)
+  viljumine  dates, points, index per date as uint8 [point][class]
 
 Run: uv run python -I skriptid/eksport.py
 """
+import base64
 import json
 import sys
 from pathlib import Path
@@ -51,7 +54,6 @@ def main():
     centre = point_idx[BLOCK // 2::BLOCK, BLOCK // 2::BLOCK][:h, :w]
     point_band = np.where(shown, centre, 255)
     data = np.concatenate([np.round(np.clip(stack, 0, 1) * 255), point_band[None]]).astype(np.uint8)
-    (WEB / "kasvukoht_5458.bin").write_bytes(data.tobytes())
 
     to_ll = Transformer.from_crs("EPSG:3301", "EPSG:4326", always_xy=True)
     x0, y1 = t.c, t.f
@@ -66,21 +68,25 @@ def main():
         "ilmapunktid": names,
         "min_mets": MIN_FOREST,
     }
-    (WEB / "kasvukoht_5458.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), "utf-8")
 
     fr = pd.read_csv(OUT / "viljumine_5458.csv", parse_dates=["kuupaev"])
     fr = fr[fr["kuupaev"].dt.month.between(*MONTHS)]
     cube = fr.pivot_table(index="kuupaev", columns=["punkt", "klass"], values="indeks")
     cube = cube.reindex(columns=pd.MultiIndex.from_product([names, CLASSES]))
     values = np.round(cube.to_numpy() * 255).astype(int).reshape(len(cube), len(names), len(CLASSES))
-    out = {
+    fruiting = {
         "allikas": "ERA5 / ERA5-Land (Open-Meteo), arendusandmed",
         "kuupaevad": [f"{d:%Y-%m-%d}" for d in cube.index],
         "ilmapunktid": names,
         "klassid": CLASSES,
         "indeks": values.tolist(),
     }
-    (WEB / "viljumine_5458.json").write_text(json.dumps(out, separators=(",", ":")), "utf-8")
+    payload = {"meta": meta, "rakud": base64.b64encode(data.tobytes()).decode("ascii"),
+               "viljumine": fruiting}
+    for old in WEB.glob("*_5458.*"):
+        old.unlink()
+    (WEB / "testala_5458.js").write_text(
+        "window.SIIL = " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n", "utf-8")
 
     for f in sorted(WEB.iterdir()):
         print(f"  {f.name}: {f.stat().st_size / 1024:.0f} KB")

@@ -1,8 +1,6 @@
 // Siil – browser side: value = sum_c fruiting_index(point, class, day) * S_c(cell)
 "use strict";
 
-const ALAD = "andmed/kasvukoht_5458";
-const VILJUMINE = "andmed/viljumine_5458.json";
 const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 const RAMP = [[0, "#fbe3d3"], [0.25, "#f4a77f"], [0.5, "#eb6834"], [0.75, "#b8461b"], [1, "#6e2508"]];
 const SKAALA = 0.8;   // value mapped to the darkest colour; real values rarely exceed it
@@ -132,15 +130,15 @@ map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-ri
 map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
 map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), "top-right");
 
-// fetch data right away; only wait for the style, not for all basemap tiles ("load")
-const andmed = Promise.all([
-  fetch(`${ALAD}.json`).then((r) => r.json()),
-  fetch(`${ALAD}.bin`).then((r) => r.arrayBuffer()),
-  fetch(VILJUMINE).then((r) => r.json()),
-]);
-map.once("style.load", async () => {
-  const [meta, bin, vilj] = await andmed;
-  Object.assign(olek, { meta, rakud: new Uint8Array(bin), vilj });
+// data comes from andmed/testala_5458.js (window.SIIL), a plain script so file:// works too;
+// only wait for the style, not for all basemap tiles ("load")
+map.once("style.load", () => {
+  if (!window.SIIL) {
+    document.getElementById("hover").textContent = "Andmefail puudub: käivita skriptid/eksport.py.";
+    return;
+  }
+  const { meta, rakud, viljumine: vilj } = window.SIIL;
+  Object.assign(olek, { meta, rakud: Uint8Array.from(atob(rakud), (c) => c.charCodeAt(0)), vilj });
   const kp = document.getElementById("kuupaev");
   kp.min = vilj.kuupaevad[0];
   kp.max = vilj.kuupaevad.at(-1);
