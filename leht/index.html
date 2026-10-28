@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="et">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Siil – korilase kompass</title>
+  <meta name="description" content="Kus on täna ja lähipäevil kõige tõenäolisem leida kukeseeni.">
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="kaart" aria-label="Kaart"></div>
+
+  <aside id="paneel">
+    <header>
+      <div class="pealkiri">
+        <h1>Siil</h1>
+        <span class="alapealkiri">korilase kompass</span>
+      </div>
+      <button id="ahenda" class="ikoon" aria-expanded="true" aria-controls="sisu" title="Peida paneel">–</button>
+    </header>
+
+    <div id="sisu">
+      <p class="liik">Harilik kukeseen <i>Cantharellus cibarius</i></p>
+
+      <section>
+        <label for="kuupaev" class="silt">Päev</label>
+        <div class="kuupaev-rida">
+          <button id="eelmine" class="ikoon" title="Eelmine päev">‹</button>
+          <input type="date" id="kuupaev">
+          <button id="jargmine" class="ikoon" title="Järgmine päev">›</button>
+        </div>
+        <div id="paevad" class="nupurida" role="group" aria-label="Prognoosipäev"></div>
+      </section>
+
+      <section>
+        <div class="silt">Leidmise hinnang</div>
+        <div class="legend-riba"></div>
+        <div class="legend-sildid"><span>vähe</span><span>keskmiselt</span><span>palju</span></div>
+        <p id="hover" class="vaike">Liigu kaardil või klõpsa metsal.</p>
+      </section>
+
+      <section>
+        <div class="silt">Viljumine veerežiimi järgi</div>
+        <ul id="klassid"></ul>
+        <p class="vaike">Sama vihm mõjub eri metsades erinevalt: põuaga on paremad niisked, vihmase ilmaga kuivad metsad.</p>
+      </section>
+
+      <section>
+        <div class="silt">Aluskaart</div>
+        <div id="aluskaart" class="nupurida" role="group" aria-label="Aluskaart">
+          <button data-kiht="hallkaart" class="aktiivne">Hall</button>
+          <button data-kiht="kaart">Kaart</button>
+          <button data-kiht="foto">Foto</button>
+        </div>
+        <label class="silt vaike" for="labipaistvus">Kihi tugevus</label>
+        <input type="range" id="labipaistvus" min="0" max="100" value="80">
+      </section>
+
+      <p class="markus">Arendusversioon: testala Põlvamaal, ilm ERA5 (minevikuandmed), mudel valideerimata. Hinnang on suhteline, mitte tõenäosus.</p>
+    </div>
+  </aside>
+
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

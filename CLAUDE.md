@@ -99,7 +99,11 @@ uv run python -I skriptid/kaart.py         # valjund/*.png
 uv run python -I skriptid/viljumine.py     # valjund/viljumine_5458.csv (punkt x klass x päev)
 uv run python -I skriptid/graafik.py       # valjund/hooajad_5458.png
 uv run python -I skriptid/soojuskaart.py 2023-08-15 2025-09-13   # valjund/soojuskaart_5458.png
+uv run python -I skriptid/eksport.py       # leht/andmed/ (u 300 KB)
+python -m http.server 8000 --directory leht   # leht: http://localhost:8000
 ```
+
+Leht (`leht/`, staatiline, MapLibre GL 4.7.1): 50 m ruudu kohta 5 baiti S_c (ümbruse sobivus × [klass = c]) + ilmapunkt; brauser arvutab hinnangu = Σ_c indeks(punkt, c, päev) · S_c. Aluskaardid `https://tiles.maaamet.ee/tm/tms/1.0.0/{hallkaart|kaart|foto}@GMC/{z}/{x}/{y}.{png|jpg}` (TMS-skeem, CORS lubatud).
 
 Viljumismudel (`viljumine.py`): veerežiimi klassi kaupa mullavee ämber (P − vahetus − KC·ET0·stress, põhjavee põhi märgadel klassidel) → niiskuse skoor; hooaeg = kraadipäevad > 5 °C × 6–13 nädala tagune niiskus; algus = märgumise tõuge või püsiv niiskus × temperatuur; küpsemine 170 kraadipäeva > 4 °C (max 45 päeva); viljakehade säilimine 0,95/päev, põud 0,88, külm 0,5. Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
 

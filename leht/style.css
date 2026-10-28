@@ -1,0 +1,99 @@
+:root {
+  --pind: #ffffff;
+  --pind-2: #f4f4f2;
+  --tint: #1f1f1f;
+  --tint-2: #5c5c5c;
+  --joon: #e2e2de;
+  --rohk: #b8461b;
+  --vari: 0 4px 24px rgba(0, 0, 0, .14);
+  --ramp: linear-gradient(90deg, #fbe3d3, #f4a77f, #eb6834, #b8461b, #6e2508);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --pind: #1d1d1b;
+    --pind-2: #2a2a27;
+    --tint: #ecece8;
+    --tint-2: #a8a8a2;
+    --joon: #3a3a36;
+    --rohk: #f08a5d;
+    --vari: 0 4px 24px rgba(0, 0, 0, .5);
+  }
+}
+:root[data-theme="dark"] {
+  --pind: #1d1d1b;
+  --pind-2: #2a2a27;
+  --tint: #ecece8;
+  --tint-2: #a8a8a2;
+  --joon: #3a3a36;
+  --rohk: #f08a5d;
+  --vari: 0 4px 24px rgba(0, 0, 0, .5);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  background: var(--pind);
+  color: var(--tint);
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+#kaart { position: absolute; inset: 0; }
+
+#paneel {
+  position: absolute; top: 16px; left: 16px; width: 300px;
+  max-height: calc(100% - 32px); overflow-y: auto;
+  background: var(--pind); border-radius: 12px; box-shadow: var(--vari);
+  padding: 14px 16px;
+}
+header { display: flex; align-items: center; justify-content: space-between; }
+.pealkiri { display: flex; align-items: baseline; gap: 8px; }
+h1 { margin: 0; font-size: 22px; letter-spacing: -.01em; }
+.alapealkiri { color: var(--tint-2); font-size: 13px; }
+.liik { margin: 4px 0 12px; color: var(--tint-2); }
+section { border-top: 1px solid var(--joon); padding: 12px 0; }
+.silt { display: block; font-size: 12px; font-weight: 600; text-transform: uppercase;
+        letter-spacing: .04em; color: var(--tint-2); margin-bottom: 8px; }
+.vaike { font-size: 12px; color: var(--tint-2); margin: 8px 0 0; }
+.markus { font-size: 11px; color: var(--tint-2); margin: 4px 0 0; border-top: 1px solid var(--joon); padding-top: 10px; }
+
+button {
+  font: inherit; color: var(--tint); background: var(--pind-2);
+  border: 1px solid var(--joon); border-radius: 8px; padding: 6px 10px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--tint-2); }
+button:disabled { opacity: .4; cursor: default; }
+button.aktiivne { background: var(--tint); color: var(--pind); border-color: var(--tint); }
+.ikoon { width: 32px; height: 32px; padding: 0; font-size: 18px; line-height: 1; flex: none; }
+
+.kuupaev-rida { display: flex; gap: 6px; margin-bottom: 8px; }
+input[type="date"] {
+  flex: 1; min-width: 0; font: inherit; color: var(--tint); background: var(--pind-2);
+  border: 1px solid var(--joon); border-radius: 8px; padding: 4px 8px; color-scheme: light dark;
+}
+.nupurida { display: flex; gap: 6px; }
+.nupurida button { flex: 1; padding: 6px 4px; }
+#paevad button small { display: block; font-size: 11px; opacity: .75; }
+input[type="range"] { width: 100%; accent-color: var(--rohk); }
+
+.legend-riba { height: 10px; border-radius: 5px; background: var(--ramp); }
+.legend-sildid { display: flex; justify-content: space-between; font-size: 11px; color: var(--tint-2); margin-top: 4px; }
+
+#klassid { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+#klassid li { display: grid; grid-template-columns: 110px 1fr 34px; align-items: center; gap: 8px; font-size: 12px; }
+.riba { height: 8px; border-radius: 4px; background: var(--pind-2); overflow: hidden; }
+.riba > span { display: block; height: 100%; background: var(--rohk); border-radius: 4px; }
+.arv { text-align: right; font-variant-numeric: tabular-nums; color: var(--tint-2); }
+
+.maplibregl-popup-content { background: var(--pind); color: var(--tint); border-radius: 10px; box-shadow: var(--vari); font: inherit; padding: 10px 12px; }
+.maplibregl-popup-tip { border-top-color: var(--pind) !important; border-bottom-color: var(--pind) !important; }
+.popup-arv { font-size: 20px; font-weight: 600; }
+.popup-rida { font-size: 12px; color: var(--tint-2); }
+
+#paneel.ahendatud #sisu { display: none; }
+
+@media (max-width: 640px) {
+  #paneel { top: auto; bottom: 0; left: 0; right: 0; width: auto; height: 45%; max-height: none;
+            border-radius: 12px 12px 0 0; padding: 12px 16px; z-index: 3; }
+  #paneel.ahendatud { height: auto; }
+  .maplibregl-ctrl-bottom-right { bottom: 45%; }
+  body:has(#paneel.ahendatud) .maplibregl-ctrl-bottom-right { bottom: 60px; }
+}
