@@ -33,7 +33,7 @@ RES = 10
 YMBRUS_M = 100       # neighbourhood shown on the map
 OTSING_M = 200       # best value within this radius of the point
 # map classes, same rule as the page: forest step + time step (parameetrid.KLASS_KOHT / KLASS_AEG)
-KLASSID = ["parim", "hea", "võimalik"]
+KLASSID = ["väga hea", "hea", "võimalik"]
 TULEMUS = {0: "ei leidnud", 1: "üksikud", 2: "mõned", 3: "väga hea saak"}
 
 

@@ -10,13 +10,14 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 // Chanterelle tones, dark to light (OKLab L 0.47 / 0.69 / 0.86): they stand out on green forest and
 // on the orthophoto, and the lightness steps keep them apart for colour-blind users.
 const KLASSID = {
-  tana: [["Parim koht", "#9a3412"], ["Hea koht", "#ea7a0c"], ["Võimalik", "#f6cf3c"]],
+  tana: [["Väga hea", "#9a3412"], ["Hea", "#ea7a0c"], ["Võimalik", "#f6cf3c"]],
   koht: [["Väga hea mets", "#9a3412"], ["Hea mets", "#ea7a0c"], ["Keskmine mets", "#f6cf3c"]],
 };
 const ASTE_KOHT = ["väga hea", "hea", "keskmine"];
 const ASTE_AEG = ["hea", "keskmine", "vähe"];
 // layer strength: strong when zoomed out, lighter up close so paths and tracks show through
 const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 0.75, 14, 0.5, 16, 0.4];
+const SILE = 4;   // drawing resolution per 50 m cell (smooth edges)
 const NADALAPAEV = ["P", "E", "T", "K", "N", "R", "L"];
 const NADALAPAEV_PIKK = ["pühapäev", "esmaspäev", "teisipäev", "kolmapäev", "neljapäev", "reede", "laupäev"];
 const AJATELG_TAGASI = 7, AJATELG_EDASI = 10;   // days shown before and after the window anchor
@@ -97,11 +98,9 @@ function klassKA(koht, aeg) {
 
 function joonista() {
   const { meta, n } = olek;
-  canvas.width = meta.laius;
-  canvas.height = meta.korgus;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(meta.laius, meta.korgus);
+  const W = meta.laius, H = meta.korgus;
   const varvid = KLASSID[olek.reziim].map(([, c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
+  // per 50 m cell: forest (Koht) and mushroom time (Aeg); used for the stats and best spots
   const kl = new Int8Array(n).fill(-1);
   const v = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -109,7 +108,34 @@ function joonista() {
     if (h === null) continue;
     v[i] = olek.reziim === "koht" ? h[0] : h[0] * h[1];
     kl[i] = klassKA(h[0], h[1]);
-    if (kl[i] >= 0) img.data.set([...varvid[kl[i]], 255], i * 4);
+  }
+  // drawing on a SILE x finer grid: each fine pixel takes the class with the largest weight among
+  // the 4 x 4 surrounding 50 m cells, weighted with a cubic B-spline ("no class" counts as a class).
+  // Edges become smooth and rounded, and no false rings appear between a class and empty forest.
+  canvas.width = W * SILE;
+  canvas.height = H * SILE;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(canvas.width, canvas.height);
+  const spliin = (t) => [(1 - t) ** 3 / 6, (3 * t ** 3 - 6 * t * t + 4) / 6, (-3 * t ** 3 + 3 * t * t + 3 * t + 1) / 6, t ** 3 / 6];
+  const wf = [], ix = [];
+  for (let s2 = 0; s2 < SILE; s2++) wf.push(spliin((s2 + 0.5) / SILE));   // same weights for every cell
+  const kaal = new Float32Array(4);
+  for (let cy = 0; cy < H; cy++) for (let sy = 0; sy < SILE; sy++) {
+    const wy = wf[sy];
+    for (let cx = 0; cx < W; cx++) for (let sx = 0; sx < SILE; sx++) {
+      const wx = wf[sx];
+      kaal.fill(0);
+      for (let j = 0; j < 4; j++) {
+        const yy = Math.max(0, Math.min(H - 1, cy - 1 + j)) * W;
+        for (let i = 0; i < 4; i++) {
+          const xx = Math.max(0, Math.min(W - 1, cx - 1 + i));
+          kaal[kl[yy + xx] + 1] += wx[i] * wy[j];
+        }
+      }
+      let c = 0;
+      for (let j = 1; j < 4; j++) if (kaal[j] > kaal[c]) c = j;
+      if (c > 0) img.data.set([...varvid[c - 1], 255], ((cy * SILE + sy) * canvas.width + cx * SILE + sx) * 4);
+    }
   }
   ctx.putImageData(img, 0, 0);
   const url = canvas.toDataURL();
@@ -118,7 +144,7 @@ function joonista() {
     map.addSource("hinnang", { type: "image", url, coordinates: meta.nurgad });
     map.addLayer({ id: "hinnang", type: "raster", source: "hinnang",
                    layout: { visibility: olek.kihtNahtav ? "visible" : "none" },
-                   paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "nearest", "raster-fade-duration": 0 } },
+                   paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "linear", "raster-fade-duration": 0 } },
                  olek.siltideAlt);
   }
   const kohad = parimadKohad(v, kl);
@@ -438,7 +464,7 @@ function naitaSelgitust(lnglat) {
 
     <ul class="omadused">${ribad.map(omadus).join("")}</ul>
 
-    ${tana ? `<h3 class="sel-h">Seeneaeg ees ootamas</h3>
+    ${tana ? `<h3 class="sel-h">Seente hulk: nädal tagasi ja prognoos</h3>
     ${graafik(i, d, p, j)}
     <p class="kypseb">${suund ? suund + " " : ""}${korjatav}</p>` : ""}
 
@@ -569,7 +595,7 @@ function giidHtml() {
   ${osa("Mulla niiskus", `<p>Iga päev arvutatakse mulla veevaru: vihm miinus aurumine. Sama vihm mõjub eri metsades erinevalt, sest „veeämber“ on eri suurusega: ${Object.values(A.reziim).map((r) => `${r.nimi} ${r.kp} mm`).join(", ")}.</p>${tabel(kover(A.niiskus.map(([xx, y]) => [Math.round(xx * 100), y]), "%", (y) => y + "%"), ["veevaru täidetus", "tingimus täidetud"])}`)}
   ${osa("Hooaeg", `<p>Suvi peab olema piisavalt soe: kraadipäevad üle ${nr(A.kp_alus)} °C alates 1. jaanuarist. Arvesse läheb ka 6–13 nädala tagune niiskus.</p>${tabel(kover(A.hooaeg_kp, "", (y) => y + "%"), ["kraadipäevi", "tingimus täidetud"])}`)}
   ${osa("Soojus", `${tabel(kover(A.algus_temp, " °C", (y) => y + "%"), ["õhu keskmine temperatuur", "tingimus täidetud"])}${tabel(kover(A.mulla_temp, " °C", (y) => y + "%"), [`mulla temperatuur (${A.mulla_temp_aken} p keskmine)`, "tingimus täidetud"])}<p class="vaike">Sügisel jaheneva mullaga uusi seeni enam ei teki – nii lõpeb hooaeg.</p>`)}
-  ${osa("Viivitus ja säilimine", `<ul class="giid-loend"><li>Seened on korjatavad ${A.viivitus_kp} kraadipäeva (üle ${nr(A.viivitus_alus)} °C) pärast vihma: soojaga ~12 päeva, jahedaga ~4 nädalat.</li><li>Valmis seentest kaob iga päev ~${A.elu}%, jahedaga ~${A.elu_jahe}%, öökülmaga pooled.</li><li>Seetõttu määrab ka 3 päeva prognoosi peamiselt juba möödunud ilm.</li></ul>`)}
+  ${osa("Viivitus ja säilimine", `<ul class="giid-loend"><li>Seened on korjatavad ${A.viivitus_kp} kraadipäeva (üle ${nr(A.viivitus_alus)} °C) pärast vihma: soojaga ~12 päeva, jahedaga ~4 nädalat.</li><li>Valmis seentest kaob iga päev ~${A.elu}%, jahedaga ~${A.elu_jahe}%, öökülmaga pooled.</li><li>Korjatavaks loetakse ainult kuni ${A.korjatav_vanus} päeva vanad seened. Jahedaga vananevad need ${nr(A.vananemine_jahe)} korda ja öökülmaga ${nr(A.vananemine_kulm)} korda kiiremini – sügisel on vanad seened läbivettinud ja pehmed.</li><li>Seetõttu määrab ka 3 päeva prognoosi peamiselt juba möödunud ilm.</li></ul>`)}
 
   <h3>Näide</h3>
   <div class="naide">

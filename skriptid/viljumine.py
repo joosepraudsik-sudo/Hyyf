@@ -127,11 +127,19 @@ def simulate(wx, regime):
     surv = np.where(w < 0.2, P.ELU_POUD, P.ELU_PAEV)
     surv = np.where(t < P.JAHE_PIIR, np.minimum(surv, P.ELU_JAHE), surv)
     surv = surv * np.where(tmin < P.KULM_PIIR, P.ELU_KULM, 1.0)
+    # each day's arrivals form a cohort that shrinks with survival and ages (faster when cool or
+    # frosty); only cohorts up to KORJATAV_VANUS days old are pickable
+    aging = np.where(tmin < P.KULM_PIIR, P.VANANEMINE_KULM, np.where(t < P.JAHE_PIIR, P.VANANEMINE_JAHE, 1.0))
     crop = np.empty(len(t))
-    b = 0.0
+    cohorts = []   # [amount, age]
     for i in range(len(t)):
-        b = b * surv[i] + arrivals[i]
-        crop[i] = b
+        for c in cohorts:
+            c[0] *= surv[i]
+            c[1] += aging[i]
+        cohorts = [c for c in cohorts if c[1] <= P.KORJATAV_VANUS and c[0] > 1e-4]
+        if arrivals[i] > 0:
+            cohorts.append([arrivals[i], 0.0])
+        crop[i] = sum(c[0] for c in cohorts)
     return pd.DataFrame({
         "w": w, "niiskus": moist, "hooaeg": season, "temperatuur": temp, "algus": init, "kypseb": ready_in, "saak": crop,
         "indeks": np.minimum(1, crop / P.INDEKS_SKAALA),

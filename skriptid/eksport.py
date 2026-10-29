@@ -138,6 +138,7 @@ def guide(site_names):
             "niiskus": pts(P.NIISKUS), "viivitus_kp": P.VIIVITUS_KP, "viivitus_alus": P.VIIVITUS_ALUS,
             "viivitus_max": P.VIIVITUS_MAX, "elu": round((1 - P.ELU_PAEV) * 100), "elu_jahe": round((1 - P.ELU_JAHE) * 100),
             "jahe": P.JAHE_PIIR, "kulm": P.KULM_PIIR,
+            "korjatav_vanus": P.KORJATAV_VANUS, "vananemine_jahe": P.VANANEMINE_JAHE, "vananemine_kulm": P.VANANEMINE_KULM,
             "reziim": {k: {"nimi": v["nimi"], "kp": v["kp"]} for k, v in P.VEEREZIIM.items()},
         },
     }

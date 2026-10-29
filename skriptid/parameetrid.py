@@ -130,7 +130,12 @@ ELU_JAHE = 0.88          # when Tmean below JAHE_PIIR: no growth, fruit bodies a
 JAHE_PIIR = 10.0
 ELU_KULM = 0.50          # frost: Tmin below KULM_PIIR
 KULM_PIIR = -1.5
-INDEKS_SKAALA = 8.5     # index = min(1, crop / INDEKS_SKAALA); linear so halving the crop halves it
+# Pickable: only fruit bodies up to KORJATAV_VANUS "days" old count; cool and frosty days age them
+# faster (soggy, maggoty, soft). Without this, old autumn mushrooms kept the index high in October.
+KORJATAV_VANUS = 14
+VANANEMINE_JAHE = 1.5    # age added per day when Tmean below JAHE_PIIR
+VANANEMINE_KULM = 3.0    # age added on a frost night (Tmin below KULM_PIIR)
+INDEKS_SKAALA = 4.9     # index = min(1, pickable crop / INDEKS_SKAALA); a normal season peak gives ~0.75
 
 # Suitability = limiting factors (multiplied) x forest points. Forest points are additive: each
 # factor gives at most its weight in points (weights sum to 1 = 100 points), easy to explain.
@@ -155,5 +160,5 @@ KAALUD = {
 # day-to-day change of the fruiting index does not repaint the map. Steps (lower bounds):
 KLASS_KOHT = [0.80, 0.65, 0.50]   # forest: väga hea, hea, keskmine (green <= ~6 % of forest)
 KLASS_AEG = [0.50, 0.30, 0.15]    # mushroom time: hea, keskmine, vähe
-# class = forest step + time step (0-based): 0 green (parim koht), 1 orange (hea koht),
+# class = forest step + time step (0-based): 0 dark (väga hea), 1 orange (hea),
 # 2 yellow (võimalik), more = not drawn
