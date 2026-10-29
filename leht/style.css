@@ -1,214 +1,244 @@
+/* Siil – light, airy "liquid glass": translucent surfaces, strong blur, a soft top highlight */
 :root {
   --pind: #ffffff;
-  --pind-klaas: rgba(255, 255, 255, .92);
-  --pind-2: #f3f3f0;
-  --pind-3: #e8e8e4;
-  --tint: #1c1c1a;
-  --tint-2: #5e5e59;
-  --tint-3: #8a8a84;
-  --joon: rgba(0, 0, 0, .09);
-  --rohk: #c2531c;
+  --pind-2: rgba(120, 130, 135, .10);
+  --pind-3: rgba(120, 130, 135, .22);
+  --tint: #16222a;
+  --tint-2: #50606b;
+  --tint-3: #7d8a93;
+  --joon: rgba(20, 35, 45, .10);
+  --aktsent: #0f6e56;
+  --aktsent-pehme: rgba(15, 110, 86, .12);
   --roheline: #1e8a3e;
-  --vari: 0 1px 2px rgba(0, 0, 0, .06), 0 6px 24px rgba(0, 0, 0, .10);
-  --raadius: 14px;
-  --vahe: 16px;
-  --ylariba: 64px;
+  --rohk: #c94a2a;
+  --klaas: rgba(255, 255, 255, .52);
+  --klaas-tugev: rgba(255, 255, 255, .80);
+  --klaas-serv: rgba(255, 255, 255, .65);
+  --klaas-valgus: inset 0 1px 0 rgba(255, 255, 255, .85), inset 0 -1px 0 rgba(255, 255, 255, .25);
+  --vari: 0 10px 34px rgba(16, 30, 40, .14), 0 2px 6px rgba(16, 30, 40, .08);
+  --hagu: blur(20px) saturate(1.7);
+  --raadius: 20px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --pind: #1f1f1d;
-    --pind-klaas: rgba(31, 31, 29, .9);
-    --pind-2: #2b2b28;
-    --pind-3: #363632;
-    --tint: #eeeeea;
-    --tint-2: #b0b0aa;
-    --tint-3: #85857f;
-    --joon: rgba(255, 255, 255, .1);
-    --rohk: #f0895a;
-    --vari: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .45);
+    --pind: #15191c;
+    --pind-2: rgba(255, 255, 255, .07);
+    --pind-3: rgba(255, 255, 255, .14);
+    --tint: #eef2f4;
+    --tint-2: #b3bec5;
+    --tint-3: #85929a;
+    --joon: rgba(255, 255, 255, .10);
+    --aktsent: #3cbf96;
+    --aktsent-pehme: rgba(60, 191, 150, .16);
+    --rohk: #f08a6a;
+    --klaas: rgba(24, 30, 34, .50);
+    --klaas-tugev: rgba(24, 30, 34, .82);
+    --klaas-serv: rgba(255, 255, 255, .14);
+    --klaas-valgus: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -1px 0 rgba(255, 255, 255, .04);
+    --vari: 0 10px 34px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
   }
 }
 :root[data-theme="dark"] {
-  --pind: #1f1f1d;
-  --pind-klaas: rgba(31, 31, 29, .9);
-  --pind-2: #2b2b28;
-  --pind-3: #363632;
-  --tint: #eeeeea;
-  --tint-2: #b0b0aa;
-  --tint-3: #85857f;
-  --joon: rgba(255, 255, 255, .1);
-  --rohk: #f0895a;
-  --vari: 0 1px 2px rgba(0, 0, 0, .3), 0 8px 28px rgba(0, 0, 0, .45);
+  --pind: #15191c;
+  --pind-2: rgba(255, 255, 255, .07);
+  --pind-3: rgba(255, 255, 255, .14);
+  --tint: #eef2f4;
+  --tint-2: #b3bec5;
+  --tint-3: #85929a;
+  --joon: rgba(255, 255, 255, .10);
+  --aktsent: #3cbf96;
+  --aktsent-pehme: rgba(60, 191, 150, .16);
+  --rohk: #f08a6a;
+  --klaas: rgba(24, 30, 34, .50);
+  --klaas-tugev: rgba(24, 30, 34, .82);
+  --klaas-serv: rgba(255, 255, 255, .14);
+  --klaas-valgus: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -1px 0 rgba(255, 255, 255, .04);
+  --vari: 0 10px 34px rgba(0, 0, 0, .45), 0 2px 6px rgba(0, 0, 0, .3);
 }
 
 * { box-sizing: border-box; }
 html, body { margin: 0; height: 100%; overflow: hidden; }
 body {
-  background: var(--pind-2);
+  background: #e9ecee;
   color: var(--tint);
   font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
   -webkit-font-smoothing: antialiased;
 }
 #kaart { position: absolute; inset: 0; }
 svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
-
-button {
-  font: inherit; color: var(--tint); background: transparent; border: 0; border-radius: 10px;
-  padding: 6px 10px; cursor: pointer;
-}
+button { font: inherit; color: var(--tint); background: transparent; border: 0; border-radius: 12px; padding: 6px 10px; cursor: pointer; }
 button:disabled { opacity: .35; cursor: default; }
-button:focus-visible, input:focus-visible + .luliti-rada { outline: 2px solid var(--rohk); outline-offset: 2px; }
+button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); outline-offset: 2px; }
+.peidetud { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
 
-/* ---------- glass surfaces ---------- */
-.ylariba, .kaardikaart, .aluskaart, .sahtel {
-  background: var(--pind-klaas);
-  backdrop-filter: blur(14px) saturate(1.2);
-  -webkit-backdrop-filter: blur(14px) saturate(1.2);
-  box-shadow: var(--vari);
-  border: 1px solid var(--joon);
+/* ---------- glass ---------- */
+.klaas {
+  background: var(--klaas);
+  backdrop-filter: var(--hagu);
+  -webkit-backdrop-filter: var(--hagu);
+  border: 1px solid var(--klaas-serv);
+  box-shadow: var(--klaas-valgus), var(--vari);
 }
 
-/* ---------- top bar ---------- */
-.ylariba {
-  position: absolute; top: 12px; left: 12px; right: 12px; height: var(--ylariba); z-index: 5;
-  display: flex; align-items: center; gap: 12px; padding: 0 10px 0 14px; border-radius: var(--raadius);
-}
-.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.logo { width: 30px; height: 30px; color: #e8a417; stroke: none; }
-.brand-tekst { display: grid; line-height: 1.15; }
-.brand-tekst strong { font-size: 17px; letter-spacing: -.01em; }
-.brand-tekst span { font-size: 12px; color: var(--tint-2); white-space: nowrap; }
+/* ---------- corners ---------- */
+.brand { position: absolute; z-index: 5; top: 14px; left: 14px; display: flex; align-items: center; gap: 9px;
+         padding: 7px 16px 7px 10px; border-radius: 999px; }
+.logo { width: 26px; height: 26px; color: #e3a019; stroke: none; }
+.brand-tekst { display: grid; line-height: 1.1; }
+.brand-tekst strong { font-size: 16px; letter-spacing: -.01em; }
+.brand-tekst span { font-size: 11.5px; color: var(--tint-2); }
 
-.paevad-nav { display: flex; align-items: center; gap: 4px; margin: 0 auto; }
-.paevad { display: flex; gap: 4px; }
-.paev {
-  display: grid; justify-items: center; min-width: 64px; padding: 5px 10px; border-radius: 10px;
-  line-height: 1.15; position: relative;
-}
-.paev:hover:not(:disabled) { background: var(--pind-2); }
-.paev .nadal { font-size: 11px; color: var(--tint-2); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
-.paev .kp { font-size: 15px; font-weight: 650; font-variant-numeric: tabular-nums; }
-.paev.prognoos .nadal::after { content: " · prognoos"; text-transform: none; letter-spacing: 0; font-weight: 500; color: var(--tint-3); }
-.paev.aktiivne { background: var(--tint); }
-.paev.aktiivne .nadal, .paev.aktiivne .kp, .paev.aktiivne .nadal::after { color: var(--pind); }
+.nurganupud { position: absolute; z-index: 6; top: 14px; right: 14px; display: flex; gap: 8px; }
+.ring { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%; color: var(--tint); }
+.ring svg { width: 20px; height: 20px; }
+.ring:hover { background: var(--klaas-tugev); }
+#kiht-nupp[aria-pressed="true"] { color: #fff; background: rgba(15, 110, 86, .82); border-color: rgba(255, 255, 255, .35); }
+.menyy-hoidja { position: relative; }
+.menyy { position: absolute; top: 52px; right: 0; min-width: 150px; padding: 6px; border-radius: 16px; display: grid; gap: 2px; }
+.menyy[hidden] { display: none; }
+.menyy button { text-align: left; padding: 8px 12px; font-size: 13.5px; }
+.menyy button:hover { background: var(--pind-2); }
+.menyy button.aktiivne { background: var(--aktsent-pehme); color: var(--aktsent); font-weight: 650; }
 
-.ikoon-nupp { display: grid; place-items: center; width: 36px; height: 36px; padding: 0; color: var(--tint-2); border-radius: 10px; }
-.ikoon-nupp:hover:not(:disabled) { background: var(--pind-2); color: var(--tint); }
+.ring-vaike { display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border-radius: 50%; color: var(--tint-2); flex: none; }
+.ring-vaike:hover:not(:disabled) { background: var(--pind-2); color: var(--tint); }
 .kalender { position: relative; cursor: pointer; overflow: hidden; }
 .kalender input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .kalender input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: 100%; height: 100%; cursor: pointer; }
 
-.ylariba-paremal { display: flex; align-items: center; gap: 8px; }
-.luliti { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; cursor: pointer; user-select: none; padding: 6px 8px; border-radius: 10px; }
-.luliti:hover { background: var(--pind-2); }
-.luliti input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-.luliti-rada { position: relative; width: 34px; height: 20px; border-radius: 10px; background: var(--pind-3); transition: background .15s; flex: none; }
-.luliti-rada::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%;
-                      background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, .3); transition: transform .15s; }
-.luliti input:checked + .luliti-rada { background: var(--roheline); }
-.luliti input:checked + .luliti-rada::after { transform: translateX(14px); }
-.giid-nupp { display: flex; align-items: center; gap: 6px; padding: 8px 12px; font-size: 13px; font-weight: 600;
-             background: var(--tint); color: var(--pind); }
-.giid-nupp:hover { opacity: .88; }
-
-/* ---------- floating cards ---------- */
-.kaardikaart { position: absolute; z-index: 4; border-radius: var(--raadius); }
-.staatus { left: 12px; bottom: 28px; width: 300px; padding: 12px 14px; display: grid; gap: 10px; }
-.kokkuvote { margin: 0; font-size: 13px; line-height: 1.4; }
-.kokkuvote b { font-size: 14px; }
-.pp-markus { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
-             padding: 2px 6px; border-radius: 5px; background: var(--pind-2); color: var(--tint-2); margin-right: 4px; vertical-align: 1px; }
-.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
-.legend li { display: grid; grid-template-columns: 14px 1fr auto; align-items: center; gap: 8px; font-size: 13px; }
-.lapp { width: 14px; height: 14px; border-radius: 4px; }
-.arv { text-align: right; font-variant-numeric: tabular-nums; color: var(--tint-2); }
-.allikas { margin: 0; font-size: 11px; color: var(--tint-3); }
-
-.segment { display: flex; padding: 3px; gap: 2px; border-radius: 11px; background: var(--pind-2); }
-.segment button { flex: 1; padding: 6px 10px; font-size: 13px; font-weight: 600; color: var(--tint-2); border-radius: 8px; }
-.segment button.aktiivne { background: var(--pind); color: var(--tint); box-shadow: 0 1px 3px rgba(0, 0, 0, .12); }
-
-.parimad-kaart { right: 12px; top: calc(var(--ylariba) + 24px); width: 260px; padding: 4px; }
-.kaardikaart-pea { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 8px 10px;
-                   font-size: 13px; font-weight: 700; }
+/* ---------- best spots ---------- */
+.parimad-kaart { position: absolute; z-index: 4; top: 70px; right: 14px; width: 270px; padding: 4px; border-radius: var(--raadius); }
+.kaardikaart-pea { width: 100%; display: flex; align-items: center; justify-content: space-between; padding: 9px 12px; font-size: 13px; font-weight: 700; }
 .kaardikaart-pea .nool { transition: transform .15s; color: var(--tint-2); }
 .parimad-kaart.kinni .nool { transform: rotate(-90deg); }
 .parimad-kaart.kinni .parimad { display: none; }
 .parimad { list-style: none; margin: 0; padding: 0 4px 4px; display: grid; gap: 2px; }
-.parimad button { width: 100%; display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 7px 8px; }
+.parimad button { width: 100%; display: grid; grid-template-columns: 26px 1fr auto; gap: 10px; align-items: center; text-align: left; padding: 7px 8px; border-radius: 14px; }
 .parimad button:hover { background: var(--pind-2); }
 .parimad small { display: block; font-size: 11px; color: var(--tint-2); }
-.parimad .tuhi { font-size: 12px; color: var(--tint-2); padding: 4px 8px 8px; }
-.nr, .marker { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%;
-               background: var(--tint); color: var(--pind); font-size: 12px; font-weight: 700; }
-.marker { width: 28px; height: 28px; padding: 0; border: 2px solid #fff; background: #1c1c1a; color: #fff;
-          box-shadow: 0 2px 6px rgba(0, 0, 0, .35); cursor: pointer; }
-.tapp { width: 16px; height: 16px; border-radius: 50%; background: #fff; border: 4px solid #1c1c1a; box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
+.parimad .tuhi { font-size: 12px; color: var(--tint-2); padding: 4px 10px 10px; }
+.nr { display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%; font-size: 12px; font-weight: 700; }
+.arv { text-align: right; font-variant-numeric: tabular-nums; color: var(--tint-2); }
+.marker { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border-radius: 50%; font-size: 12px; font-weight: 700;
+          color: #fff; background: rgba(22, 34, 42, .82); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+          border: 2px solid rgba(255, 255, 255, .9); box-shadow: 0 3px 10px rgba(0, 0, 0, .3); cursor: pointer; }
+.marker[hidden] { display: none; }
+.tapp { width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 5px solid var(--aktsent); box-shadow: 0 2px 8px rgba(0, 0, 0, .35); }
 
-.aluskaart { position: absolute; z-index: 4; right: 12px; bottom: 28px; border-radius: 12px; background: var(--pind-klaas); }
+/* ---------- timeline (bottom) ---------- */
+.ajatelg { position: absolute; z-index: 4; left: 50%; bottom: 18px; transform: translateX(-50%); width: min(720px, calc(100% - 28px));
+           padding: 12px 14px 12px; border-radius: 24px; display: grid; gap: 10px; }
+.ajatelg-pea { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.segment { display: flex; padding: 3px; gap: 2px; border-radius: 999px; background: var(--pind-2); }
+.segment button { padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--tint-2); border-radius: 999px; }
+.segment button.aktiivne { background: var(--klaas-tugev); color: var(--tint); box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
 
-/* MapLibre controls: below the top bar on the right, compact attribution */
-.maplibregl-ctrl-bottom-right { bottom: 72px; right: 2px; }
-.maplibregl-ctrl-bottom-right .maplibregl-ctrl-attrib { margin-bottom: 0; }
-.maplibregl-ctrl-group { border-radius: 10px !important; box-shadow: var(--vari) !important; overflow: hidden; }
-.maplibregl-ctrl-bottom-left { left: 324px; }
+.paevarida { display: flex; align-items: center; gap: 4px; }
+.paevad { flex: 1; display: flex; gap: 3px; min-width: 0; }
+.paev { flex: 1; min-width: 0; display: grid; justify-items: center; gap: 1px; padding: 6px 0 5px; border-radius: 14px; line-height: 1.1; position: relative; }
+.paev:hover:not(:disabled) { background: var(--pind-2); }
+.paev .nadal { font-size: 10.5px; color: var(--tint-3); font-weight: 650; text-transform: uppercase; }
+.paev .kp { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.paev.prognoos .kp { color: var(--tint-2); font-weight: 500; }
+.paev.prognoos::after { content: ""; position: absolute; left: 30%; right: 30%; bottom: 2px; border-bottom: 2px dotted var(--tint-3); }
+.paev.tana .nadal { color: var(--aktsent); }
+.paev.aktiivne { background: var(--aktsent); }
+.paev.aktiivne .nadal, .paev.aktiivne .kp { color: #fff; }
+.paev.aktiivne::after { border-color: rgba(255, 255, 255, .7); }
 
-/* ---------- side drawer (score explanation) ---------- */
-.sahtel {
-  position: absolute; z-index: 6; top: calc(var(--ylariba) + 24px); right: 12px; bottom: 28px; width: 380px;
-  border-radius: var(--raadius); display: flex; flex-direction: column; overflow: hidden;
-  background: var(--pind); animation: sisse .18s ease-out;
-}
+.kokkuvote { margin: 0; font-size: 13.5px; line-height: 1.4; }
+.kokkuvote b { font-size: 14px; }
+.pp-markus { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
+             padding: 2px 7px; border-radius: 999px; background: var(--aktsent-pehme); color: var(--aktsent); margin-right: 4px; vertical-align: 1px; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.legend li { display: flex; align-items: center; gap: 7px; font-size: 12.5px; }
+.legend .arv { font-size: 12px; }
+.lapp { width: 12px; height: 12px; border-radius: 4px; }
+
+/* MapLibre controls above the timeline */
+.maplibregl-ctrl-bottom-right { bottom: 190px; right: 6px; }
+.maplibregl-ctrl-bottom-left { bottom: 190px; left: 6px; }
+.maplibregl-ctrl-group { border-radius: 14px !important; overflow: hidden; background: var(--klaas-tugev) !important;
+                         backdrop-filter: var(--hagu); -webkit-backdrop-filter: var(--hagu); box-shadow: var(--vari) !important; }
+.maplibregl-ctrl-attrib { background: var(--klaas) !important; backdrop-filter: blur(8px); border-radius: 10px; }
+.maplibregl-ctrl-scale { background: var(--klaas) !important; border-color: var(--tint-2) !important; color: var(--tint); }
+
+/* ---------- side drawer ---------- */
+.sahtel { position: absolute; z-index: 7; top: 70px; right: 14px; bottom: 18px; width: 380px; border-radius: 24px;
+          display: flex; flex-direction: column; overflow: hidden; background: var(--klaas-tugev); animation: sisse .18s ease-out; }
 @keyframes sisse { from { opacity: 0; transform: translateX(12px); } }
 .sahtel[hidden] { display: none; }
-.sahtel-pea { display: flex; align-items: center; justify-content: space-between; padding: 10px 10px 10px 16px; border-bottom: 1px solid var(--joon); }
-.sahtel-pea h2 { margin: 0; font-size: 15px; }
-.sahtel-sisu { overflow-y: auto; padding: 14px 16px 18px; }
+.sahtel-pea { display: flex; align-items: center; justify-content: space-between; padding: 12px 10px 10px 16px; }
+.sahtel-sisu { overflow-y: auto; padding: 4px 16px 18px; }
+.otsus-silt { display: inline-block; font-size: 13px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em;
+              padding: 5px 11px; border-radius: 999px; background: var(--pind-3); color: var(--tint-2); }
+.otsus-silt.k0 { background: #1e8a3e; color: #fff; }
+.otsus-silt.k1 { background: #f08a00; color: #1c1c1a; }
+.otsus-silt.k2 { background: #f2c40f; color: #1c1c1a; }
 
-.sel-pea { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; font-size: 14px; }
-.sel-arv { display: grid; place-items: center; min-width: 54px; height: 54px; border-radius: 12px; font-size: 24px; font-weight: 750;
-           background: var(--pind-2); }
-.sel-arv.k0 { background: #1e8a3e; color: #fff; }
-.sel-arv.k1 { background: #f08a00; color: #1c1c1a; }
-.sel-arv.k2 { background: #f2c40f; color: #1c1c1a; }
-.arvutus { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: var(--pind-2); font-size: 12.5px; display: grid; gap: 4px; }
-.sel-osa { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 16px; padding-top: 12px;
-           border-top: 1px solid var(--joon); font-weight: 700; }
-.sel-osa .arv { margin-left: auto; color: var(--tint); }
-.sel-osa small { flex-basis: 100%; font-weight: 400; font-size: 11.5px; color: var(--tint-2); }
-.sel-read { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 8px; }
-.sel-read li { display: grid; grid-template-columns: 1fr 64px 48px; gap: 2px 10px; align-items: center; font-size: 13px; }
-.sel-read .arv { font-weight: 650; color: var(--tint); }
-.sel-read .pohjus { grid-column: 1 / -1; color: var(--tint-2); font-size: 12px; margin-top: -2px; }
-.riba { height: 6px; border-radius: 3px; background: var(--pind-3); overflow: hidden; }
-.riba > span { display: block; height: 100%; background: var(--tint-3); border-radius: 3px; }
-.riba.nork > span { background: var(--rohk); }
-.sel-markus { font-size: 12px; color: var(--tint-2); margin: 10px 0 0; }
-.vaike-nupp { display: flex; align-items: center; gap: 6px; margin-top: 14px; padding: 8px 12px; font-size: 13px; font-weight: 600;
-              border: 1px solid var(--joon); background: var(--pind-2); }
+.kaksik { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kaksik.yks { grid-template-columns: 1fr; }
+.naitaja { padding: 12px; border-radius: 18px; background: var(--pind-2); border: 1px solid var(--joon); }
+.n-pea { display: flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; color: var(--tint-2); text-transform: uppercase; letter-spacing: .04em; }
+.n-pea svg { width: 16px; height: 16px; }
+.n-sona { font-size: 22px; font-weight: 750; margin: 4px 0 10px; letter-spacing: -.01em; }
+.astmeriba { position: relative; }
+.aste-segmendid { position: relative; display: flex; gap: 3px; height: 10px; }
+.aste-seg { flex: 1; border-radius: 4px; }
+.aste-seg.tuhm { opacity: .28; }
+.aste-marker { position: absolute; top: -4px; width: 4px; height: 18px; margin-left: -2px; border-radius: 2px;
+               background: var(--tint); box-shadow: 0 0 0 2px var(--pind); }
+
+.omadused { list-style: none; margin: 16px 0 0; padding: 0; display: grid; gap: 9px; }
+.omadused li { display: grid; grid-template-columns: 120px 1fr; gap: 2px 10px; align-items: center; font-size: 13px; }
+.omadused .pohjus { grid-column: 2; font-size: 12px; color: var(--tint-2); }
+.riba { height: 8px; border-radius: 4px; background: var(--pind-3); overflow: hidden; }
+.riba > span { display: block; height: 100%; border-radius: 4px; background: var(--tint-3); }
+.riba.q-hea > span { background: #1e8a3e; }
+.riba.q-keskmine > span { background: #e0a100; }
+.riba.q-nork > span { background: #c94a2a; }
+
+.sel-h { font-size: 14px; margin: 20px 0 8px; padding-top: 14px; border-top: 1px solid var(--joon); }
+svg.g { width: 100%; height: auto; display: block; overflow: visible; }
+.g-prognoosiala { fill: var(--tint); opacity: .05; stroke: none; }
+.g-tee { fill: none; stroke: var(--roheline); stroke-width: 2.5; }
+.g-prognoos { stroke-dasharray: 4 4; opacity: .85; }
+.g-joon { stroke: var(--tint-3); stroke-width: 1; stroke-dasharray: 2 3; opacity: .5; }
+.g-tana { stroke: var(--tint-2); stroke-width: 1; }
+.g-tapp { fill: var(--roheline); stroke: var(--pind); stroke-width: 2; }
+.g-silt { fill: var(--tint-3); font-size: 10px; stroke: none; }
+.g-tugev { fill: var(--tint); font-weight: 700; }
+.g-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 11px; color: var(--tint-2); }
+.g-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.g-legend i.g-l-joon { height: 3px; background: var(--roheline); vertical-align: 2px; }
+.kypseb { margin: 10px 0 0; padding: 10px 12px; border-radius: 14px; background: var(--pind-2); font-size: 13px; }
+.vaike-nupp { display: flex; align-items: center; gap: 6px; margin-top: 14px; padding: 8px 14px; font-size: 13px; font-weight: 600;
+              border-radius: 999px; background: var(--pind-2); border: 1px solid var(--joon); }
+.vaike-nupp:hover { background: var(--pind-3); }
 
 /* ---------- guide dialog ---------- */
-#giid { width: min(680px, calc(100% - 32px)); max-height: calc(100% - 48px); padding: 0; border: 0; border-radius: 16px;
-        background: var(--pind); color: var(--tint); box-shadow: var(--vari); }
-#giid::backdrop { background: rgba(10, 10, 8, .5); backdrop-filter: blur(2px); }
+#giid { width: min(680px, calc(100% - 32px)); max-height: calc(100% - 48px); padding: 0; border: 1px solid var(--klaas-serv); border-radius: 24px;
+        background: var(--klaas-tugev); backdrop-filter: var(--hagu); -webkit-backdrop-filter: var(--hagu); color: var(--tint);
+        box-shadow: var(--klaas-valgus), var(--vari); }
+#giid::backdrop { background: rgba(10, 20, 26, .28); backdrop-filter: blur(3px); }
 .giid-pea { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between;
-            padding: 14px 14px 14px 22px; background: var(--pind); border-bottom: 1px solid var(--joon); }
+            padding: 14px 14px 12px 22px; background: var(--klaas-tugev); backdrop-filter: var(--hagu); -webkit-backdrop-filter: var(--hagu);
+            border-bottom: 1px solid var(--joon); }
 .giid-pea h2 { margin: 0; font-size: 18px; }
 #giid-sisu { padding: 6px 22px 22px; font-size: 14px; }
 #giid-sisu h3 { font-size: 15px; margin: 24px 0 6px; }
 #giid-sisu p { margin: 8px 0; }
-.valemikast { margin: 14px 0; padding: 14px 16px; border-radius: 12px; background: var(--pind-2); display: grid; gap: 6px; font-size: 15px; }
+.valemikast { margin: 14px 0; padding: 14px 16px; border-radius: 16px; background: var(--pind-2); display: grid; gap: 6px; font-size: 15px; }
 .valemikast small { color: var(--tint-2); font-size: 11px; }
 .vk { font-weight: 700; }
-.vk.hinne { color: var(--rohk); }
+.vk.hinne { color: var(--aktsent); }
 .giid-klassid, .giid-loend, .giid-kaalud { margin: 8px 0; padding: 0; list-style: none; display: grid; gap: 5px; }
 .giid-loend { list-style: disc; padding-left: 20px; }
 .giid-klassid li { display: flex; align-items: center; gap: 8px; }
 .tuhi-lapp { border: 1px dashed var(--tint-3); }
 .giid-kaalud li { display: grid; grid-template-columns: 150px 1fr 44px; gap: 10px; align-items: center; font-size: 13px; }
-.giid-kaalud .riba { height: 8px; }
-.giid-kaalud .riba > span { background: var(--rohk); }
-#giid details { border: 1px solid var(--joon); border-radius: 10px; margin: 6px 0; padding: 0 14px; }
+.giid-kaalud .riba > span { background: var(--aktsent); }
+#giid details { border: 1px solid var(--joon); border-radius: 14px; margin: 6px 0; padding: 0 14px; background: var(--pind-2); }
 #giid summary { cursor: pointer; padding: 10px 0; font-weight: 650; }
 #giid details[open] { padding-bottom: 10px; }
 #giid table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 6px 0; }
@@ -216,126 +246,43 @@ button:focus-visible, input:focus-visible + .luliti-rada { outline: 2px solid va
 #giid td { padding: 4px 0; border-bottom: 1px solid var(--joon); }
 #giid th:last-child, #giid td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
 #giid tr.summa td { font-weight: 700; border-bottom: 2px solid var(--joon); }
-.naide { border: 1px solid var(--joon); border-radius: 12px; padding: 4px 14px 10px; }
+#giid table.maatriks { table-layout: fixed; text-align: center; }
+#giid .maatriks th, #giid .maatriks td { text-align: center; padding: 8px 4px; border: 2px solid transparent; }
+#giid .maatriks th small { font-weight: 400; color: var(--tint-3); }
+#giid .maatriks td { font-weight: 650; font-size: 12px; color: #1c1c1a; border-radius: 8px; }
+#giid .maatriks td.tyhi { background: var(--pind-2); color: var(--tint-3); }
+.naide { border: 1px solid var(--joon); border-radius: 16px; padding: 4px 14px 10px; }
 .vaike { font-size: 12.5px; color: var(--tint-2); }
 .markus { font-size: 12px; color: var(--tint-3); margin-top: 18px; }
 
-/* ---------- medium screens: drop labels ---------- */
-@media (max-width: 1100px) {
-  .giid-nupp span, .luliti-silt { display: none; }
-  .giid-nupp { padding: 8px; }
-}
-
 /* ---------- phones ---------- */
 @media (max-width: 760px) {
-  :root { --ylariba: 108px; }
-  .ylariba { top: 8px; left: 8px; right: 8px; flex-wrap: wrap; align-content: center; row-gap: 6px; padding: 8px 8px 8px 12px; }
-  .brand { flex: 1; }
-  .paevad-nav { order: 3; flex-basis: 100%; margin: 0; justify-content: space-between; }
-  .paevad { flex: 1; justify-content: space-between; }
-  .paev { min-width: 0; flex: 1; padding: 4px 2px; }
-  .paev.prognoos .nadal::after { content: ""; }
-  .paev.prognoos .kp::after { content: "*"; color: var(--tint-3); }
-  #eelmine, #jargmine { display: none; }
-
-  .staatus { left: 8px; right: 8px; bottom: 8px; width: auto; padding: 10px 12px; gap: 8px; }
-  .legend { grid-template-columns: repeat(3, auto); justify-content: space-between; gap: 4px 10px; }
-  .legend li { grid-template-columns: 12px auto; font-size: 12px; }
-  .legend li .arv { display: none; }
-  .allikas { display: none; }
-
-  .parimad-kaart { top: calc(var(--ylariba) + 16px); right: 8px; width: auto; max-width: 240px; }
-  .aluskaart { right: auto; left: 8px; bottom: auto; top: calc(var(--ylariba) + 16px); }
-  .maplibregl-ctrl-bottom-right { bottom: 190px; }
-
-  .sahtel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 78vh; border-radius: 18px 18px 0 0; animation-name: ules; }
+  .brand { top: 10px; left: 10px; padding: 6px 14px 6px 8px; }
+  .brand-tekst span { display: none; }
+  .nurganupud { top: 10px; right: 10px; gap: 6px; }
+  .ring { width: 42px; height: 42px; }
+  .parimad-kaart { top: 62px; right: 10px; width: auto; max-width: 250px; }
+  .ajatelg { bottom: 10px; width: calc(100% - 20px); padding: 10px 10px 10px; border-radius: 22px; gap: 8px; }
+  .segment button { padding: 6px 11px; }
+  .paev { padding: 5px 0 4px; }
+  .paev .kp { font-size: 12.5px; }
+  .paev .nadal { font-size: 9.5px; }
+  .legend .arv { display: none; }
+  .maplibregl-ctrl-bottom-right { bottom: 200px; }
+  .maplibregl-ctrl-bottom-left { bottom: 200px; }
+  .sahtel { top: auto; left: 0; right: 0; bottom: 0; width: auto; height: 80vh; border-radius: 26px 26px 0 0; animation-name: ules; }
   @keyframes ules { from { transform: translateY(24px); opacity: 0; } }
-}
-
-/* forest x time steps */
-.astmed { margin-top: 8px; font-size: 12.5px; color: var(--tint-2); }
-.astmed b { color: var(--tint); }
-#giid table.maatriks { table-layout: fixed; text-align: center; }
-#giid .maatriks th, #giid .maatriks td { text-align: center; padding: 8px 4px; border: 2px solid var(--pind); }
-#giid .maatriks th small { font-weight: 400; color: var(--tint-3); }
-#giid .maatriks td { font-weight: 650; font-size: 12px; color: #1c1c1a; border-radius: 6px; }
-#giid .maatriks td.tyhi { background: var(--pind-2); color: var(--tint-3); }
-
-/* ---------- explanation drawer: visual forest and mushroom time ---------- */
-.otsus { padding: 12px 14px; border-radius: 12px; background: var(--pind-2); }
-.otsus-silt { display: inline-block; font-size: 12px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em;
-              padding: 3px 8px; border-radius: 6px; background: var(--pind-3); color: var(--tint-2); }
-.otsus.k0 .otsus-silt { background: #1e8a3e; color: #fff; }
-.otsus.k1 .otsus-silt { background: #f08a00; color: #1c1c1a; }
-.otsus.k2 .otsus-silt { background: #f2c40f; color: #1c1c1a; }
-.otsus p { margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
-
-.kaksik { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
-.kaksik.yks { grid-template-columns: 1fr; }
-.naitaja { padding: 12px; border-radius: 12px; border: 1px solid var(--joon); }
-.n-pea { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--tint-2);
-         text-transform: uppercase; letter-spacing: .04em; }
-.n-pea svg { width: 16px; height: 16px; }
-.n-sona { font-size: 22px; font-weight: 750; margin: 4px 0 8px; letter-spacing: -.01em; }
-.n-alla { font-size: 11px; color: var(--tint-3); margin-top: 6px; }
-.astmeriba { position: relative; }
-.aste-segmendid { position: relative; display: flex; gap: 2px; height: 10px; }
-.aste-seg { border-radius: 3px; background: var(--pind-3); }
-.aste-marker { position: absolute; top: -4px; width: 4px; height: 18px; margin-left: -2px; border-radius: 2px;
-               background: var(--tint); box-shadow: 0 0 0 2px var(--pind); }
-.aste-sildid { position: relative; height: 14px; margin-top: 3px; }
-.aste-sildid span { position: absolute; transform: translateX(-50%); font-size: 9.5px; color: var(--tint-3); white-space: nowrap; }
-
-.kuidas { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; margin-top: 12px;
-          padding: 10px 12px; border-radius: 12px; background: var(--pind-2); }
-.kuidas p { margin: 0; font-size: 12px; color: var(--tint-2); line-height: 1.4; }
-.mini-maatriks { display: grid; grid-template-columns: auto repeat(3, 22px); gap: 3px; align-items: center; }
-.mm-silt { font-size: 9px; color: var(--tint-3); text-align: center; line-height: 1; }
-.mm-rida { text-align: right; padding-right: 3px; }
-.mm-nurk { font-size: 9px; color: var(--tint-3); }
-.mm-lahter { width: 22px; height: 16px; border-radius: 3px; opacity: .45; }
-.mm-lahter.siin { opacity: 1; box-shadow: 0 0 0 2px var(--pind), 0 0 0 4px var(--tint); }
-
-.sel-h { font-size: 14px; margin: 20px 0 8px; padding-top: 14px; border-top: 1px solid var(--joon); }
-.sel-h4 { font-size: 12px; margin: 14px 0 6px; color: var(--tint-2); text-transform: uppercase; letter-spacing: .04em; }
-.eeltingimused { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
-.eeltingimused li { display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: start; font-size: 13px; }
-.eeltingimused small { display: block; font-size: 12px; color: var(--tint-2); }
-.ikoon-q { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; }
-.ikoon-q svg { width: 14px; height: 14px; stroke-width: 2.6; }
-li.hea .ikoon-q { background: rgba(30, 138, 62, .15); color: #1e8a3e; }
-li.keskmine .ikoon-q { background: rgba(224, 161, 0, .18); color: #b37f00; }
-li.nork .ikoon-q { background: rgba(201, 74, 42, .15); color: #c94a2a; }
-.tingimused { grid-template-columns: repeat(3, 1fr); }
-.tingimused li { grid-template-columns: 22px 1fr; gap: 6px; }
-
-.omadused { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
-.omadused li { display: grid; grid-template-columns: 120px 1fr; gap: 2px 10px; align-items: center; font-size: 13px; }
-.omadused .pohjus { grid-column: 2; font-size: 12px; color: var(--tint-2); }
-.riba.q-hea > span { background: #1e8a3e; }
-.riba.q-keskmine > span { background: #e0a100; }
-.riba.q-nork > span { background: #c94a2a; }
-.omadused .riba { height: 8px; }
-
-svg.g { width: 100%; height: auto; display: block; overflow: visible; }
-.g-ala { fill: var(--roheline); opacity: .1; stroke: none; }
-.g-tee { fill: none; stroke: var(--roheline); stroke-width: 2.5; }
-.g-prognoos { stroke-dasharray: 4 4; opacity: .8; }
-.g-joon { stroke: var(--tint-3); stroke-width: 1; stroke-dasharray: 2 3; opacity: .5; }
-.g-tana { stroke: var(--tint-2); stroke-width: 1; }
-.g-tapp { fill: var(--roheline); stroke: var(--pind); stroke-width: 2; }
-.g-silt { fill: var(--tint-3); font-size: 10px; stroke: none; }
-.g-tugev { fill: var(--tint); font-weight: 700; }
-.kypseb { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--pind-2); font-size: 13px; }
-
-@media (max-width: 760px) {
   .omadused li { grid-template-columns: 104px 1fr; }
   .n-sona { font-size: 19px; }
 }
-/* equal step segments and roomier mini matrix */
-.aste-seg { flex: 1; }
-.aste-sildid { display: grid; grid-template-columns: repeat(4, 1fr); height: auto; }
-.aste-sildid span { position: static; transform: none; text-align: center; font-size: 10px; }
-.mini-maatriks { grid-template-columns: auto repeat(3, 40px); }
-.mm-lahter { width: 40px; height: 16px; }
-.mm-silt { font-size: 9.5px; }
+
+/* phones: the day strip scrolls sideways, the chosen day is centred */
+@media (max-width: 760px) {
+  .paevad { overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .paevad::-webkit-scrollbar { display: none; }
+  .paev { flex: 0 0 40px; scroll-snap-align: center; }
+  .paev .kp { font-size: 14px; }
+  .paev .nadal { font-size: 10px; }
+}
+.ajatelg > *, .paevarida { min-width: 0; }
+.paevad { position: relative; }

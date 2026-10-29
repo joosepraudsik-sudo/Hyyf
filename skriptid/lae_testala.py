@@ -95,9 +95,9 @@ def lae_muld():
     fetch("https://geoportaal.maaruum.ee/docs/muld/mullalegend.pdf", EESTI / "muld" / "mullalegend.pdf")
 
 
-def lae_ilm(target: Path, punktid: dict, algus="2023-01-01", lopp="2026-10-20"):
+def lae_ilm(target: Path, punktid: dict, algus="2023-01-01", lopp="2026-10-20", prognoos_paevi=10):
     """ERA5-Land temperature + ERA5 precipitation/ET0 (Open-Meteo archive, development only),
-    then the last 14 days and a 3-day forecast from the forecast API (always refreshed)."""
+    then the last 14 days and a forecast (default 10 days) from the forecast API (always refreshed)."""
     daily = ("temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
              "et0_fao_evapotranspiration,soil_moisture_0_to_7cm_mean,"
              "soil_moisture_7_to_28cm_mean,soil_temperature_0_to_7cm_mean")
@@ -110,10 +110,10 @@ def lae_ilm(target: Path, punktid: dict, algus="2023-01-01", lopp="2026-10-20"):
                    f"&daily={variables}&models={model}&timezone=Europe%2FTallinn")
             fetch(url, target / f"{model.replace('_', '')}_{name}.json")
             time.sleep(1)
-    print("   + viimased 14 paeva ja 3 paeva prognoos (Open-Meteo forecast)")
+    print(f"   + viimased 14 paeva ja {prognoos_paevi} paeva prognoos (Open-Meteo forecast)")
     for name, (lat, lon) in punktid.items():
         url = ("https://api.open-meteo.com/v1/forecast"
-               f"?latitude={lat}&longitude={lon}&past_days=14&forecast_days=4"
+               f"?latitude={lat}&longitude={lon}&past_days=14&forecast_days={prognoos_paevi + 1}"
                "&daily=temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
                "et0_fao_evapotranspiration&hourly=soil_temperature_6cm&timezone=Europe%2FTallinn")
         fetch(url, target / f"prognoos_{name}.json", refresh=True)

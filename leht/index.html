@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="et">
 <head>
   <meta charset="utf-8">
@@ -11,56 +11,36 @@
 <body>
   <div id="kaart" aria-label="Kaart"></div>
 
-  <header class="ylariba">
-    <div class="brand">
-      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M5 9c0-2 5-4 11-4s11 2 11 4c0 3-6 6-8 9v8c0 1-1 2-3 2s-3-1-3-2v-8C11 15 5 12 5 9z" fill="currentColor"/>
-        <path d="M9 9.5c2 1 4.5 1.5 7 1.5s5-.5 7-1.5" stroke="var(--pind)" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".55"/>
-      </svg>
-      <div class="brand-tekst">
-        <strong>Siil</strong>
-        <span>Harilik kukeseen</span>
+  <div class="brand klaas">
+    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+      <path d="M5 9c0-2 5-4 11-4s11 2 11 4c0 3-6 6-8 9v8c0 1-1 2-3 2s-3-1-3-2v-8C11 15 5 12 5 9z" fill="currentColor"/>
+    </svg>
+    <div class="brand-tekst">
+      <strong>Siil</strong>
+      <span>Harilik kukeseen</span>
+    </div>
+  </div>
+
+  <div class="nurganupud">
+    <button id="kiht-nupp" class="ring klaas" aria-pressed="true" title="Näita või peida seenekaart" aria-label="Seenekaart">
+      <svg viewBox="0 0 24 24"><path d="M4 10c0-3 3.6-5 8-5s8 2 8 5c0 1.5-2.5 3-5 4.5V19a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-4.5C6.5 13 4 11.5 4 10z"/></svg>
+    </button>
+    <div class="menyy-hoidja">
+      <button id="aluskaart-nupp" class="ring klaas" aria-expanded="false" aria-controls="aluskaart" title="Aluskaart" aria-label="Aluskaart">
+        <svg viewBox="0 0 24 24"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/></svg>
+      </button>
+      <div id="aluskaart" class="menyy klaas" role="group" aria-label="Aluskaart" hidden>
+        <button data-kiht="hallkaart" class="aktiivne">Hall kaart</button>
+        <button data-kiht="kaart">Kaart</button>
+        <button data-kiht="foto">Ortofoto</button>
       </div>
     </div>
+    <button id="giid-nupp" class="ring klaas" title="Kuidas hinne tekib" aria-label="Kuidas hinne tekib">
+      <svg viewBox="0 0 24 24"><path d="M9.5 9a2.5 2.5 0 1 1 3.6 2.25c-.7.35-1.1 1-1.1 1.75v.5M12 17h.01"/></svg>
+    </button>
+  </div>
 
-    <nav id="paeva-osa" class="paevad-nav" aria-label="Päev">
-      <button id="eelmine" class="ikoon-nupp" title="Eelmine päev" aria-label="Eelmine päev">
-        <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
-      </button>
-      <div id="paevad" class="paevad" role="group"></div>
-      <button id="jargmine" class="ikoon-nupp" title="Järgmine päev" aria-label="Järgmine päev">
-        <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
-      </button>
-      <label class="ikoon-nupp kalender" title="Vali kuupäev">
-        <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
-        <input type="date" id="kuupaev" aria-label="Vali kuupäev">
-      </label>
-    </nav>
-
-    <div class="ylariba-paremal">
-      <label class="luliti" title="Näita või peida seenekaart">
-        <input type="checkbox" id="kiht-luliti" checked>
-        <span class="luliti-rada" aria-hidden="true"></span>
-        <span class="luliti-silt">Seenekaart</span>
-      </label>
-      <button id="giid-nupp" class="giid-nupp" title="Punktitabel – kuidas hinne tekib">
-        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg>
-        <span>Kuidas hinne tekib</span>
-      </button>
-    </div>
-  </header>
-
-  <section id="staatus" class="kaardikaart staatus" aria-live="polite">
-    <div id="reziim" class="segment" role="group" aria-label="Mida kaart näitab">
-      <button data-reziim="tana" class="aktiivne">Kus otsida</button>
-      <button data-reziim="koht">Head metsad</button>
-    </div>
-    <p id="kokkuvote" class="kokkuvote"></p>
-    <ul id="legend" class="legend"></ul>
-    <p class="allikas">Arendusversioon · testala Põlvamaal · mudel valideerimata</p>
-  </section>
-
-  <section id="parimad-kaart" class="kaardikaart parimad-kaart">
+  <section id="parimad-kaart" class="parimad-kaart klaas">
     <button id="parimad-pea" class="kaardikaart-pea" aria-expanded="true" aria-controls="parimad">
       <span>Parimad kohad</span>
       <svg class="nool" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
@@ -68,16 +48,36 @@
     <ol id="parimad" class="parimad"></ol>
   </section>
 
-  <div id="aluskaart" class="segment aluskaart" role="group" aria-label="Aluskaart">
-    <button data-kiht="hallkaart" class="aktiivne">Hall</button>
-    <button data-kiht="kaart">Kaart</button>
-    <button data-kiht="foto">Foto</button>
-  </div>
+  <section id="ajatelg" class="ajatelg klaas" aria-live="polite">
+    <div class="ajatelg-pea">
+      <div id="reziim" class="segment" role="group" aria-label="Mida kaart näitab">
+        <button data-reziim="tana" class="aktiivne">Kus otsida</button>
+        <button data-reziim="koht">Head metsad</button>
+      </div>
+      <label class="ring-vaike kalender" title="Vali muu kuupäev">
+        <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+        <input type="date" id="kuupaev" aria-label="Vali kuupäev">
+      </label>
+    </div>
 
-  <aside id="sahtel" class="sahtel" hidden aria-labelledby="sahtel-pealkiri">
+    <div id="paeva-osa" class="paevarida">
+      <button id="eelmine" class="ring-vaike" title="Eelmine päev" aria-label="Eelmine päev">
+        <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <div id="paevad" class="paevad" role="group" aria-label="Päev"></div>
+      <button id="jargmine" class="ring-vaike" title="Järgmine päev" aria-label="Järgmine päev">
+        <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+    </div>
+
+    <p id="kokkuvote" class="kokkuvote"></p>
+    <ul id="legend" class="legend"></ul>
+  </section>
+
+  <aside id="sahtel" class="sahtel klaas" hidden aria-labelledby="sahtel-pealkiri">
     <header class="sahtel-pea">
-      <h2 id="sahtel-pealkiri">Selle koha hinne</h2>
-      <button id="sahtel-sulge" class="ikoon-nupp" title="Sulge" aria-label="Sulge">
+      <span id="sahtel-silt" class="otsus-silt"></span><h2 id="sahtel-pealkiri" class="peidetud">Koha selgitus</h2>
+      <button id="sahtel-sulge" class="ring-vaike" title="Sulge" aria-label="Sulge">
         <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </header>
@@ -87,7 +87,7 @@
   <dialog id="giid" aria-labelledby="giid-pealkiri">
     <header class="giid-pea">
       <h2 id="giid-pealkiri">Kuidas hinne tekib</h2>
-      <button class="ikoon-nupp" id="giid-sulge" title="Sulge" aria-label="Sulge">
+      <button class="ring-vaike" id="giid-sulge" title="Sulge" aria-label="Sulge">
         <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>
     </header>
