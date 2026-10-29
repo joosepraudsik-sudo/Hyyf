@@ -38,7 +38,7 @@ GRID = AREA / "ruudustik"
 OUT = BASE / "valjund"
 WEB = BASE / "leht" / "andmed"
 CLASSES = sorted(P.VEEREZIIM)
-MONTHS = (6, 10)   # June..October
+MONTHS = (6, 11)   # June..November (the season ends in October, forecast may reach into November)
 TIME_COLS = ["indeks", "niiskus", "w", "hooaeg", "temperatuur"]
 
 LOIMIS_NIMI = {"l": "liiv", "pl": "peenliiv", "sl": "saviliiv", "plsl": "saviliiv", "tsl": "saviliiv",

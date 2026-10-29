@@ -13,6 +13,7 @@ const KLASSID = {
   koht: [[0.80, "Väga hea mets", "#1e8a3e"], [0.65, "Hea mets", "#f08a00"], [0.50, "Keskmine mets", "#f2c40f"]],
 };
 const KIHI_TUGEVUS = 0.55;
+const NADALAPAEV = ["pühap", "esmasp", "teisip", "kolmap", "neljap", "reede", "laup"];
 const PARIMAID = 5;
 const PARIM_VAHE_M = 500;    // best spots at least this far apart
 const PARIM_YMBER_M = 300;   // good forest counted within this radius of a spot
@@ -39,6 +40,9 @@ function lae() {
   meta.kihid.forEach((k, i) => (kiht[k] = rakud.subarray(i * n, (i + 1) * n)));
   const v = S.viljumine;
   const aeg = Uint8Array.from(atob(v.andmed), (c) => c.charCodeAt(0));
+  // "today" is the viewer's date when the data covers it, not the day the data was exported
+  const kohalik = new Date().toLocaleDateString("sv-SE");
+  if (v.kuupaevad.includes(kohalik)) v.tana = kohalik;
   Object.assign(olek, { meta, n, kiht, vilj: v, aeg, eraldised: S.eraldised, mullad: S.mullad,
                         klassid: Object.keys(meta.klassid).map(Number) });
 }
@@ -89,8 +93,7 @@ function joonista() {
   }
   ctx.putImageData(img, 0, 0);
   const url = canvas.toDataURL();
-  const src = map.getSource("hinnang");
-  if (src) src.updateImage({ url, coordinates: meta.nurgad });
+  if (map.getSource("hinnang")) uuendaPilt(url);
   else {
     map.addSource("hinnang", { type: "image", url, coordinates: meta.nurgad });
     map.addLayer({ id: "hinnang", type: "raster", source: "hinnang",
@@ -100,6 +103,24 @@ function joonista() {
   const kohad = parimadKohad(v, kl);
   uuendaPaneel(kl, kohad);
   uuendaMarkerid(kohad);
+}
+
+// one image load at a time: a new updateImage while the previous one is still decoding aborts it
+// (AbortError in the console), so keep only the latest pending frame and send it when done
+const pilt = { laeb: false, ootel: null };
+function uuendaPilt(url) {
+  if (pilt.laeb) { pilt.ootel = url; return; }
+  pilt.laeb = true;
+  map.getSource("hinnang").updateImage({ url, coordinates: olek.meta.nurgad });
+  const valmis = () => {
+    clearTimeout(pilt.taimer);
+    map.off("sourcedata", kuula);
+    pilt.laeb = false;
+    if (pilt.ootel) { const u = pilt.ootel; pilt.ootel = null; uuendaPilt(u); }
+  };
+  const kuula = (e) => { if (e.sourceId === "hinnang" && map.isSourceLoaded("hinnang")) valmis(); };
+  map.on("sourcedata", kuula);
+  pilt.taimer = setTimeout(valmis, 1500);   // safety net if the event never comes
 }
 
 // best spots: highest cells of class "hea" or better, at least VAHE apart; each with the area
@@ -151,18 +172,24 @@ function lulitaKiht(nahtav) {
 function uuendaPaneel(kl, kohad) {
   const { vilj, paev, p0, meta } = olek;
   const tana = olek.reziim === "tana";
-  document.getElementById("paeva-osa").hidden = !tana;
+  document.getElementById("paeva-osa").style.visibility = tana ? "" : "hidden";
   document.getElementById("kuupaev").value = vilj.kuupaevad[paev];
   document.getElementById("eelmine").disabled = paev === 0;
   document.getElementById("jargmine").disabled = paev === vilj.kuupaevad.length - 1;
 
+  // day chips: the chosen day and the three after it
   const nupud = document.getElementById("paevad");
   nupud.innerHTML = "";
   for (let k = 0; k < 4; k++) {
     const i = p0 + k, d = vilj.kuupaevad[i];
     const b = document.createElement("button");
-    const silt = d === vilj.tana ? "täna" : vilj.paeva_allikas[i] === "prognoos" ? "prognoos" : "";
-    b.innerHTML = `${k === 0 ? "P" : "P+" + k}<small>${d ? d.slice(8) + "." + d.slice(5, 7) : "–"}</small>${silt ? `<small class="silt-pp">${silt}</small>` : ""}`;
+    b.className = "paev";
+    if (d) {
+      const nadal = d === vilj.tana ? "Täna" : NADALAPAEV[new Date(d + "T12:00").getDay()];
+      b.innerHTML = `<span class="nadal">${nadal}</span><span class="kp">${+d.slice(8)}.${d.slice(5, 7)}</span>`;
+      b.classList.toggle("prognoos", vilj.paeva_allikas[i] === "prognoos");
+      b.title = vilj.paeva_allikas[i] === "prognoos" ? "Prognoos" : d;
+    } else b.innerHTML = `<span class="nadal">&nbsp;</span><span class="kp">–</span>`;
     b.disabled = !d || d.slice(0, 4) !== vilj.kuupaevad[p0].slice(0, 4);
     b.classList.toggle("aktiivne", i === paev);
     b.onclick = () => { olek.paev = i; joonista(); };
@@ -192,7 +219,9 @@ function uuendaPaneel(kl, kohad) {
     const li = document.createElement("li");
     li.innerHTML = `<button><span class="nr">${i + 1}</span><span>hinne ${hinne(k.parim)}<small>head metsa ümber ${Math.round(k.ha)} ha</small></span><span class="arv">›</span></button>`;
     li.querySelector("button").onclick = () => {
-      map.flyTo({ center: k.lnglat, zoom: Math.max(map.getZoom(), 14) });
+      // keep the spot visible beside the drawer (right) or above the bottom sheet (phones)
+      const nihe = innerWidth <= 760 ? [0, -innerHeight * 0.3] : [-200, 0];
+      map.flyTo({ center: k.lnglat, zoom: Math.max(map.getZoom(), 14), offset: nihe });
       naitaSelgitust(k.lnglat);
     };
     ol.append(li);
@@ -315,7 +344,7 @@ function naitaSelgitust(lnglat) {
   const kordRida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span>${riba(r.x, r.x < 0.9)}<span class="arv">${kord(r.x)}</span><span class="pohjus">${r.pohjus}</span></li>`;
   const punktRida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span>${riba(r.p / r.max, r.p < 0.75 * r.max)}<span class="arv">${pk(r.p)}/${pk(r.max)}</span><span class="pohjus">${r.pohjus}</span></li>`;
   const html = `
-    <div class="sel-pea"><span class="sel-arv">${hinne(kokku)}</span><span>${lause}</span></div>
+    <div class="sel-pea"><span class="sel-arv${klass(kokku) >= 0 ? " k" + klass(kokku) : ""}">${hinne(kokku)}</span><span>${lause}</span></div>
     <div class="arvutus">
       <div>Metsa punktid <b>${pk(summa)}</b>/100 × kordajad <b>${kord(kordaja)}</b> = Koht <b>${hinne(koht)}</b></div>
       ${tana ? `<div>Koht <b>${hinne(koht)}</b> × Aeg <b>${hinne(aeg.indeks)}%</b> = hinne <b>${hinne(kokku)}</b></div>` : ""}
@@ -328,30 +357,24 @@ function naitaSelgitust(lnglat) {
     <ul class="sel-read">${aeg.read.map((r) => `<li><span class="tegur">${r.nimi}</span>${riba(r.v, r.v < 0.5)}<span class="arv">${hinne(r.v)}%</span><span class="pohjus">${r.pohjus}</span></li>`).join("")}</ul>
     <p class="sel-markus">Need tingimused määravad, kas uusi seeni tekib. Seened on korjatavad 1–3 nädalat pärast vihma.</p>` : ""}
     <p class="sel-markus">Arvutus on selle 50 m ruudu kohta. Kaardi värv on 100 m ümbruse keskmine: ${hinne(kaardil)}.</p>
-    <button class="giid-nupp vaike-nupp" onclick="avaGiid()"><span class="ikoon-ring">?</span> Punktitabel</button>`;
+    <button class="vaike-nupp" onclick="avaGiid()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg> Kogu punktitabel</button>`;
+  // explanation in a side drawer (bottom sheet on phones), the spot marked with a dot
   peidaSelgitus();
-  if (innerWidth > 640) {
-    olek.popup = new maplibregl.Popup({ maxWidth: "340px", className: "selgitus" })
-      .setLngLat(lnglat).setHTML(html).addTo(map);
-    return;
-  }
-  // narrow screens: a popup would hide behind the bottom panel, so explain inside the panel
-  const sel = document.getElementById("selgitus");
-  sel.innerHTML = `<button class="tagasi">‹ Tagasi</button>${html}`;
-  sel.hidden = false;
-  sel.querySelector(".tagasi").onclick = peidaSelgitus;
-  const paneel = document.getElementById("paneel");
-  if (paneel.classList.contains("ahendatud")) document.getElementById("ahenda").click();
-  paneel.scrollTop = 0;
+  const sisu = document.getElementById("selgitus");
+  sisu.innerHTML = html;
+  sisu.scrollTop = 0;
+  document.getElementById("sahtel").hidden = false;
+  document.getElementById("parimad-kaart").style.visibility = "hidden";
   const tapp = document.createElement("div");
   tapp.className = "tapp";
-  olek.popup = new maplibregl.Marker({ element: tapp }).setLngLat(lnglat).addTo(map);
+  olek.tapp = new maplibregl.Marker({ element: tapp }).setLngLat(lnglat).addTo(map);
 }
 
 function peidaSelgitus() {
-  if (olek.popup) olek.popup.remove();
-  olek.popup = null;
-  document.getElementById("selgitus").hidden = true;
+  if (olek.tapp) olek.tapp.remove();
+  olek.tapp = null;
+  document.getElementById("sahtel").hidden = true;
+  document.getElementById("parimad-kaart").style.visibility = "";
 }
 
 // ---------- guide (built from the model's own parameters in window.SIIL.juhend) ----------
@@ -493,21 +516,17 @@ function valiKuupaev(i) {
   joonista();
 }
 
-const map = new maplibregl.Map({ container: "kaart", style: kaardiStiil(), center: [27.147, 58.197], zoom: 11.5, maxZoom: 17 });
-map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "top-right");
-map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-right");
-map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), "top-right");
-// scoring guide always one click away, also when the panel is collapsed
-map.addControl({
-  onAdd() {
-    const div = document.createElement("div");
-    div.className = "maplibregl-ctrl maplibregl-ctrl-group";
-    div.innerHTML = `<button class="kaardi-giid" type="button" title="Punktitabel – kuidas hinne tekib">?</button>`;
-    div.querySelector("button").onclick = avaGiid;
-    return div;
-  },
-  onRemove() {},
-}, "top-right");
+const map = new maplibregl.Map({ container: "kaart", style: kaardiStiil(), center: [27.147, 58.197], zoom: 11.5, maxZoom: 17,
+                                  attributionControl: { compact: true } });
+map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
+map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), "bottom-right");
+map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+
+// keep the study area clear of the floating cards
+function vaba() {
+  const telefon = innerWidth <= 760;
+  return telefon ? { top: 130, right: 20, bottom: 150, left: 20 } : { top: 100, right: 300, bottom: 40, left: 330 };
+}
 
 // data comes from andmed/testala_5458.js (window.SIIL), a plain script so file:// works too;
 // only wait for the style, not for all basemap tiles ("load")
@@ -520,10 +539,8 @@ map.once("style.load", () => {
   const kp = document.getElementById("kuupaev");
   kp.min = olek.vilj.kuupaevad[0];
   kp.max = olek.vilj.kuupaevad.at(-1);
-  const lai = innerWidth > 640, m = olek.meta;
-  map.fitBounds([m.nurgad[3], m.nurgad[1]], {
-    padding: { top: 40, right: 40, left: lai ? 340 : 20, bottom: lai ? 40 : innerHeight * 0.45 + 20 }, duration: 0,
-  });
+  const m = olek.meta;
+  map.fitBounds([m.nurgad[3], m.nurgad[1]], { padding: vaba(), duration: 0 });
   // open on today if the data covers it, otherwise on the last measured day
   const tana = olek.vilj.kuupaevad.indexOf(olek.vilj.tana);
   const viimaneMoot = olek.vilj.paeva_allikas.lastIndexOf("analuus");
@@ -563,9 +580,14 @@ document.getElementById("giid-sulge").onclick = () => document.getElementById("g
 document.getElementById("giid").addEventListener("click", (e) => {
   if (e.target.id === "giid") e.target.close();   // click on the backdrop
 });
-document.getElementById("ahenda").onclick = (e) => {
-  const p = document.getElementById("paneel");
-  const kinni = p.classList.toggle("ahendatud");
-  e.target.textContent = kinni ? "+" : "–";
-  e.target.setAttribute("aria-expanded", String(!kinni));
+document.getElementById("sahtel-sulge").onclick = peidaSelgitus;
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !document.getElementById("giid").open) peidaSelgitus();
+});
+document.getElementById("parimad-pea").onclick = (e) => {
+  const kaart = document.getElementById("parimad-kaart");
+  const kinni = kaart.classList.toggle("kinni");
+  e.currentTarget.setAttribute("aria-expanded", String(!kinni));
 };
+// phones: best spots start collapsed so the map stays visible
+if (innerWidth <= 760) document.getElementById("parimad-pea").click();

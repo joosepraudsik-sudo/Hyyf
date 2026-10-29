@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="et">
 <head>
   <meta charset="utf-8">
@@ -11,71 +11,85 @@
 <body>
   <div id="kaart" aria-label="Kaart"></div>
 
-  <aside id="paneel">
-    <header>
-      <div class="pealkiri">
-        <h1>Siil</h1>
-        <span class="alapealkiri">korilase kompass</span>
+  <header class="ylariba">
+    <div class="brand">
+      <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M5 9c0-2 5-4 11-4s11 2 11 4c0 3-6 6-8 9v8c0 1-1 2-3 2s-3-1-3-2v-8C11 15 5 12 5 9z" fill="currentColor"/>
+        <path d="M9 9.5c2 1 4.5 1.5 7 1.5s5-.5 7-1.5" stroke="var(--pind)" stroke-width="1.4" fill="none" stroke-linecap="round" opacity=".55"/>
+      </svg>
+      <div class="brand-tekst">
+        <strong>Siil</strong>
+        <span>Harilik kukeseen</span>
       </div>
-      <div class="pea-nupud">
-        <label class="luliti" title="Näita või peida seenekaart">
-          <input type="checkbox" id="kiht-luliti" checked>
-          <span class="luliti-rada" aria-hidden="true"></span>
-          <span>Seenekaart</span>
-        </label>
-        <button id="ahenda" class="ikoon" aria-expanded="true" aria-controls="sisu" title="Peida paneel">–</button>
-      </div>
-    </header>
-
-    <div id="sisu">
-      <section id="selgitus" hidden></section>
-      <p class="liik">Harilik kukeseen <i>Cantharellus cibarius</i></p>
-
-      <button id="giid-nupp" class="giid-nupp"><span class="ikoon-ring">?</span> Punktitabel – kuidas hinne tekib</button>
-
-      <div id="reziim" class="nupurida lulitid" role="group" aria-label="Mida kaart näitab">
-        <button data-reziim="tana" class="aktiivne">Kus täna otsida</button>
-        <button data-reziim="koht">Head metsad</button>
-      </div>
-
-      <section id="paeva-osa">
-        <label for="kuupaev" class="silt">Päev</label>
-        <div class="kuupaev-rida">
-          <button id="eelmine" class="ikoon" title="Eelmine päev">‹</button>
-          <input type="date" id="kuupaev">
-          <button id="jargmine" class="ikoon" title="Järgmine päev">›</button>
-        </div>
-        <div id="paevad" class="nupurida" role="group" aria-label="Prognoosipäev"></div>
-      </section>
-
-      <section>
-        <p id="kokkuvote" class="kokkuvote"></p>
-        <ul id="legend" class="legend"></ul>
-      </section>
-
-      <section>
-        <div class="silt">Parimad kohad</div>
-        <ol id="parimad" class="parimad"></ol>
-        <p class="vaike">Klõpsa kohal kaardil, et näha, miks ta selle hinde sai.</p>
-      </section>
-
-      <section>
-        <div class="silt">Aluskaart</div>
-        <div id="aluskaart" class="nupurida" role="group" aria-label="Aluskaart">
-          <button data-kiht="hallkaart" class="aktiivne">Hall</button>
-          <button data-kiht="kaart">Kaart</button>
-          <button data-kiht="foto">Foto</button>
-        </div>
-      </section>
-
-      <p class="markus">Arendusversioon: testala Põlvamaal, ilm ERA5 (minevikuandmed), mudel valideerimata. Hinnang on suhteline, mitte tõenäosus.</p>
     </div>
+
+    <nav id="paeva-osa" class="paevad-nav" aria-label="Päev">
+      <button id="eelmine" class="ikoon-nupp" title="Eelmine päev" aria-label="Eelmine päev">
+        <svg viewBox="0 0 24 24"><path d="M15 6l-6 6 6 6"/></svg>
+      </button>
+      <div id="paevad" class="paevad" role="group"></div>
+      <button id="jargmine" class="ikoon-nupp" title="Järgmine päev" aria-label="Järgmine päev">
+        <svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+      <label class="ikoon-nupp kalender" title="Vali kuupäev">
+        <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
+        <input type="date" id="kuupaev" aria-label="Vali kuupäev">
+      </label>
+    </nav>
+
+    <div class="ylariba-paremal">
+      <label class="luliti" title="Näita või peida seenekaart">
+        <input type="checkbox" id="kiht-luliti" checked>
+        <span class="luliti-rada" aria-hidden="true"></span>
+        <span class="luliti-silt">Seenekaart</span>
+      </label>
+      <button id="giid-nupp" class="giid-nupp" title="Punktitabel – kuidas hinne tekib">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg>
+        <span>Kuidas hinne tekib</span>
+      </button>
+    </div>
+  </header>
+
+  <section id="staatus" class="kaardikaart staatus" aria-live="polite">
+    <div id="reziim" class="segment" role="group" aria-label="Mida kaart näitab">
+      <button data-reziim="tana" class="aktiivne">Kus otsida</button>
+      <button data-reziim="koht">Head metsad</button>
+    </div>
+    <p id="kokkuvote" class="kokkuvote"></p>
+    <ul id="legend" class="legend"></ul>
+    <p class="allikas">Arendusversioon · testala Põlvamaal · mudel valideerimata</p>
+  </section>
+
+  <section id="parimad-kaart" class="kaardikaart parimad-kaart">
+    <button id="parimad-pea" class="kaardikaart-pea" aria-expanded="true" aria-controls="parimad">
+      <span>Parimad kohad</span>
+      <svg class="nool" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+    <ol id="parimad" class="parimad"></ol>
+  </section>
+
+  <div id="aluskaart" class="segment aluskaart" role="group" aria-label="Aluskaart">
+    <button data-kiht="hallkaart" class="aktiivne">Hall</button>
+    <button data-kiht="kaart">Kaart</button>
+    <button data-kiht="foto">Foto</button>
+  </div>
+
+  <aside id="sahtel" class="sahtel" hidden aria-labelledby="sahtel-pealkiri">
+    <header class="sahtel-pea">
+      <h2 id="sahtel-pealkiri">Selle koha hinne</h2>
+      <button id="sahtel-sulge" class="ikoon-nupp" title="Sulge" aria-label="Sulge">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div id="selgitus" class="sahtel-sisu"></div>
   </aside>
 
   <dialog id="giid" aria-labelledby="giid-pealkiri">
     <header class="giid-pea">
-      <h2 id="giid-pealkiri">Punktitabel – kuidas hinne tekib</h2>
-      <button class="ikoon" id="giid-sulge" title="Sulge">✕</button>
+      <h2 id="giid-pealkiri">Kuidas hinne tekib</h2>
+      <button class="ikoon-nupp" id="giid-sulge" title="Sulge" aria-label="Sulge">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
     </header>
     <div id="giid-sisu"></div>
   </dialog>

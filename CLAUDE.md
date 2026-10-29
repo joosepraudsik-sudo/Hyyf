@@ -111,7 +111,7 @@ Kasutaja varasema mudeli ideedest on kasutusel: samblikumännikud halvemad, TWI 
 
 Lehe giid ("Kuidas hinne tekib?") ehitatakse `window.SIIL.juhend` põhjal, mille `eksport.py` võtab otse `parameetrid.py`-st – parameetrite muutmisel uueneb ka giid.
 
-Leht: lüliti "Seenekaart" päises; režiimid "Kus täna otsida" ja "Head metsad"; 3 klassi värvidega roheline (väga suur tõenäosus, ≥ 65), oranž (hea koht, ≥ 50), kollane (võimalik, ≥ 35), alla läve ei joonistata, kihi läbipaistvus 0,55; 5 parimat kohta (≥ 500 m vahega); klõps näitab arvutust rida-realt (metsa punktid X/max, kordajad ×, Koht × Aeg = hinne) koos põhjustega; "?" nupp kaardil ja paneelis avab punktitabeli.
+Leht (paigutus): ülariba (logo, päevavalik täna + 3 päeva nädalapäevadega, kalender, lüliti "Seenekaart", nupp "Kuidas hinne tekib"), olekukaart all vasakul (režiim, kokkuvõte, legend), "Parimad kohad" paremal (mobiilis kokkutõmmatud), aluskaardi valik all paremal, klõpsu selgitus külgsahtlis (mobiilis alt). "Täna" = vaataja kuupäev, kui andmed seda katavad. Režiimid "Kus otsida" ja "Head metsad"; 3 klassi värvidega roheline (väga suur tõenäosus, ≥ 65), oranž (hea koht, ≥ 50), kollane (võimalik, ≥ 35), alla läve ei joonistata, kihi läbipaistvus 0,55; 5 parimat kohta (≥ 500 m vahega); klõps näitab arvutust rida-realt (metsa punktid X/max, kordajad ×, Koht × Aeg = hinne) koos põhjustega; "?" nupp kaardil ja paneelis avab punktitabeli.
 
 Ilm tänaseni: ERA5 (~5 p viivitusega) + Open-Meteo forecast API (`past_days=14`, `forecast_days=4`, mullatemperatuur tunniandmetest), `lae_testala.py` laeb prognoosi iga kord uuesti. Leht avaneb tänasel päeval, prognoosipäevad on märgitud. Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
 
