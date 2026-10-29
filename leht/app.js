@@ -116,7 +116,8 @@ function joonista() {
     map.addSource("hinnang", { type: "image", url, coordinates: meta.nurgad });
     map.addLayer({ id: "hinnang", type: "raster", source: "hinnang",
                    layout: { visibility: olek.kihtNahtav ? "visible" : "none" },
-                   paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "nearest", "raster-fade-duration": 0 } });
+                   paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "nearest", "raster-fade-duration": 0 } },
+                 olek.siltideAlt);
   }
   const kohad = parimadKohad(v, kl);
   uuendaPaneel(kl, kohad);
@@ -423,12 +424,12 @@ function naitaSelgitust(lnglat) {
     <div class="kaksik${tana ? "" : " yks"}">
       <div class="naitaja">
         <div class="n-pea">${IKOON.mets}Mets</div>
-        <div class="n-sona">${kAste >= 0 ? ASTE_KOHT[kAste] : "nõrk"}</div>
+        <div class="n-rida"><span class="n-sona">${kAste >= 0 ? ASTE_KOHT[kAste] : "nõrk"}</span><span class="n-arv">${hinne(koht)}</span></div>
         ${astmeriba(koht, A.koht)}
       </div>
       ${tana ? `<div class="naitaja">
         <div class="n-pea">${IKOON.aeg}Seeneaeg</div>
-        <div class="n-sona">${aAste >= 0 ? ASTE_AEG[aAste] : "seeni pole"}</div>
+        <div class="n-rida"><span class="n-sona">${aAste >= 0 ? ASTE_AEG[aAste] : "seeni pole"}</span><span class="n-arv">${hinne(Math.min(1, aegV))}%</span></div>
         ${astmeriba(Math.min(1, aegV), A.aeg)}
       </div>` : ""}
     </div>
@@ -445,6 +446,9 @@ function naitaSelgitust(lnglat) {
   const silt = document.getElementById("sahtel-silt");
   silt.textContent = kl >= 0 ? KLASSID[olek.reziim][kl][0] : "Kaardil ei näidata";
   silt.className = "otsus-silt" + (kl >= 0 ? " k" + kl : "");
+  // the score: forest x mushroom time (forest only in "Head metsad" mode), shown next to the label
+  const skoor = document.getElementById("sahtel-hinne");
+  skoor.innerHTML = `<span class="hinne-arv">${hinne(tana ? koht * Math.min(1, aegV) : koht)}</span><span class="hinne-silt">hinne</span>`;
   const sisu = document.getElementById("selgitus");
   sisu.innerHTML = html;
   sisu.scrollTop = 0;
@@ -622,19 +626,30 @@ function avaGiid() {
 
 // ---------- map ----------
 
-function kaardiStiil() {
+// Basemaps: a very light vector map (OpenFreeMap "Positron", OpenStreetMap data) by default, so the
+// coloured mushroom areas stand out; Maa- ja Ruumiamet's Estonian map and orthophoto as rasters.
+// Raster basemaps and the mushroom layer sit under the vector labels, so place names stay readable.
+const ALUS_STIIL = "https://tiles.openfreemap.org/styles/positron";
+
+function lisaAluskaardid() {
   const kiht = (id, ext) => ({
     type: "raster", tileSize: 256, scheme: "tms", maxzoom: 18,
     tiles: [`${MAA}/${id}@GMC/{z}/{x}/{y}.${ext}`],
     attribution: '© <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>',
   });
-  return {
-    version: 8,
-    sources: { hallkaart: kiht("hallkaart", "png"), kaart: kiht("kaart", "png"), foto: kiht("foto", "jpg") },
-    layers: ["hallkaart", "kaart", "foto"].map((id) => ({
-      id, type: "raster", source: id, layout: { visibility: id === "hallkaart" ? "visible" : "none" },
-    })),
-  };
+  olek.siltideAlt = map.getStyle().layers.find((l) => l.type === "symbol")?.id;
+  for (const [id, ext] of [["kaart", "png"], ["foto", "jpg"]]) {
+    map.addSource(id, kiht(id, ext));
+    map.addLayer({ id, type: "raster", source: id, layout: { visibility: "none" } }, olek.siltideAlt);
+  }
+}
+
+function valiAluskaart(id) {
+  for (const r of ["kaart", "foto"]) map.setLayoutProperty(r, "visibility", r === id ? "visible" : "none");
+  // the Estonian map has its own labels; hide the vector ones there to avoid doubles
+  for (const l of map.getStyle().layers) {
+    if (l.type === "symbol") map.setLayoutProperty(l.id, "visibility", id === "kaart" ? "none" : "visible");
+  }
 }
 
 function valiKuupaev(i) {
@@ -642,11 +657,13 @@ function valiKuupaev(i) {
   joonista();
 }
 
-const map = new maplibregl.Map({ container: "kaart", style: kaardiStiil(), center: [27.147, 58.197], zoom: 11.5, maxZoom: 17,
+const map = new maplibregl.Map({ container: "kaart", style: ALUS_STIIL, center: [27.147, 58.197], zoom: 11.5, maxZoom: 17,
                                   attributionControl: { compact: true } });
 map.addControl(new maplibregl.NavigationControl({ showCompass: false }), "bottom-right");
 map.addControl(new maplibregl.GeolocateControl({ trackUserLocation: false }), "bottom-right");
 map.addControl(new maplibregl.ScaleControl({ unit: "metric" }), "bottom-left");
+// attribution starts collapsed to its (i) button, so it does not cover the map on phones
+map.once("load", () => document.querySelector(".maplibregl-ctrl-attrib")?.classList.remove("maplibregl-compact-show"));
 
 // keep the study area clear of the floating cards
 function vaba() {
@@ -657,6 +674,7 @@ function vaba() {
 // data comes from andmed/testala_5458.js (window.SIIL), a plain script so file:// works too;
 // only wait for the style, not for all basemap tiles ("load")
 map.once("style.load", () => {
+  lisaAluskaardid();
   if (!window.SIIL) {
     document.getElementById("kokkuvote").textContent = "Andmefail puudub: käivita skriptid/eksport.py.";
     return;
@@ -695,10 +713,8 @@ document.querySelectorAll("#reziim button").forEach((b) => b.onclick = () => {
   if (olek.meta) joonista();
 });
 document.querySelectorAll("#aluskaart button").forEach((b) => b.onclick = () => {
-  document.querySelectorAll("#aluskaart button").forEach((x) => {
-    x.classList.toggle("aktiivne", x === b);
-    map.setLayoutProperty(x.dataset.kiht, "visibility", x === b ? "visible" : "none");
-  });
+  document.querySelectorAll("#aluskaart button").forEach((x) => x.classList.toggle("aktiivne", x === b));
+  valiAluskaart(b.dataset.kiht);
 });
 document.getElementById("kiht-nupp").onclick = () => lulitaKiht(!olek.kihtNahtav);
 // basemap menu: opens under its round button, closes on choice or outside click
