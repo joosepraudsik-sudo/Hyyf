@@ -260,3 +260,82 @@ button:focus-visible, input:focus-visible + .luliti-rada { outline: 2px solid va
 #giid .maatriks th small { font-weight: 400; color: var(--tint-3); }
 #giid .maatriks td { font-weight: 650; font-size: 12px; color: #1c1c1a; border-radius: 6px; }
 #giid .maatriks td.tyhi { background: var(--pind-2); color: var(--tint-3); }
+
+/* ---------- explanation drawer: visual forest and mushroom time ---------- */
+.otsus { padding: 12px 14px; border-radius: 12px; background: var(--pind-2); }
+.otsus-silt { display: inline-block; font-size: 12px; font-weight: 750; text-transform: uppercase; letter-spacing: .05em;
+              padding: 3px 8px; border-radius: 6px; background: var(--pind-3); color: var(--tint-2); }
+.otsus.k0 .otsus-silt { background: #1e8a3e; color: #fff; }
+.otsus.k1 .otsus-silt { background: #f08a00; color: #1c1c1a; }
+.otsus.k2 .otsus-silt { background: #f2c40f; color: #1c1c1a; }
+.otsus p { margin: 8px 0 0; font-size: 14px; line-height: 1.4; }
+
+.kaksik { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.kaksik.yks { grid-template-columns: 1fr; }
+.naitaja { padding: 12px; border-radius: 12px; border: 1px solid var(--joon); }
+.n-pea { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: var(--tint-2);
+         text-transform: uppercase; letter-spacing: .04em; }
+.n-pea svg { width: 16px; height: 16px; }
+.n-sona { font-size: 22px; font-weight: 750; margin: 4px 0 8px; letter-spacing: -.01em; }
+.n-alla { font-size: 11px; color: var(--tint-3); margin-top: 6px; }
+.astmeriba { position: relative; }
+.aste-segmendid { position: relative; display: flex; gap: 2px; height: 10px; }
+.aste-seg { border-radius: 3px; background: var(--pind-3); }
+.aste-marker { position: absolute; top: -4px; width: 4px; height: 18px; margin-left: -2px; border-radius: 2px;
+               background: var(--tint); box-shadow: 0 0 0 2px var(--pind); }
+.aste-sildid { position: relative; height: 14px; margin-top: 3px; }
+.aste-sildid span { position: absolute; transform: translateX(-50%); font-size: 9.5px; color: var(--tint-3); white-space: nowrap; }
+
+.kuidas { display: grid; grid-template-columns: auto 1fr; gap: 12px; align-items: center; margin-top: 12px;
+          padding: 10px 12px; border-radius: 12px; background: var(--pind-2); }
+.kuidas p { margin: 0; font-size: 12px; color: var(--tint-2); line-height: 1.4; }
+.mini-maatriks { display: grid; grid-template-columns: auto repeat(3, 22px); gap: 3px; align-items: center; }
+.mm-silt { font-size: 9px; color: var(--tint-3); text-align: center; line-height: 1; }
+.mm-rida { text-align: right; padding-right: 3px; }
+.mm-nurk { font-size: 9px; color: var(--tint-3); }
+.mm-lahter { width: 22px; height: 16px; border-radius: 3px; opacity: .45; }
+.mm-lahter.siin { opacity: 1; box-shadow: 0 0 0 2px var(--pind), 0 0 0 4px var(--tint); }
+
+.sel-h { font-size: 14px; margin: 20px 0 8px; padding-top: 14px; border-top: 1px solid var(--joon); }
+.sel-h4 { font-size: 12px; margin: 14px 0 6px; color: var(--tint-2); text-transform: uppercase; letter-spacing: .04em; }
+.eeltingimused { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 6px; }
+.eeltingimused li { display: grid; grid-template-columns: 24px 1fr; gap: 8px; align-items: start; font-size: 13px; }
+.eeltingimused small { display: block; font-size: 12px; color: var(--tint-2); }
+.ikoon-q { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; }
+.ikoon-q svg { width: 14px; height: 14px; stroke-width: 2.6; }
+li.hea .ikoon-q { background: rgba(30, 138, 62, .15); color: #1e8a3e; }
+li.keskmine .ikoon-q { background: rgba(224, 161, 0, .18); color: #b37f00; }
+li.nork .ikoon-q { background: rgba(201, 74, 42, .15); color: #c94a2a; }
+.tingimused { grid-template-columns: repeat(3, 1fr); }
+.tingimused li { grid-template-columns: 22px 1fr; gap: 6px; }
+
+.omadused { list-style: none; margin: 0; padding: 0; display: grid; gap: 9px; }
+.omadused li { display: grid; grid-template-columns: 120px 1fr; gap: 2px 10px; align-items: center; font-size: 13px; }
+.omadused .pohjus { grid-column: 2; font-size: 12px; color: var(--tint-2); }
+.riba.q-hea > span { background: #1e8a3e; }
+.riba.q-keskmine > span { background: #e0a100; }
+.riba.q-nork > span { background: #c94a2a; }
+.omadused .riba { height: 8px; }
+
+svg.g { width: 100%; height: auto; display: block; overflow: visible; }
+.g-ala { fill: var(--roheline); opacity: .1; stroke: none; }
+.g-tee { fill: none; stroke: var(--roheline); stroke-width: 2.5; }
+.g-prognoos { stroke-dasharray: 4 4; opacity: .8; }
+.g-joon { stroke: var(--tint-3); stroke-width: 1; stroke-dasharray: 2 3; opacity: .5; }
+.g-tana { stroke: var(--tint-2); stroke-width: 1; }
+.g-tapp { fill: var(--roheline); stroke: var(--pind); stroke-width: 2; }
+.g-silt { fill: var(--tint-3); font-size: 10px; stroke: none; }
+.g-tugev { fill: var(--tint); font-weight: 700; }
+.kypseb { margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; background: var(--pind-2); font-size: 13px; }
+
+@media (max-width: 760px) {
+  .omadused li { grid-template-columns: 104px 1fr; }
+  .n-sona { font-size: 19px; }
+}
+/* equal step segments and roomier mini matrix */
+.aste-seg { flex: 1; }
+.aste-sildid { display: grid; grid-template-columns: repeat(4, 1fr); height: auto; }
+.aste-sildid span { position: static; transform: none; text-align: center; font-size: 10px; }
+.mini-maatriks { grid-template-columns: auto repeat(3, 40px); }
+.mm-lahter { width: 40px; height: 16px; }
+.mm-silt { font-size: 9.5px; }

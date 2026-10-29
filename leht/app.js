@@ -9,7 +9,7 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 // time (bounds in meta.astmed, from parameetrid.py), so small daily changes do not repaint the map.
 // Colours differ in lightness too (OKLab L 0.56 / 0.73 / 0.84), so they separate for colour-blind users.
 const KLASSID = {
-  tana: [["Väga suur tõenäosus", "#1e8a3e"], ["Hea koht", "#f08a00"], ["Võimalik", "#f2c40f"]],
+  tana: [["Parim koht", "#1e8a3e"], ["Hea koht", "#f08a00"], ["Võimalik", "#f2c40f"]],
   koht: [["Väga hea mets", "#1e8a3e"], ["Hea mets", "#f08a00"], ["Keskmine mets", "#f2c40f"]],
 };
 const ASTE_KOHT = ["väga hea", "hea", "keskmine"];
@@ -157,7 +157,7 @@ function parimadKohad(v, kl) {
       if (dx * dx + dy * dy <= ymber * ymber && xx >= 0 && xx < W && j >= 0 && j < kl.length && kl[j] >= 0 && kl[j] <= 1) rakke++;
     }
     if (rakke < MIN_RAKKE) continue;
-    valitud.push({ x, y, parim: v[i], ha: rakke * olek.meta.ruut_m ** 2 / 1e4, lnglat: rakkLngLat(x + 0.5, y + 0.5) });
+    valitud.push({ x, y, parim: v[i], h: hinnang(i), kl: kl[i], ha: rakke * olek.meta.ruut_m ** 2 / 1e4, lnglat: rakkLngLat(x + 0.5, y + 0.5) });
     if (valitud.length === PARIMAID) break;
   }
   return valitud;
@@ -169,7 +169,7 @@ function uuendaMarkerid(kohad) {
     const el = document.createElement("button");
     el.className = "marker";
     el.textContent = i + 1;
-    el.title = `${i + 1}. koht – hinne ${hinne(k.parim)}`;
+    el.title = `${i + 1}. ${KLASSID[olek.reziim][k.kl][0].toLowerCase()}`;
     el.onclick = (e) => { e.stopPropagation(); naitaSelgitust(k.lnglat); };
     el.hidden = !olek.kihtNahtav;
     return new maplibregl.Marker({ element: el }).setLngLat(k.lnglat).addTo(map);
@@ -233,7 +233,8 @@ function uuendaPaneel(kl, kohad) {
   ol.innerHTML = kohad.length ? "" : `<li class="tuhi">Häid kohti selle päeva kohta ei ole.</li>`;
   kohad.forEach((k, i) => {
     const li = document.createElement("li");
-    li.innerHTML = `<button><span class="nr">${i + 1}</span><span>hinne ${hinne(k.parim)}<small>head metsa ümber ${Math.round(k.ha)} ha</small></span><span class="arv">›</span></button>`;
+    const A = olek.meta.astmed, ms = ASTE_KOHT[aste(k.h[0], A.koht)] || "nõrk", as = ASTE_AEG[aste(k.h[1], A.aeg)] || "seeni pole";
+    li.innerHTML = `<button><span class="nr" style="background:${KLASSID[olek.reziim][k.kl][1]};color:${k.kl ? "#1c1c1a" : "#fff"}">${i + 1}</span><span>${KLASSID[olek.reziim][k.kl][0]}<small>mets ${ms}${olek.reziim === "tana" ? ` · seeneaeg ${as}` : ""} · head metsa ümber ${Math.round(k.ha)} ha</small></span><span class="arv">›</span></button>`;
     li.querySelector("button").onclick = () => {
       // keep the spot visible beside the drawer (right) or above the bottom sheet (phones)
       const nihe = innerWidth <= 760 ? [0, -innerHeight * 0.3] : [-200, 0];
@@ -306,76 +307,167 @@ function tegurid(i) {
 function ajaSelgitus(d, p, j) {
   const g = (nimi) => T(d, p, j, F(nimi));
   const indeks = g("indeks"), w = g("w"), niiskus = g("niiskus"), hooaeg = g("hooaeg"), temp = g("temperatuur");
-  const enne = d >= 3 && olek.vilj.kuupaevad[d - 3].slice(0, 4) === olek.vilj.kuupaevad[d].slice(0, 4) ? T(d - 3, p, j, F("indeks")) : indeks;
-  const trend = indeks - enne > 0.05 ? "↑ kasvab" : enne - indeks > 0.05 ? "↓ väheneb" : "→ püsib";
+  const kypseb = Math.round(g("kypseb") * 255);
   const read = [
-    { nimi: "Mulla niiskus", v: niiskus, pohjus: w < 0.2 ? "kuiv – seened ei kasva" : w < 0.45 ? "pigem kuiv" : w <= 0.9 ? "parasniiske" : niiskus < 0.8 ? "liiga märg" : "väga niiske" },
-    { nimi: "Hooaeg", v: hooaeg, pohjus: hooaeg < 0.2 ? "liiga vara – suvi pole veel piisavalt soe olnud" : hooaeg < 0.8 ? "hooaeg alles algab või eelnev periood oli kuiv" : "hooaeg käib" },
-    { nimi: "Soojus uute seente tekkeks", v: temp, pohjus: temp < 0.2 ? "liiga jahe – uusi seeni ei teki" : temp < 0.8 ? "jahedavõitu" : "piisavalt soe" },
+    { nimi: "Niiskus", v: niiskus, sona: w < 0.2 ? "kuiv" : w < 0.45 ? "pigem kuiv" : niiskus < 0.8 ? "liiga märg" : "parajalt niiske" },
+    { nimi: "Hooaeg", v: hooaeg, sona: hooaeg < 0.2 ? "liiga vara" : hooaeg < 0.8 ? "alles algab" : "käib" },
+    { nimi: "Soojus", v: temp, sona: temp < 0.2 ? "liiga jahe" : temp < 0.8 ? "jahedavõitu" : "piisav" },
   ];
   let kokku;
   if (indeks >= 0.3) kokku = "Seeni on metsas praegu.";
   else {
     const nork = read.reduce((a, b) => (b.v < a.v ? b : a));
-    kokku = nork.v < 0.5 ? `${nork.nimi}: ${nork.pohjus}.` : "Viimane vihm oli liiga ammu või liiga hiljuti – seened tekivad 1–3 nädalat pärast vihma.";
+    kokku = nork.v < 0.5 ? `${nork.nimi}: ${nork.sona}.` : "Viimane vihm oli liiga ammu või liiga hiljuti – seened tekivad 1–3 nädalat pärast vihma.";
   }
-  return { indeks, trend, read, kokku };
+  return { indeks, read, kokku, kypseb: kypseb >= 255 ? null : kypseb };
 }
 
-const kord = (x) => "×" + x.toFixed(2).replace(".", ",");
 const pk = (x) => String(Math.round(x));
+const kord = (x) => "×" + x.toFixed(2).replace(".", ",");
+const kvaliteet = (q) => (q >= 0.85 ? "hea" : q >= 0.6 ? "keskmine" : "nork");
+const IKOON = {
+  hea: '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>',
+  keskmine: '<svg viewBox="0 0 24 24"><path d="M12 7v6M12 17h.01"/></svg>',
+  nork: '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7L7 17"/></svg>',
+  mets: '<svg viewBox="0 0 24 24"><path d="M12 3l-5 7h3l-4 6h12l-4-6h3z"/><path d="M12 16v5"/></svg>',
+  aeg: '<svg viewBox="0 0 24 24"><path d="M7 18a4 4 0 0 1-.5-8 5.5 5.5 0 0 1 10.6 1.5A3.5 3.5 0 0 1 17 18z"/><path d="M9 21l.5-1M13 21l.5-1"/></svg>',
+};
 
-function riba(osa, nork) {
-  return `<span class="riba${nork ? " nork" : ""}"><span style="width:${Math.round(Math.min(1, osa) * 100)}%"></span></span>`;
+// step bar: four equal segments (below, then the three steps), the marker placed inside its segment
+function astmeriba(x, piirid, nimed) {
+  const lo = [0, piirid[2], piirid[1], piirid[0]], hi = [piirid[2], piirid[1], piirid[0], 1];
+  const varv = ["", KLASSID.tana[2][1], KLASSID.tana[1][1], KLASSID.tana[0][1]];
+  const k = Math.max(0, lo.findLastIndex((a) => x >= a));
+  const asend = (k + Math.min(1, (Math.min(x, 1) - lo[k]) / (hi[k] - lo[k]))) / 4;
+  const segs = lo.map((a, kk) => `<span class="aste-seg" style="${kk && kk <= k ? `background:${varv[kk]}` : ""}"></span>`).join("");
+  const sildid = ["", ...[...nimed].reverse()].map((n) => `<span>${n}</span>`).join("");
+  return `<div class="astmeriba"><div class="aste-segmendid">${segs}<span class="aste-marker" style="left:${asend * 100}%"></span></div><div class="aste-sildid">${sildid}</div></div>`;
+}
+
+// 3 x 3 forest x mushroom time grid with this place marked
+function miniMaatriks(koht, aeg) {
+  const A = olek.meta.astmed, k = aste(koht, A.koht), a = aste(aeg, A.aeg);
+  let html = '<div class="mini-maatriks"><span class="mm-nurk">mets ↓</span>' + ASTE_AEG.map((n) => `<span class="mm-silt">${n}</span>`).join("");
+  ASTE_KOHT.forEach((n, ki) => {
+    html += `<span class="mm-silt mm-rida">${n}</span>`;
+    ASTE_AEG.forEach((_, ai) => {
+      const c = ki + ai;
+      html += `<span class="mm-lahter${ki === k && ai === a ? " siin" : ""}" style="background:${c <= 2 ? KLASSID.tana[c][1] : "var(--pind-3)"}"></span>`;
+    });
+  });
+  return html + "</div>";
+}
+
+// mushroom time over the last 3 weeks and the forecast days, the chosen day marked
+function graafik(i, d) {
+  const v = olek.vilj, aasta = v.kuupaevad[d].slice(0, 4);
+  let a = d, b = d;
+  while (a > 0 && d - a < 21 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
+  while (b < v.kuupaevad.length - 1 && b - d < 3 && v.kuupaevad[b + 1].slice(0, 4) === aasta) b++;
+  const W = 320, H = 84, pad = 6, n = Math.max(1, b - a);
+  const xs = (k) => pad + (k - a) / n * (W - 2 * pad), ys = (val) => H - 16 - val * (H - 26);
+  const pts = [];
+  for (let k = a; k <= b; k++) pts.push([xs(k), ys(Math.min(1, hinnang(i, k)[1])), v.paeva_allikas[k] === "prognoos"]);
+  const tee = (arr) => arr.map(([x, y], k) => `${k ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+  const moot = pts.filter((q) => !q[2]), prog = pts.slice(Math.max(0, moot.length - 1));
+  const A = olek.meta.astmed.aeg;
+  const jooned = [[A[0], "hea"], [A[1], "keskmine"]].map(([val, nimi]) =>
+    `<line x1="${pad}" x2="${W - pad}" y1="${ys(val)}" y2="${ys(val)}" class="g-joon"/><text x="${W - pad}" y="${ys(val) - 3}" class="g-silt" text-anchor="end">${nimi}</text>`).join("");
+  const [tx, ty] = pts[d - a];
+  const kp = (k) => `${+v.kuupaevad[k].slice(8)}.${v.kuupaevad[k].slice(5, 7)}`;
+  const ala = `${tee(moot)}L${moot.at(-1)[0].toFixed(1)},${H - 16}L${moot[0][0].toFixed(1)},${H - 16}Z`;
+  return `<svg class="g" viewBox="0 0 ${W} ${H}" role="img" aria-label="Seeneaeg viimase kolme nädala jooksul">
+    <path d="${ala}" class="g-ala"/>
+    ${jooned}
+    <path d="${tee(moot)}" class="g-tee"/>
+    ${prog.length > 1 ? `<path d="${tee(prog)}" class="g-tee g-prognoos"/>` : ""}
+    <line x1="${tx}" x2="${tx}" y1="4" y2="${H - 16}" class="g-tana"/>
+    <circle cx="${tx}" cy="${ty}" r="4.5" class="g-tapp"/>
+    <text x="${pad}" y="${H - 3}" class="g-silt">${kp(a)}</text>
+    <text x="${tx}" y="${H - 3}" class="g-silt g-tugev" text-anchor="middle">${v.kuupaevad[d] === v.tana ? "täna" : kp(d)}</text>
+    ${b > d + 1 ? `<text x="${W - pad}" y="${H - 3}" class="g-silt" text-anchor="end">${kp(b)}</text>` : ""}
+  </svg>`;
 }
 
 function naitaSelgitust(lnglat) {
   const i = rakk(lnglat[0] ?? lnglat.lng, lnglat[1] ?? lnglat.lat);
   if (i < 0 || olek.kiht.ilmapunkt[i] === 255) return;
-  const p = olek.kiht.ilmapunkt[i];
-  // class that contributes most to this cell
-  const j = olek.klassid.map((c) => olek.kiht["S" + c][i]).reduce((b, x, jj, a) => (x > a[b] ? jj : b), 0);
-  const aeg = ajaSelgitus(olek.paev, p, j);
+  const p = olek.kiht.ilmapunkt[i], d = olek.paev, A = olek.meta.astmed;
   const tana = olek.reziim === "tana";
-
-  // this 50 m cell, computed exactly as the model does: forest points x multipliers = Koht
+  // headline: the same numbers the map colour comes from (100 m neighbourhood)
+  const [koht, aegV] = hinnang(i);
+  const kl = klassKA(koht, aegV);
+  // conditions for new mushrooms: the water regime class that dominates this place
+  const j = olek.klassid.map((c) => olek.kiht["S" + c][i]).reduce((b, x, jj, a) => (x > a[b] ? jj : b), 0);
+  const aeg = ajaSelgitus(d, p, j);
   const { kordajad, punktid } = tegurid(i);
-  const summa = punktid.reduce((s, r) => s + r.p, 0);
-  const kordaja = kordajad.reduce((s, r) => s * r.x, 1);
-  const koht = summa / 100 * kordaja;
-  const kokku = tana ? koht * aeg.indeks : koht;
-  const kaardil = tana ? vaartus(i) : kohaSobivus(i);
-  const kl = klassKA(koht, aeg.indeks);
 
-  // weakest link: lowest multiplier, or the factor losing the most points
-  const halvimKordaja = kordajad.reduce((a, b) => (b.x < a.x ? b : a));
-  const enimKaotus = punktid.reduce((a, b) => (b.max - b.p > a.max - a.p ? b : a));
-  const nork = halvimKordaja.x < 0.6 ? { nimi: halvimKordaja.nimi, pohjus: halvimKordaja.pohjus } : enimKaotus;
+  const kAste = aste(koht, A.koht), aAste = aste(aegV, A.aeg);
+  const metsSona = kAste >= 0 ? ASTE_KOHT[kAste] : "nõrk";
+  const aegSona = aAste >= 0 ? ASTE_AEG[aAste] : "seeni pole";
+  const nork = [...kordajad.filter((r) => r.x < 0.6).map((r) => ({ nimi: r.nimi, pohjus: r.pohjus, kaotus: 2 })),
+                ...punktid.map((r) => ({ nimi: r.nimi, pohjus: r.pohjus, kaotus: (r.max - r.p) / 100 }))]
+    .sort((x, y) => y.kaotus - x.kaotus)[0];
   let lause;
-  if (koht < 0.35) lause = `Mets ei sobi hästi: ${TEGUR_NIMI[nork.nimi].toLowerCase()} – ${nork.pohjus}.`;
-  else if (!tana) lause = koht >= 0.75 ? "Väga hea kukeseene mets." : `Hea mets, kuid ${TEGUR_NIMI[nork.nimi].toLowerCase()} alandab hinnet.`;
-  else if (aeg.indeks < 0.25) lause = `Mets on ${koht >= 0.65 ? "hea" : "keskmine"}, aga aeg on vale. ${aeg.kokku}`;
-  else if (kokku >= 0.45) lause = "Hea mets ja hea aeg – tasub otsida.";
-  else lause = `Keskmine: ${koht < 0.65 ? "mets on keskpärane" : "seeni on veel vähe"}.`;
+  if (koht < A.koht[2]) lause = `Mets ei sobi hästi – ${TEGUR_NIMI[nork.nimi].toLowerCase()}: ${nork.pohjus}.`;
+  else if (!tana) lause = kAste === 0 ? "Väga hea kukeseene mets." : `Hea mets, kuid ${TEGUR_NIMI[nork.nimi].toLowerCase()} jääb alla.`;
+  else if (aAste < 0 || aAste === 2) lause = `Mets on ${metsSona}, aga praegu on seeni vähe. ${aeg.kokku}`;
+  else if (kl === 0) lause = "Väga hea mets ja hea seeneaeg – tasub otsida.";
+  else lause = kAste === 0 ? "Väga hea mets, seeneaeg on keskmine." : `Mets on ${metsSona}, seeneaeg on ${aegSona}.`;
 
-  const kordRida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span>${riba(r.x, r.x < 0.9)}<span class="arv">${kord(r.x)}</span><span class="pohjus">${r.pohjus}</span></li>`;
-  const punktRida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span>${riba(r.p / r.max, r.p < 0.75 * r.max)}<span class="arv">${pk(r.p)}/${pk(r.max)}</span><span class="pohjus">${r.pohjus}</span></li>`;
+  const metsKaart = `<div class="naitaja">
+      <div class="n-pea">${IKOON.mets}Mets</div>
+      <div class="n-sona">${metsSona}</div>
+      ${astmeriba(koht, A.koht, ASTE_KOHT)}
+      <div class="n-alla">kui hästi kasvukoht sobib</div>
+    </div>`;
+  const aegKaart = tana ? `<div class="naitaja">
+      <div class="n-pea">${IKOON.aeg}Seeneaeg</div>
+      <div class="n-sona">${aegSona}</div>
+      ${astmeriba(Math.min(1, aegV), A.aeg, ASTE_AEG)}
+      <div class="n-alla">kui palju seeni praegu metsas on</div>
+    </div>` : "";
+
+  const eeltingimus = (r) => {
+    const q = r.x >= 0.9 ? "hea" : r.x >= 0.6 ? "keskmine" : "nork";
+    return `<li class="${q}"><span class="ikoon-q">${IKOON[q]}</span><span><b>${TEGUR_NIMI[r.nimi]}</b><small>${r.pohjus}</small></span></li>`;
+  };
+  const omadus = (r) => {
+    const q = kvaliteet(r.p / r.max);
+    return `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span><span class="riba q-${q}"><span style="width:${Math.round(r.p / r.max * 100)}%"></span></span><span class="pohjus">${r.pohjus}</span></li>`;
+  };
+  const tingimus = (r) => {
+    const q = r.v >= 0.8 ? "hea" : r.v >= 0.4 ? "keskmine" : "nork";
+    return `<li class="${q}"><span class="ikoon-q">${IKOON[q]}</span><span><b>${r.nimi}</b><small>${r.sona}</small></span></li>`;
+  };
+  const kuupaev = (k) => {
+    const x = new Date(olek.vilj.kuupaevad[d] + "T12:00");
+    x.setDate(x.getDate() + k);
+    return `${x.getDate()}.${String(x.getMonth() + 1).padStart(2, "0")}`;
+  };
+
   const html = `
-    <div class="sel-pea"><span class="sel-arv${kl >= 0 ? " k" + kl : ""}">${hinne(kokku)}</span><span>${lause}</span></div>
-    <div class="astmed">Mets: <b>${aste(koht, olek.meta.astmed.koht) >= 0 ? ASTE_KOHT[aste(koht, olek.meta.astmed.koht)] : "nõrk"}</b>${tana ? ` · Seeneaeg: <b>${aste(aeg.indeks, olek.meta.astmed.aeg) >= 0 ? ASTE_AEG[aste(aeg.indeks, olek.meta.astmed.aeg)] : "seeni pole"}</b>` : ""}${kl >= 0 ? ` → <b>${KLASSID[olek.reziim][kl][0].toLowerCase()}</b>` : " → kaardil ei näidata"}</div>
-    <div class="arvutus">
-      <div>Metsa punktid <b>${pk(summa)}</b>/100 × kordajad <b>${kord(kordaja)}</b> = Koht <b>${hinne(koht)}</b></div>
-      ${tana ? `<div>Koht <b>${hinne(koht)}</b> × Aeg <b>${hinne(aeg.indeks)}%</b> = hinne <b>${hinne(kokku)}</b></div>` : ""}
+    <div class="otsus${kl >= 0 ? " k" + kl : ""}">
+      <span class="otsus-silt">${kl >= 0 ? KLASSID[olek.reziim][kl][0] : "Kaardil ei näidata"}</span>
+      <p>${lause}</p>
     </div>
-    <div class="sel-osa">Metsa punktid <span class="arv">${pk(summa)}/100</span><small>iga kategooria annab kuni oma maksimumi</small></div>
-    <ul class="sel-read">${punktid.map(punktRida).join("")}</ul>
-    <div class="sel-osa">Kordajad <span class="arv">${kord(kordaja)}</span><small>korrutavad metsa punkte: ilma sobivate ja piisavalt vanade puudeta seeni pole</small></div>
-    <ul class="sel-read">${kordajad.map(kordRida).join("")}</ul>
-    ${tana ? `<div class="sel-osa">Aeg <span class="arv">${hinne(aeg.indeks)}%</span><small>kui palju seeni praegu metsas on (${olek.meta.klassid[olek.klassid[j]]} mets) · ${aeg.trend}</small></div>
-    <ul class="sel-read">${aeg.read.map((r) => `<li><span class="tegur">${r.nimi}</span>${riba(r.v, r.v < 0.5)}<span class="arv">${hinne(r.v)}%</span><span class="pohjus">${r.pohjus}</span></li>`).join("")}</ul>
-    <p class="sel-markus">Need tingimused määravad, kas uusi seeni tekib. Seened on korjatavad 1–3 nädalat pärast vihma.</p>` : ""}
-    <p class="sel-markus">Arvutus on selle 50 m ruudu kohta. Kaardi värv on 100 m ümbruse keskmine: ${hinne(kaardil)}.</p>
-    <button class="vaike-nupp" onclick="avaGiid()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg> Kogu punktitabel</button>`;
+    <div class="kaksik${tana ? "" : " yks"}">${metsKaart}${aegKaart}</div>
+    ${tana ? `<div class="kuidas">${miniMaatriks(koht, aegV)}<p>Värv tuleb kahest: <b>kui hea on mets</b> ja <b>kui hea on seeneaeg</b>. Roheline on ainult siis, kui mõlemad on parimad.</p></div>` : ""}
+
+    <h3 class="sel-h">Miks mets on ${metsSona}</h3>
+    <ul class="eeltingimused">${kordajad.map(eeltingimus).join("")}</ul>
+    <ul class="omadused">${punktid.map(omadus).join("")}</ul>
+
+    ${tana ? `<h3 class="sel-h">Seeneaeg kohapeal</h3>
+    ${graafik(i, d)}
+    <p class="sel-markus">Joon näitab, kui palju seeni on metsas olnud; katkendjoon on prognoos.</p>
+    <h4 class="sel-h4">Uute seente teke täna</h4>
+    <ul class="eeltingimused tingimused">${aeg.read.map(tingimus).join("")}</ul>
+    <p class="kypseb">${aeg.kypseb != null && aeg.read.every((r) => r.v >= 0.4)
+      ? `Täna alanud seened on korjatavad umbes <b>${kuupaev(aeg.kypseb)}</b> (${aeg.kypseb} päeva pärast).`
+      : aeg.kypseb == null ? "Liiga jahe – täna alanud seened ei jõua enam küpseda." : "Praegu uusi seeni peaaegu ei teki."}</p>` : ""}
+
+    <button class="vaike-nupp" onclick="avaGiid()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg> Kuidas hinne tekib – kogu punktitabel</button>`;
   // explanation in a side drawer (bottom sheet on phones), the spot marked with a dot
   peidaSelgitus();
   const sisu = document.getElementById("selgitus");
@@ -465,6 +557,7 @@ function giidHtml() {
   <p><b>Kaardi värv</b> tuleb kahest astmest: kui hea on mets ja kui hea on seeneaeg. Nii ei muuda väike päevane kõikumine värvi – roheline jääb roheliseks, kuni seeneaeg päriselt muutub.</p>
   ${maatriks}
   <p class="vaike">„Head metsad“ režiimis on värv ainult metsa järgi: väga hea / hea / keskmine.</p>
+  ${osa("Mille järgi läved on valitud", laved())}
 
   <h3>1. Metsa punktid – kokku 100</h3>
   <p>Iga kategooria annab kuni oma maksimumi. Punktid liidetakse.</p>
@@ -511,6 +604,39 @@ function giidHtml() {
   </div>
 
   <p class="markus">Kõik numbrid on ekspertteadmistel põhinevad hüpoteesid. Mudelit ei ole veel päris leidudega kontrollitud.</p>`;
+}
+
+// how the class bounds were chosen, with shares computed from the data on the page
+function laved() {
+  const A = olek.meta.astmed, v = olek.vilj;
+  const mets = [0, 0, 0];
+  let rakke = 0;
+  for (let i = 0; i < olek.n; i++) {
+    if (olek.kiht.ilmapunkt[i] === 255) continue;
+    rakke++;
+    const x = kohaSobivus(i);
+    A.koht.forEach((b, j) => { if (x >= b) mets[j]++; });
+  }
+  // mushroom time: fresh forest at the middle weather point, July-September
+  const p = Math.floor(v.ilmapunktid.length / 2), j2 = olek.klassid.indexOf(2), fi = F("indeks");
+  const aeg = [0, 0, 0], aastad = new Set();
+  let paevi = 0;
+  v.kuupaevad.forEach((d, di) => {
+    const kuu = +d.slice(5, 7);
+    if (kuu < 7 || kuu > 9) return;
+    paevi++;
+    aastad.add(d.slice(0, 4));
+    const x = T(di, p, j2, fi);
+    A.aeg.forEach((b, jj) => { if (x >= b) aeg[jj]++; });
+  });
+  const pr = (a, b) => `${Math.round(a / b * 100)}%`;
+  const ay = [...aastad].sort();
+  return `<p><b>Läved ei ole mõõdetud tõenäosused.</b> Mudelit pole veel piisavalt leidudega kontrollitud, et öelda „roheline = nii mitu protsenti tõenäosusega seeni“. Läved on valitud nii, et kaart saadaks inimesed vähestesse, tõeliselt headesse kohtadesse.</p>
+    ${tabel(ASTE_KOHT.map((n, j) => [`Mets ${n} (Koht ${Math.round(A.koht[j] * 100)}+)`, `parim ${pr(mets[j], rakke)}`]), ["metsa aste", "osa kaardi metsast"])}
+    <p class="vaike">Metsa astmed on seatud testala metsa jaotuse järgi: „väga hea“ on ainult parim ~6%.</p>
+    ${tabel(ASTE_AEG.map((n, jj) => [`Seeneaeg ${n} (Aeg ${Math.round(A.aeg[jj] * 100)}%+)`, pr(aeg[jj], paevi)]), ["seeneaja aste", `osa juuli–septembri päevadest ${ay[0]}–${ay.at(-1)}`])}
+    <p class="vaike">Seeneaja indeks on skaleeritud nii, et tavalise hea hooaja tipp on umbes 75%. „Hea“ (50%+) tähendab umbes kaht kolmandikku sellest tipust.</p>
+    <p class="vaike">Päris tõenäosuseks saab hinde muuta alles siis, kui leide ja tühje käike on palju – siis saab kontrollida, kui tihti rohelisel alal tegelikult seeni leitakse.</p>`;
 }
 
 function avaGiid() {

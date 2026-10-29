@@ -155,5 +155,5 @@ KAALUD = {
 # day-to-day change of the fruiting index does not repaint the map. Steps (lower bounds):
 KLASS_KOHT = [0.80, 0.65, 0.50]   # forest: väga hea, hea, keskmine (green <= ~6 % of forest)
 KLASS_AEG = [0.50, 0.30, 0.15]    # mushroom time: hea, keskmine, vähe
-# class = forest step + time step (0-based): 0 green (väga suur tõenäosus), 1 orange (hea koht),
+# class = forest step + time step (0-based): 0 green (parim koht), 1 orange (hea koht),
 # 2 yellow (võimalik), more = not drawn

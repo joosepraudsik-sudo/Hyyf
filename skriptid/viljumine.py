@@ -115,6 +115,14 @@ def simulate(wx, regime):
     ok = (mature_day < len(t)) & (mature_day - np.arange(len(t)) <= P.VIIVITUS_MAX)
     np.add.at(arrivals, mature_day[ok], init[ok])
 
+    # days until primordia started on each day are ready to pick; past the end of the data
+    # the remaining thermal time is spread over the mean of the last 7 days. NaN = never (too cold)
+    dd = np.maximum(t - P.VIIVITUS_ALUS, 0)
+    tail = max(dd[-7:].mean(), 0.1)
+    days = np.where(mature_day < len(t), mature_day - np.arange(len(t)),
+                    (len(t) - 1 - np.arange(len(t))) + (ct + P.VIIVITUS_KP - ct[-1]) / tail)
+    ready_in = np.where(days <= P.VIIVITUS_MAX, days, np.nan)
+
     # standing crop of fruit bodies
     surv = np.where(w < 0.2, P.ELU_POUD, P.ELU_PAEV)
     surv = np.where(t < P.JAHE_PIIR, np.minimum(surv, P.ELU_JAHE), surv)
@@ -125,7 +133,7 @@ def simulate(wx, regime):
         b = b * surv[i] + arrivals[i]
         crop[i] = b
     return pd.DataFrame({
-        "w": w, "niiskus": moist, "hooaeg": season, "temperatuur": temp, "algus": init, "saak": crop,
+        "w": w, "niiskus": moist, "hooaeg": season, "temperatuur": temp, "algus": init, "kypseb": ready_in, "saak": crop,
         "indeks": np.minimum(1, crop / P.INDEKS_SKAALA),
     }, index=wx.index)
 

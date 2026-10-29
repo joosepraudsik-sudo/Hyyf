@@ -39,7 +39,7 @@ OUT = BASE / "valjund"
 WEB = BASE / "leht" / "andmed"
 CLASSES = sorted(P.VEEREZIIM)
 MONTHS = (6, 11)   # June..November (the season ends in October, forecast may reach into November)
-TIME_COLS = ["indeks", "niiskus", "w", "hooaeg", "temperatuur"]
+TIME_COLS = ["indeks", "niiskus", "w", "hooaeg", "temperatuur", "kypseb"]
 
 LOIMIS_NIMI = {"l": "liiv", "pl": "peenliiv", "sl": "saviliiv", "plsl": "saviliiv", "tsl": "saviliiv",
                "ls": "liivsavi", "tls": "liivsavi", "s": "savi", "t": "turvas"}
@@ -224,6 +224,8 @@ def main():
     days = cube.index
     arr = np.stack([cube[col].reindex(columns=pd.MultiIndex.from_product([names, CLASSES])).to_numpy()
                     .reshape(len(days), len(names), len(CLASSES)) for col in TIME_COLS], axis=-1)
+    k = TIME_COLS.index("kypseb")
+    arr[..., k] = np.where(np.isnan(arr[..., k]), 255, np.minimum(arr[..., k], 254)) / 255
     source = fr.groupby("kuupaev")["allikas"].first().reindex(days)
     today = pd.Timestamp.today().normalize()
     fruiting = {
@@ -235,6 +237,7 @@ def main():
         "klassid": CLASSES,
         "valjad": TIME_COLS,
         "andmed": base64.b64encode(to_u8(arr).tobytes()).decode("ascii"),
+        "kypseb_markus": "kypseb: paevi kuni korjatav = vaartus*255, 255 = ei kupse (liiga jahe)",
     }
 
     payload = {"meta": meta, "rakud": base64.b64encode(data.tobytes()).decode("ascii"),
