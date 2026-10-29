@@ -62,7 +62,7 @@ Peremeespuu (mänd parim, kuusk ja kask segus head), metsa vanus (noor kuni valm
 - **Kaardilehtede numeratsioon (tuletatud ja kontrollitud):**
   - 1:2000: `(N_km − 6000)` kolm kohta + `E_km` kolm kohta. Näide: N 6450 km, E 680 km → `450680`.
   - 1:20 000: `r c t u`, kus `r = (N_km − 6000) div 100 + 1`, `c = E_km div 100 − 2`, `t` = sajakilomeetrise ruudu sees 10 km rida (põhjasuunas), `u` = 10 km veerg (idasuunas). N 6450–6460, E 680–690 → `5458`.
-  - 1:10 000: 1:20 000 number + veerand `1..4` (veerandite järjekord veel kinnitamata – kontrolli GeoTIFF-i piiridest).
+  - 1:10 000: 1:20 000 number + veerand `1` SW, `2` SE, `3` NW, `4` NE (kinnitatud testala GeoTIFF-ide piiridest). Arvutus: `skriptid/ala.py`.
 - Kogu Eesti failid: `ndsm_5m_2020-2023_kogu_Eesti.zip` (3,8 GB), `DTM_25m_eesti.zip` (298 MB).
 - Mahud testalal: DTM 1 m u 75 MB / 5 km leht; CHM 9 MB / 10 km leht; LAZ u 45 MB (kevad 2023) ja 19 MB (suvi 2021) / km².
 - Risk: juulis 2026 kooskõlastusele saadetud eelnõu järgi ei kuvata 3D-punktipilvi avalikkusele. Kõrgusmudeleid eelnõu ei maini. Valgus ja võrastik tulevad CHM/nDSM rastritest; punktipilve on vaja ainult alusvõsa jaoks.
@@ -105,17 +105,22 @@ python -m http.server 8000 --directory leht   # leht: http://localhost:8000
 
 Leht (`leht/`, staatiline, MapLibre GL 4.7.1): 50 m ruudu kohta 5 baiti S_c (ümbruse sobivus × [klass = c]) + ilmapunkt; brauser arvutab hinnangu = Σ_c indeks(punkt, c, päev) · S_c. Aluskaardid `https://tiles.maaamet.ee/tm/tms/1.0.0/{hallkaart|kaart|foto}@GMC/{z}/{x}/{y}.{png|jpg}` (TMS-skeem, CORS lubatud).
 
-Viljumismudel (`viljumine.py`): veerežiimi klassi kaupa mullavee ämber (P − vahetus − KC·ET0·stress, põhjavee põhi märgadel klassidel) → niiskuse skoor; hooaeg = kraadipäevad > 5 °C × 6–13 nädala tagune niiskus; algus = märgumise tõuge või püsiv niiskus × õhutemperatuur (9→14 °C) × mullatemperatuur (5 p keskmine, 10→14 °C); küpsemine 170 kraadipäeva > 4 °C (max 30 päeva); viljakehade säilimine 0,93/päev, põud või jahe (< 10 °C) 0,88, külm 0,5; indeks = saak / 6 (lineaarne).
+Viljumismudel (`viljumine.py`): veerežiimi klassi kaupa mullavee ämber (P − vahetus − KC·ET0·stress, põhjavee põhi märgadel klassidel) → niiskuse skoor; hooaeg = kraadipäevad > 5 °C × 6–13 nädala tagune niiskus (suurem kahest: metsa enda veevaru või piirkonna värske metsa veevaru – kuiv männik ei kannata pinnakihi kiire kuivamise pärast, märg mets hoiab põhjavee eelise); algus = märgumise tõuge või püsiv niiskus × õhutemperatuur (9→14 °C) × mullatemperatuur (5 p keskmine, 10→14 °C); küpsemine 170 kraadipäeva > 4 °C (max 30 päeva); viljakehade säilimine 0,96/päev (poolestusaeg ~17 p), põud või jahe (< 10 °C) 0,88, külm 0,5; indeks = saak / 8,5 (lineaarne, tavalise hooaja tipp ~0,75).
 
 Kasutaja varasema mudeli ideedest on kasutusel: samblikumännikud halvemad, TWI optimum 7,3–10 (vanas mudelis 8,6), metsamassiivi sidusus, ökotoon (soo serv), vanus (kompromiss: vanas mudelis > 50–80 a). Kasutamata: kalle (optimum 6° karistaks tasaseid nõmmemännikuid), sammaldetüüp ja harvesterirööpad (andmed puuduvad).
 
 Lehe giid ("Kuidas hinne tekib?") ehitatakse `window.SIIL.juhend` põhjal, mille `eksport.py` võtab otse `parameetrid.py`-st – parameetrite muutmisel uueneb ka giid.
 
-Leht (paigutus): ülariba (logo, päevavalik täna + 3 päeva nädalapäevadega, kalender, lüliti "Seenekaart", nupp "Kuidas hinne tekib"), olekukaart all vasakul (režiim, kokkuvõte, legend), "Parimad kohad" paremal (mobiilis kokkutõmmatud), aluskaardi valik all paremal, klõpsu selgitus külgsahtlis (mobiilis alt). "Täna" = vaataja kuupäev, kui andmed seda katavad. Režiimid "Kus otsida" ja "Head metsad"; 3 klassi värvidega roheline (väga suur tõenäosus, ≥ 65), oranž (hea koht, ≥ 50), kollane (võimalik, ≥ 35), alla läve ei joonistata, kihi läbipaistvus 0,55; 5 parimat kohta (≥ 500 m vahega); klõps näitab arvutust rida-realt (metsa punktid X/max, kordajad ×, Koht × Aeg = hinne) koos põhjustega; "?" nupp kaardil ja paneelis avab punktitabeli.
+Leht (paigutus): ülariba (logo, päevavalik täna + 3 päeva nädalapäevadega, kalender, lüliti "Seenekaart", nupp "Kuidas hinne tekib"), olekukaart all vasakul (režiim, kokkuvõte, legend), "Parimad kohad" paremal (mobiilis kokkutõmmatud), aluskaardi valik all paremal, klõpsu selgitus külgsahtlis (mobiilis alt). "Täna" = vaataja kuupäev, kui andmed seda katavad. Režiimid "Kus otsida" ja "Head metsad"; 3 klassi värvidega roheline / oranž / kollane; klass = metsa aste (Koht ≥ 0,80 / 0,65 / 0,50) + seeneaja aste (Aeg ≥ 0,50 / 0,30 / 0,15), roheline = väga hea mets ja hea aeg, iga aste madalamal üks klass alla (`KLASS_KOHT`, `KLASS_AEG` parameetrites) – nii ei muuda väike päevane kõikumine värvi; alla selle ei joonistata, kihi läbipaistvus 0,55; 5 parimat kohta (≥ 500 m vahega); klõps näitab arvutust rida-realt (metsa punktid X/max, kordajad ×, Koht × Aeg = hinne) koos põhjustega; "?" nupp kaardil ja paneelis avab punktitabeli.
 
 Ilm tänaseni: ERA5 (~5 p viivitusega) + Open-Meteo forecast API (`past_days=14`, `forecast_days=4`, mullatemperatuur tunniandmetest), `lae_testala.py` laeb prognoosi iga kord uuesti. Leht avaneb tänasel päeval, prognoosipäevad on märgitud. Lõpphinnang = sobivus × viljumisindeks(klass, ilmapunkt, päev).
 
 Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobivus (Koht) = metsa punktid × kordajad. Metsa punktid on liidetavad, iga kategooria annab kuni oma kaalu (kokku 100): kasvukoht 36, muld 24, mikroniiskus/TWI 12, ökotoon 10, metsamassiivi sidusus 9, tihedus 9. Kordajad (0–1, korrutatakse): puuliik^0,75 × vanus × valgus. Puuliigid: mänd 0,95, kuusk 0,75, kask 0,70; segametsa boonus +0,10, kui kaks sobivat liiki on kumbki ≥ 10% (männi enamusega segamets = parim). Vanus: alla 15 a 0, 15→40 a tõuseb, 40–120 a täis, 180 a juures 0,7. Ökotoon: kaugus soo-kasvukohast või turvasmullast, 20–200 m täis hinne, 400 m+ 0,7 (järved veel puudu). Piiravad, sest ilma sobiva peremeespuuta, viljumisealise puistu ja võrastikuta kukeseeni ei ole, olgu muld kui tahes hea.
+
+## Alad ja kontroll leidudega
+
+- Skriptid on ala-põhised (`skriptid/ala.py`: `TESTALA`, `punkti_ala()`); `ruudustik.build(ala)`, `kasvukoht.run(ala)`, `lae_testala.lae_korgus/lae_metsaregister/lae_ilm` töötavad suvalise ala peal. Testala tulemus on refaktoreerimise järel bitt-biti sama.
+- `skriptid/kontroll.py`: loeb `andmed/leiud/leiud.csv` (gitist väljas), teeb iga leiu ümber 3 × 3 km ala, jooksutab sama mudeli ja võrdleb hinnet leiukuupäeval (punkt ja parim 200 m raadiuses). Tulemus `valjund/kontroll/kontroll_leiud.csv`. Leide kasutatakse ainult kontrolliks, mitte parameetrite seadmiseks.
 
 ## Järgmised sammud
 

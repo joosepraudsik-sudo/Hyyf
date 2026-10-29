@@ -109,6 +109,7 @@ def guide(site_names):
     return {
         "piiravad": P.PIIRAVAD,
         "kaalud": P.KAALUD,
+        "astmed": {"koht": P.KLASS_KOHT, "aeg": P.KLASS_AEG},
         "puuliik": sorted(([PUUD.get(k, k), round(v * 100)] for k, v in P.PUULIIK.items()), key=lambda r: -r[1]),
         "puuliik_muu": round(P.PUULIIK_MUU * 100),
         "segu_boonus": round(P.SEGU_BOONUS * 100),
@@ -212,6 +213,7 @@ def main():
         "klassid": {c: P.VEEREZIIM[c]["nimi"] for c in CLASSES},
         "piiravad": list(P.PIIRAVAD),
         "kaalud": P.KAALUD,
+        "astmed": {"koht": P.KLASS_KOHT, "aeg": P.KLASS_AEG},
         "ilmapunktid": names,
         "min_mets": MIN_FOREST,
     }

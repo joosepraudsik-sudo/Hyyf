@@ -1,10 +1,10 @@
-"""Site suitability model v0 for harilik kukeseen on the 10 m grid.
+"""Site suitability model for harilik kukeseen on the 10 m grid of an area (default: test sheet).
 
 Reads the grid layers from ruudustik.py and forest register attributes, writes to valjund/:
-  sobivus_5458.tif     suitability 0..1 (NaN outside forest register stands)
-  veereziim_5458.tif   water regime class 1 dry, 2 fresh, 3 moist, 4 wet, 5 drained peat (0 = none)
-  ilmaruut_5458.tif    weather cell id (placeholder 2.5 km L-EST97 grid: row * 1000 + col)
-  tegurid_5458.tif     one band per factor score, for inspection
+  sobivus_<ala>.tif     suitability 0..1 (NaN outside forest register stands)
+  veereziim_<ala>.tif   water regime class 1 dry, 2 fresh, 3 moist, 4 wet, 5 drained peat (0 = none)
+  ilmaruut_<ala>.tif    weather cell id (placeholder 2.5 km L-EST97 grid: row * 1000 + col)
+  tegurid_<ala>.tif     one band per factor score, for inspection
 
 Run: uv run python -I skriptid/kasvukoht.py
 """
@@ -22,11 +22,8 @@ from scipy.signal import fftconvolve
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import parameetrid as P  # noqa: E402
+from ala import TESTALA  # noqa: E402
 
-BASE = Path(__file__).resolve().parent.parent
-AREA = BASE / "andmed" / "testala_5458"
-GRID = AREA / "ruudustik"
-OUT = BASE / "valjund"
 YEAR = 2026
 
 
@@ -35,16 +32,16 @@ def interp(x, table):
     return np.interp(x, xs, ys)
 
 
-def read(name):
-    with rasterio.open(GRID / name) as d:
+def read(ala, name):
+    with rasterio.open(ala.grid / name) as d:
         return d.read(1), d.profile
 
 
 # ---------- forest stands ----------
 
-def stand_table():
-    st = gpd.read_file(AREA / "metsaregister" / "eraldis.geojson", ignore_geometry=True)
-    el = pd.DataFrame(json.loads((AREA / "metsaregister" / "eraldis_element.json").read_text("utf-8")))
+def stand_table(ala=TESTALA):
+    st = gpd.read_file(ala.dir / "metsaregister" / "eraldis.geojson", ignore_geometry=True)
+    el = pd.DataFrame(json.loads((ala.dir / "metsaregister" / "eraldis_element.json").read_text("utf-8")))
     el["score"] = el["puuliik_kood"].map(P.PUULIIK).fillna(P.PUULIIK_MUU)
 
     def layer(rinne):
@@ -128,8 +125,8 @@ def soil_name_scores(sif):
     return wet, acid
 
 
-def soil_table():
-    m = pd.read_csv(GRID / "muld.csv", encoding="utf-8")
+def soil_table(ala=TESTALA):
+    m = pd.read_csv(ala.grid / "muld.csv", encoding="utf-8")
     wet = np.zeros(len(m))
     acid = np.zeros(len(m))
     wsum = np.zeros(len(m))
@@ -164,14 +161,15 @@ def forest_share(cover, res):
     return np.clip(trees / known, 0, 1)
 
 
-def main():
-    OUT.mkdir(exist_ok=True)
-    stand_id, profile = read("eraldis.tif")
-    soil_idx, _ = read("muld.tif")
-    twi, _ = read("twi.tif")
-    cover, _ = read("katvus.tif")
+def run(ala=TESTALA):
+    out = ala.valjund
+    out.mkdir(parents=True, exist_ok=True)
+    stand_id, profile = read(ala, "eraldis.tif")
+    soil_idx, _ = read(ala, "muld.tif")
+    twi, _ = read(ala, "twi.tif")
+    cover, _ = read(ala, "katvus.tif")
 
-    st = stand_table()
+    st = stand_table(ala)
     ids = st.index.to_numpy()
     order = np.argsort(ids)
     pos = np.searchsorted(ids[order], stand_id)
@@ -182,7 +180,7 @@ def main():
     def stand_raster(col):
         return np.where(forest, st[col].to_numpy()[row], np.nan)
 
-    soil_score, soil_wet = soil_table()
+    soil_score, soil_wet = soil_table(ala)
     # ecotone: distance to mire site types or peat soils (inside the sheet only)
     wet = (stand_raster("reziim") == 4) | (soil_wet[soil_idx] <= P.MULD_TURVAS + 0.05)
     mire_m = distance_transform_edt(~wet) * profile["transform"].a
@@ -216,15 +214,15 @@ def main():
     weather = (rows[:, None] * 1000 + cols[None, :]).astype(np.uint32)
 
     base = dict(profile, count=1, compress="deflate")
-    with rasterio.open(OUT / "sobivus_5458.tif", "w", **dict(base, dtype="float32", nodata=np.nan)) as d:
+    with rasterio.open(out / f"sobivus_{ala.nimi}.tif", "w", **dict(base, dtype="float32", nodata=np.nan)) as d:
         d.write(suit, 1)
-    with rasterio.open(OUT / "veereziim_5458.tif", "w", **dict(base, dtype="uint8", nodata=0)) as d:
+    with rasterio.open(out / f"veereziim_{ala.nimi}.tif", "w", **dict(base, dtype="uint8", nodata=0)) as d:
         d.write(regime, 1)
-    with rasterio.open(OUT / "ilmaruut_5458.tif", "w", **dict(base, dtype="uint32", nodata=0)) as d:
+    with rasterio.open(out / f"ilmaruut_{ala.nimi}.tif", "w", **dict(base, dtype="uint32", nodata=0)) as d:
         d.write(np.where(forest, weather, 0).astype(np.uint32), 1)
-    with rasterio.open(OUT / "soo_kaugus_5458.tif", "w", **dict(base, dtype="float32", nodata=np.nan)) as d:
+    with rasterio.open(out / f"soo_kaugus_{ala.nimi}.tif", "w", **dict(base, dtype="float32", nodata=np.nan)) as d:
         d.write(mire_m.astype(np.float32), 1)
-    with rasterio.open(OUT / "tegurid_5458.tif", "w",
+    with rasterio.open(out / f"tegurid_{ala.nimi}.tif", "w",
                        **dict(base, count=len(f), dtype="float32", nodata=np.nan)) as d:
         for i, (k, v) in enumerate(f.items(), 1):
             d.write(np.where(forest, v, np.nan).astype(np.float32), i)
@@ -247,4 +245,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    run()

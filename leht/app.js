@@ -5,13 +5,15 @@
 
 const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 
-// Display classes per mode: [lower bound, label, colour]; below the last bound nothing is drawn.
-// Thresholds are deliberately high: the map should send people to few, really good places.
+// Display classes per mode: [label, colour]. A class comes from two steps, forest and mushroom
+// time (bounds in meta.astmed, from parameetrid.py), so small daily changes do not repaint the map.
 // Colours differ in lightness too (OKLab L 0.56 / 0.73 / 0.84), so they separate for colour-blind users.
 const KLASSID = {
-  tana: [[0.65, "Väga suur tõenäosus", "#1e8a3e"], [0.50, "Hea koht", "#f08a00"], [0.35, "Võimalik", "#f2c40f"]],
-  koht: [[0.80, "Väga hea mets", "#1e8a3e"], [0.65, "Hea mets", "#f08a00"], [0.50, "Keskmine mets", "#f2c40f"]],
+  tana: [["Väga suur tõenäosus", "#1e8a3e"], ["Hea koht", "#f08a00"], ["Võimalik", "#f2c40f"]],
+  koht: [["Väga hea mets", "#1e8a3e"], ["Hea mets", "#f08a00"], ["Keskmine mets", "#f2c40f"]],
 };
+const ASTE_KOHT = ["väga hea", "hea", "keskmine"];
+const ASTE_AEG = ["hea", "keskmine", "vähe"];
 const KIHI_TUGEVUS = 0.55;
 const NADALAPAEV = ["pühap", "esmasp", "teisip", "kolmap", "neljap", "reede", "laup"];
 const PARIMAID = 5;
@@ -59,18 +61,32 @@ function kohaSobivus(i) {
   return olek.klassid.reduce((s, c) => s + olek.kiht["S" + c][i], 0) / 255;
 }
 
-function vaartus(i, d = olek.paev) {
+// [Koht, Aeg] of a cell: Koht = neighbourhood suitability, Aeg = suitability-weighted fruiting index
+function hinnang(i, d = olek.paev) {
   const p = olek.kiht.ilmapunkt[i];
   if (p === 255) return null;
-  if (olek.reziim === "koht") return kohaSobivus(i);
+  const koht = kohaSobivus(i);
+  if (koht <= 0) return [0, 0];
   const fi = F("indeks");
-  return olek.klassid.reduce((s, c, j) => s + T(d, p, j, fi) * olek.kiht["S" + c][i] / 255, 0);
+  const kaal = olek.klassid.reduce((s, c, j) => s + T(d, p, j, fi) * olek.kiht["S" + c][i] / 255, 0);
+  return [koht, kaal / koht];
 }
 
-function klass(v) {
-  const k = KLASSID[olek.reziim];
-  for (let j = 0; j < k.length; j++) if (v >= k[j][0]) return j;
-  return -1;
+function vaartus(i, d = olek.paev) {
+  const h = hinnang(i, d);
+  if (!h) return null;
+  return olek.reziim === "koht" ? h[0] : h[0] * h[1];
+}
+
+const aste = (x, piirid) => piirid.findIndex((piir) => x >= piir);
+
+// class index 0 green, 1 orange, 2 yellow, -1 none
+function klassKA(koht, aeg) {
+  const A = olek.meta.astmed;
+  const k = aste(koht, A.koht);
+  if (olek.reziim === "koht") return k;
+  const a = aste(aeg, A.aeg);
+  return k < 0 || a < 0 || k + a > 2 ? -1 : k + a;
 }
 
 // ---------- map drawing ----------
@@ -81,14 +97,14 @@ function joonista() {
   canvas.height = meta.korgus;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(meta.laius, meta.korgus);
-  const varvid = KLASSID[olek.reziim].map(([, , c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
+  const varvid = KLASSID[olek.reziim].map(([, c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
   const kl = new Int8Array(n).fill(-1);
   const v = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    const x = vaartus(i);
-    if (x === null) continue;
-    v[i] = x;
-    kl[i] = klass(x);
+    const h = hinnang(i);
+    if (h === null) continue;
+    v[i] = olek.reziim === "koht" ? h[0] : h[0] * h[1];
+    kl[i] = klassKA(h[0], h[1]);
     if (kl[i] >= 0) img.data.set([...varvid[kl[i]], 255], i * 4);
   }
   ctx.putImageData(img, 0, 0);
@@ -200,7 +216,7 @@ function uuendaPaneel(kl, kohad) {
   const ha = KLASSID[olek.reziim].map(() => 0);
   for (let i = 0; i < kl.length; i++) if (kl[i] >= 0) ha[kl[i]] += meta.ruut_m ** 2 / 1e4;
   const legend = document.getElementById("legend");
-  legend.innerHTML = KLASSID[olek.reziim].map(([, nimi, c], j) =>
+  legend.innerHTML = KLASSID[olek.reziim].map(([nimi, c], j) =>
     `<li><span class="lapp" style="background:${c}"></span><span>${nimi}</span><span class="arv">${Math.round(ha[j])} ha</span></li>`).join("");
 
   const kv = document.getElementById("kokkuvote");
@@ -329,6 +345,7 @@ function naitaSelgitust(lnglat) {
   const koht = summa / 100 * kordaja;
   const kokku = tana ? koht * aeg.indeks : koht;
   const kaardil = tana ? vaartus(i) : kohaSobivus(i);
+  const kl = klassKA(koht, aeg.indeks);
 
   // weakest link: lowest multiplier, or the factor losing the most points
   const halvimKordaja = kordajad.reduce((a, b) => (b.x < a.x ? b : a));
@@ -344,7 +361,8 @@ function naitaSelgitust(lnglat) {
   const kordRida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span>${riba(r.x, r.x < 0.9)}<span class="arv">${kord(r.x)}</span><span class="pohjus">${r.pohjus}</span></li>`;
   const punktRida = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span>${riba(r.p / r.max, r.p < 0.75 * r.max)}<span class="arv">${pk(r.p)}/${pk(r.max)}</span><span class="pohjus">${r.pohjus}</span></li>`;
   const html = `
-    <div class="sel-pea"><span class="sel-arv${klass(kokku) >= 0 ? " k" + klass(kokku) : ""}">${hinne(kokku)}</span><span>${lause}</span></div>
+    <div class="sel-pea"><span class="sel-arv${kl >= 0 ? " k" + kl : ""}">${hinne(kokku)}</span><span>${lause}</span></div>
+    <div class="astmed">Mets: <b>${aste(koht, olek.meta.astmed.koht) >= 0 ? ASTE_KOHT[aste(koht, olek.meta.astmed.koht)] : "nõrk"}</b>${tana ? ` · Seeneaeg: <b>${aste(aeg.indeks, olek.meta.astmed.aeg) >= 0 ? ASTE_AEG[aste(aeg.indeks, olek.meta.astmed.aeg)] : "seeni pole"}</b>` : ""}${kl >= 0 ? ` → <b>${KLASSID[olek.reziim][kl][0].toLowerCase()}</b>` : " → kaardil ei näidata"}</div>
     <div class="arvutus">
       <div>Metsa punktid <b>${pk(summa)}</b>/100 × kordajad <b>${kord(kordaja)}</b> = Koht <b>${hinne(koht)}</b></div>
       ${tana ? `<div>Koht <b>${hinne(koht)}</b> × Aeg <b>${hinne(aeg.indeks)}%</b> = hinne <b>${hinne(kokku)}</b></div>` : ""}
@@ -409,7 +427,13 @@ const tabel = (read, pais = ["", "punkte"]) =>
 const osa = (pealkiri, sisu, lahti = false) => `<details${lahti ? " open" : ""}><summary>${pealkiri}</summary>${sisu}</details>`;
 
 function giidHtml() {
-  const J = window.SIIL.juhend, A = J.aeg, k = KLASSID.tana;
+  const J = window.SIIL.juhend, A = J.aeg, AST = olek.meta.astmed;
+  const lahter = (ki, ai) => {
+    const c = ki + ai;
+    return c <= 2 ? `<td style="background:${KLASSID.tana[c][1]}${c === 0 ? ";color:#fff" : ""}">${KLASSID.tana[c][0]}</td>` : `<td class="tyhi">–</td>`;
+  };
+  const maatriks = `<table class="maatriks"><thead><tr><th>Mets ↓ · Seeneaeg →</th>${ASTE_AEG.map((n, ai) => `<th>${n}<br><small>Aeg ${Math.round(AST.aeg[ai] * 100)}%+</small></th>`).join("")}</tr></thead>
+    <tbody>${ASTE_KOHT.map((n, ki) => `<tr><th>${n}<br><small>Koht ${Math.round(AST.koht[ki] * 100)}+</small></th>${ASTE_AEG.map((_, ai) => lahter(ki, ai)).join("")}</tr>`).join("")}</tbody></table>`;
   const max = Object.fromEntries(Object.entries(J.kaalud).map(([n, w]) => [n, Math.round(w * 100)]));
   const p = (n) => (y) => pk(y / 100 * max[n]);            // score 0..100 -> points of category n
   const x = (y) => kord(y / 100);                          // score 0..100 -> multiplier
@@ -438,8 +462,9 @@ function giidHtml() {
     <div><span class="vk">Metsa punktid</span> <small>0–100</small> × <span class="vk">Kordajad</span> <small>0–1</small> = <span class="vk">Koht</span></div>
     <div><span class="vk">Koht</span> × <span class="vk">Aeg</span> <small>0–100%</small> = <span class="vk hinne">Hinne</span></div>
   </div>
-  <ul class="giid-klassid">${k.map(([piir, nimi, c]) => `<li><span class="lapp" style="background:${c}"></span><b>${nimi}</b>: hinne ${Math.round(piir * 100)} või rohkem</li>`).join("")}
-    <li><span class="lapp tuhi-lapp"></span>alla ${Math.round(k.at(-1)[0] * 100)} – kaardil ei näidata</li></ul>
+  <p><b>Kaardi värv</b> tuleb kahest astmest: kui hea on mets ja kui hea on seeneaeg. Nii ei muuda väike päevane kõikumine värvi – roheline jääb roheliseks, kuni seeneaeg päriselt muutub.</p>
+  ${maatriks}
+  <p class="vaike">„Head metsad“ režiimis on värv ainult metsa järgi: väga hea / hea / keskmine.</p>
 
   <h3>1. Metsa punktid – kokku 100</h3>
   <p>Iga kategooria annab kuni oma maksimumi. Punktid liidetakse.</p>

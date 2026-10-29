@@ -104,6 +104,10 @@ NIISKUS = [(0.0, 0.0), (0.20, 0.0), (0.45, 1.0), (0.90, 1.0)]
 KRAADIPAEV_ALUS = 5.0
 HOOAEG_KP = [(0, 0.0), (450, 0.0), (750, 1.0)]      # roughly late June -> mid July
 HOOAEG_NIISKUS_AKEN = (91, 42)                       # days back: from, to
+# The spring moisture memory is at least the regional one (reference bucket of fresh forest):
+# a sandy pine heath's small bucket dries fast and would make every spring look dry there,
+# while wet sites keep their own groundwater-fed memory (drought years: search mire edges).
+HOOAEG_NIISKUS_KLASS = 2
 HOOAEG_NIISKUS = [(0.0, 0.3), (0.25, 0.3), (0.55, 1.0), (1.0, 1.0)]
 
 # Initiation (hoovõtt): wetting pulse or sustained good moisture, scaled by temperature
@@ -120,13 +124,13 @@ VIIVITUS_KP = 170        # ~ 12 days at 18 C, ~ 28 days at 10 C
 VIIVITUS_MAX = 30        # days; primordia not mature by then are lost (autumn cold)
 
 # Fruit bodies (viljakeha): daily survival of the standing crop
-ELU_PAEV = 0.93          # half-life ~ 10 days in good conditions
+ELU_PAEV = 0.96          # half-life ~ 17 days: chanterelle fruit bodies grow slowly and last weeks
 ELU_POUD = 0.88          # when w below 0.2 (tolerates moderate drought)
 ELU_JAHE = 0.88          # when Tmean below JAHE_PIIR: no growth, fruit bodies age and rot
 JAHE_PIIR = 10.0
 ELU_KULM = 0.50          # frost: Tmin below KULM_PIIR
 KULM_PIIR = -1.5
-INDEKS_SKAALA = 6.0     # index = min(1, crop / INDEKS_SKAALA); linear so halving the crop halves it
+INDEKS_SKAALA = 8.5     # index = min(1, crop / INDEKS_SKAALA); linear so halving the crop halves it
 
 # Suitability = limiting factors (multiplied) x forest points. Forest points are additive: each
 # factor gives at most its weight in points (weights sum to 1 = 100 points), easy to explain.
@@ -145,3 +149,11 @@ KAALUD = {
     "sidusus": 0.09,
     "tihedus": 0.09,
 }
+
+# ================= Map classes =================
+# A class needs both a good forest and a good mushroom time, each judged in steps, so a small
+# day-to-day change of the fruiting index does not repaint the map. Steps (lower bounds):
+KLASS_KOHT = [0.80, 0.65, 0.50]   # forest: väga hea, hea, keskmine (green <= ~6 % of forest)
+KLASS_AEG = [0.50, 0.30, 0.15]    # mushroom time: hea, keskmine, vähe
+# class = forest step + time step (0-based): 0 green (väga suur tõenäosus), 1 orange (hea koht),
+# 2 yellow (võimalik), more = not drawn

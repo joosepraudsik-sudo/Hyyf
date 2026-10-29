@@ -1,12 +1,13 @@
-"""Build the common 10 m grid (EPSG:3301) for the test area.
+"""Build the common 10 m grid (EPSG:3301) for an area (default: the test sheet, see ala.py).
 
-Inputs (andmed/testala_5458, andmed/eesti): DTM 1 m tiles, CHM 2021/2023, forest stands, soil map.
-Outputs (andmed/testala_5458/ruudustik/):
+Inputs (<area>/korgus, <area>/metsaregister, andmed/eesti): DTM 1 m tiles, CHM per sheet,
+forest stands, soil map.
+Outputs (<area>/ruudustik/):
   dtm.tif       mean elevation, m
   kalle.tif     slope, degrees
   twi.tif       topographic wetness index ln(a / tan b)
   katvus.tif    canopy cover (fraction of area with trees > 5 m), 30 m window
-  korgus.tif    mean canopy height, m (CHM 2023, 2021 if missing)
+  korgus.tif    mean canopy height, m (newest CHM, older if missing)
   eraldis.tif   forest stand id (0 = no stand)
   muld.tif      row index into muld.csv (0 = no soil polygon)
   muld.csv      soil attributes of the polygons used
@@ -14,7 +15,11 @@ Outputs (andmed/testala_5458/ruudustik/):
 Run: uv run python -I skriptid/ruudustik.py
 """
 import heapq
+import re
+import sys
+from collections import defaultdict
 from pathlib import Path
+from types import SimpleNamespace
 
 import geopandas as gpd
 import numpy as np
@@ -25,28 +30,29 @@ from rasterio.transform import from_origin
 from rasterio.warp import reproject
 from scipy.ndimage import uniform_filter
 
-ROOT = Path(__file__).resolve().parent.parent / "andmed"
-AREA = ROOT / "testala_5458"
-OUT = AREA / "ruudustik"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ala import BASE, TESTALA  # noqa: E402
 
-X0, Y0, X1, Y1 = 680000, 6450000, 690000, 6460000
 RES = 10
-W, H = (X1 - X0) // RES, (Y1 - Y0) // RES
-TRANSFORM = from_origin(X0, Y1, RES, RES)
 CRS = "EPSG:3301"
 
 
-def write(name, arr, nodata=None):
-    profile = dict(driver="GTiff", width=W, height=H, count=1, dtype=arr.dtype, crs=CRS,
-                   transform=TRANSFORM, compress="deflate", nodata=nodata)
-    with rasterio.open(OUT / name, "w", **profile) as d:
+def grid_of(ala):
+    return SimpleNamespace(W=(ala.x1 - ala.x0) // RES, H=(ala.y1 - ala.y0) // RES,
+                           transform=from_origin(ala.x0, ala.y1, RES, RES), out=ala.grid, ala=ala)
+
+
+def write(g, name, arr, nodata=None):
+    profile = dict(driver="GTiff", width=g.W, height=g.H, count=1, dtype=arr.dtype, crs=CRS,
+                   transform=g.transform, compress="deflate", nodata=nodata)
+    with rasterio.open(g.out / name, "w", **profile) as d:
         d.write(arr, 1)
     print(f"  {name}")
 
 
-def resample(src_path, dst_dtype=np.float32, transform_fn=None):
+def resample(g, src_path, dst_dtype=np.float32, transform_fn=None):
     """Average-resample a raster onto the 10 m grid, optionally transforming values first."""
-    dst = np.full((H, W), np.nan, dtype=dst_dtype)
+    dst = np.full((g.H, g.W), np.nan, dtype=dst_dtype)
     with rasterio.open(src_path) as s:
         a = s.read(1).astype(np.float32)
         if s.nodata is not None:
@@ -54,18 +60,33 @@ def resample(src_path, dst_dtype=np.float32, transform_fn=None):
         if transform_fn is not None:
             a = transform_fn(a)
         reproject(a, dst, src_transform=s.transform, src_crs=s.crs, src_nodata=np.nan,
-                  dst_transform=TRANSFORM, dst_crs=CRS, dst_nodata=np.nan,
+                  dst_transform=g.transform, dst_crs=CRS, dst_nodata=np.nan,
                   resampling=Resampling.average)
     return dst
 
 
-def build_dtm():
-    dtm = np.full((H, W), np.nan, dtype=np.float32)
-    for f in sorted((AREA / "korgus").glob("*_dtm_1m.tif")):
-        part = resample(f)
+def mosaic(g, files, transform_fn=None):
+    out = np.full((g.H, g.W), np.nan, dtype=np.float32)
+    for f in files:
+        part = resample(g, f, transform_fn=transform_fn)
         ok = ~np.isnan(part)
-        dtm[ok] = part[ok]
-    return dtm
+        out[ok] = part[ok]
+    return out
+
+
+def chm_files(folder):
+    """Per sheet: the newest CHM and the newest leaf-on (summer) CHM, falling back to the newest."""
+    by_sheet = defaultdict(list)
+    for f in folder.glob("*chm*.tif"):
+        m = re.search(r"(\d{4})\.tif$", f.name)
+        by_sheet[f.name.split("_chm")[0]].append((int(m.group(1)) if m else 0, f))
+    newest, leaf_on = [], []
+    for files in by_sheet.values():
+        files.sort()
+        newest.append(files[-1][1])
+        summer = [f for _, f in files if "suvi" in f.name]
+        leaf_on.append(summer[-1] if summer else files[-1][1])
+    return newest, leaf_on
 
 
 def fill_depressions(z, eps=1e-4):
@@ -124,48 +145,49 @@ def flow_accumulation(filled):
     return np.array(acc).reshape(h, w)
 
 
-def main():
-    OUT.mkdir(parents=True, exist_ok=True)
+def build(ala=TESTALA):
+    g = grid_of(ala)
+    g.out.mkdir(parents=True, exist_ok=True)
+    korgus = ala.dir / "korgus"
 
     print("DTM, kalle, TWI")
-    dtm = build_dtm()
-    write("dtm.tif", dtm, np.nan)
+    dtm = mosaic(g, sorted(korgus.glob("*_dtm_1m.tif")))
+    write(g, "dtm.tif", dtm, np.nan)
     gy, gx = np.gradient(dtm.astype(np.float64), RES)
     tan_b = np.hypot(gx, gy)
-    write("kalle.tif", np.degrees(np.arctan(tan_b)).astype(np.float32), np.nan)
+    write(g, "kalle.tif", np.degrees(np.arctan(tan_b)).astype(np.float32), np.nan)
     acc = flow_accumulation(fill_depressions(np.nan_to_num(dtm, nan=np.nanmin(dtm))))
     twi = np.log(acc * RES / np.maximum(tan_b, 0.001))
-    write("twi.tif", twi.astype(np.float32), np.nan)
+    write(g, "twi.tif", twi.astype(np.float32), np.nan)
 
     print("Vorastik (CHM)")
     trees = lambda a: np.where(np.isnan(a), np.nan, (a > 5).astype(np.float32))
-    h21 = resample(AREA / "korgus" / "5458_chm_suvi_2021.tif")
-    h23 = resample(AREA / "korgus" / "5458_chm_kevad_2023.tif")
-    c21 = resample(AREA / "korgus" / "5458_chm_suvi_2021.tif", transform_fn=trees)
-    c23 = resample(AREA / "korgus" / "5458_chm_kevad_2023.tif", transform_fn=trees)
-    # 2021 is leaf-on (better for deciduous cover); 2023 catches newer clearcuts.
-    cleared = (h23 < 2) & (h21 > 8)
-    cover = np.where(cleared, c23, c21)
-    cover = np.where(np.isnan(cover), c23, cover)
+    newest, leaf_on = chm_files(korgus)
+    h_new, h_leaf = mosaic(g, newest), mosaic(g, leaf_on)
+    c_new, c_leaf = mosaic(g, newest, trees), mosaic(g, leaf_on, trees)
+    # leaf-on (summer) cover is better for deciduous trees; the newest scan catches newer clearcuts
+    cleared = (h_new < 2) & (h_leaf > 8)
+    cover = np.where(cleared, c_new, c_leaf)
+    cover = np.where(np.isnan(cover), c_new, cover)
     cover = uniform_filter(np.nan_to_num(cover), size=3)
-    write("katvus.tif", cover.astype(np.float32), np.nan)
-    write("korgus.tif", np.where(np.isnan(h23), h21, h23).astype(np.float32), np.nan)
+    write(g, "katvus.tif", cover.astype(np.float32), np.nan)
+    write(g, "korgus.tif", np.where(np.isnan(h_new), h_leaf, h_new).astype(np.float32), np.nan)
 
     print("Metsaregister")
-    stands = gpd.read_file(AREA / "metsaregister" / "eraldis.geojson")
-    write("eraldis.tif", rasterize(zip(stands.geometry, stands["id"].astype(np.int32)),
-                                   out_shape=(H, W), transform=TRANSFORM, fill=0, dtype=np.int32))
+    stands = gpd.read_file(ala.dir / "metsaregister" / "eraldis.geojson")
+    write(g, "eraldis.tif", rasterize(zip(stands.geometry, stands["id"].astype(np.int32)),
+                                      out_shape=(g.H, g.W), transform=g.transform, fill=0, dtype=np.int32))
 
     print("Mullakaart")
-    gdb = ROOT / "eesti" / "muld" / "Mullakaart_GDB.zip"
+    gdb = BASE / "andmed" / "eesti" / "muld" / "Mullakaart_GDB.zip"
     soil = gpd.read_file(f"/vsizip/{gdb.as_posix()}/Mullakaart.gdb", layer="Mullakaart",
-                         bbox=(X0, Y0, X1, Y1)).reset_index(drop=True)
+                         bbox=ala.bbox).reset_index(drop=True)
     soil["rida"] = np.arange(1, len(soil) + 1, dtype=np.int32)
-    write("muld.tif", rasterize(zip(soil.geometry, soil["rida"]), out_shape=(H, W),
-                                transform=TRANSFORM, fill=0, dtype=np.int32))
-    soil.drop(columns="geometry").to_csv(OUT / "muld.csv", index=False, encoding="utf-8")
+    write(g, "muld.tif", rasterize(zip(soil.geometry, soil["rida"]), out_shape=(g.H, g.W),
+                                   transform=g.transform, fill=0, dtype=np.int32))
+    soil.drop(columns="geometry").to_csv(g.out / "muld.csv", index=False, encoding="utf-8")
     print("  muld.csv")
 
 
 if __name__ == "__main__":
-    main()
+    build()

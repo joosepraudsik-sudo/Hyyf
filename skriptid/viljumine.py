@@ -28,10 +28,10 @@ def interp(x, table):
     return np.interp(x, xs, ys)
 
 
-def load_weather(point):
+def load_weather(point, wx_dir=WX):
     """Daily weather: temperature from ERA5-Land, precipitation and ET0 from ERA5."""
     def daily(name):
-        d = pd.DataFrame(json.loads((WX / f"{name}_{point}.json").read_text("utf-8"))["daily"])
+        d = pd.DataFrame(json.loads((wx_dir / f"{name}_{point}.json").read_text("utf-8"))["daily"])
         return d.set_index(pd.to_datetime(d.pop("time")))
     land, era5 = daily("era5land"), daily("era5")
     wx = pd.DataFrame({
@@ -44,7 +44,7 @@ def load_weather(point):
     wx["allikas"] = "era5"
 
     # after the end of ERA5: recent model analysis and the forecast
-    fc_path = WX / f"prognoos_{point}.json"
+    fc_path = wx_dir / f"prognoos_{point}.json"
     if fc_path.exists():
         fc = json.loads(fc_path.read_text("utf-8"))
         d = pd.DataFrame(fc["daily"])
@@ -96,7 +96,9 @@ def simulate(wx, regime):
     gdd = pd.Series(np.maximum(t - P.KRAADIPAEV_ALUS, 0), index=wx.index)
     gdd = gdd.groupby(wx.index.year).cumsum().to_numpy()
     back_from, back_to = P.HOOAEG_NIISKUS_AKEN
-    w_past = pd.Series(w).rolling(back_from - back_to, min_periods=1).mean().shift(back_to).bfill()
+    # at least the regional (fresh forest) memory; wet sites keep their own groundwater-fed one
+    w_ref = w if regime == P.HOOAEG_NIISKUS_KLASS else np.maximum(w, water_balance(wx, P.HOOAEG_NIISKUS_KLASS))
+    w_past = pd.Series(w_ref).rolling(back_from - back_to, min_periods=1).mean().shift(back_to).bfill()
     season = interp(gdd, P.HOOAEG_KP) * interp(w_past.to_numpy(), P.HOOAEG_NIISKUS)
 
     # initiation: wetting pulse or sustained moisture

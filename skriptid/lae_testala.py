@@ -1,30 +1,33 @@
-"""Download test area data (map sheet 5458, L-EST97 E 680-690 km, N 6450-6460 km).
+"""Download input data for an area (default: test sheet 5458, L-EST97 E 680-690 km, N 6450-6460 km).
 
-Python port of lae_testala.ps1. Skips files that already exist.
-Run: uv run python skriptid/lae_testala.py
+Python port of lae_testala.ps1, split into functions so the same downloads work for any area
+(see ala.py). Skips files that already exist, except the weather forecast.
+Run: uv run python -I skriptid/lae_testala.py
 """
 import json
 import re
+import sys
 import time
+from datetime import date
 from pathlib import Path
 
 import requests
 
-ROOT = Path(__file__).resolve().parent.parent / "andmed" / "testala_5458"
-SHEET = "5458"
-BBOX = "680000,6450000,690000,6460000"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ala import BASE, TESTALA, lehed_10k, lehed_20k  # noqa: E402
 
 GEO = "https://geoportaal.maaruum.ee/index.php?lang_id=2&plugin_act=otsing&page_id=664"
 MR = ("https://gsavalik.envir.ee/geoserver/metsaregister/ows?service=WFS&version=1.0.0"
       "&request=GetFeature&outputFormat=application/json&srsName=EPSG:3301")
-MULD = ("https://teenus.maaamet.ee/ows/mullakaart?service=WFS&version=1.0.0"
-        f"&request=GetFeature&bbox={BBOX}")
+EESTI = BASE / "andmed" / "eesti"
 
-# Weather points (lat, lon): sheet corners slightly inset + centre
+# Weather points of the test sheet (lat, lon): sheet corners slightly inset + centre
 ILMAPUNKTID = {
     "edel": (58.165, 27.075), "loe": (58.235, 27.080), "keskel": (58.197, 27.147),
     "kirre": (58.230, 27.220), "kagu": (58.160, 27.215),
 }
+# Test sheet CHM files used so far (other years exist for some sheets)
+TESTALA_CHM = [r".*kevad_2023\.tif", r".*suvi_2021\.tif"]
 
 session = requests.Session()
 session.headers["User-Agent"] = "siil-korilase-kompass/0.1"
@@ -45,28 +48,29 @@ def fetch(url, path: Path, refresh=False, **kw):
     tmp.replace(path)
 
 
-def geoportaal(sheet, kind, patterns):
+def geoportaal(sheet, kind, patterns, target: Path):
     html = session.get(f"{GEO}&kaardiruut={sheet}&andmetyyp={kind}", timeout=120).text
     found = 0
     for href, name in re.findall(r'href="(index\.php\?[^"]+?f=([^&"]+)[^"]*)"', html):
         if any(re.fullmatch(p, name) for p in patterns):
-            fetch("https://geoportaal.maaruum.ee/" + href.replace("&amp;", "&"),
-                  ROOT / "korgus" / name)
+            fetch("https://geoportaal.maaruum.ee/" + href.replace("&amp;", "&"), target / name)
             found += 1
     if not found:
         print(f"  HOIATUS: {kind} {sheet} - sobivaid faile ei leitud")
 
 
-def main():
-    print("1/4 Korgusandmed (DTM 1 m, vorastiku korgus CHM)")
-    for q in range(1, 5):
-        geoportaal(f"{SHEET}{q}", "dem_1m_geotiff", [r".*_dtm_1m\.tif"])
-    geoportaal(SHEET, "chm_geotiff", [r".*kevad_2023\.tif", r".*suvi_2021\.tif"])
+def lae_korgus(ala, chm_mustrid=(r".*chm.*\.tif",)):
+    """DTM 1 m per 1:10 000 sheet and canopy height (CHM) per 1:20 000 sheet."""
+    for sheet in lehed_10k(ala):
+        geoportaal(sheet, "dem_1m_geotiff", [r".*_dtm_1m\.tif"], ala.dir / "korgus")
+    for sheet in lehed_20k(ala):
+        geoportaal(sheet, "chm_geotiff", list(chm_mustrid), ala.dir / "korgus")
 
-    print("2/4 Metsaregister")
-    md = ROOT / "metsaregister"
+
+def lae_metsaregister(ala):
+    md = ala.dir / "metsaregister"
     eraldis = md / "eraldis.geojson"
-    fetch(f"{MR}&typeName=metsaregister:eraldis&bbox={BBOX}", eraldis)
+    fetch(f"{MR}&typeName=metsaregister:eraldis&bbox={','.join(map(str, ala.bbox))}", eraldis)
 
     el_path = md / "eraldis_element.json"
     if not el_path.exists():
@@ -84,39 +88,48 @@ def main():
     for kl in ["kl_kasvukoht", "kl_puuliik", "kl_rinne"]:
         fetch(f"{MR}&typeName=metsaregister:{kl}", md / f"{kl}.json")
 
-    print("3/4 Mullakaart")
-    # WFS layer has geometry only, no attributes -> use the national file download
-    # (562 MB, all of Estonia; reused later for the full country).
-    eesti = ROOT.parent / "eesti" / "muld"
-    fetch("https://geoportaal.maaruum.ee/docs/muld/Mullakaart_GDB.zip", eesti / "Mullakaart_GDB.zip")
-    fetch("https://geoportaal.maaruum.ee/docs/muld/mullalegend.pdf", eesti / "mullalegend.pdf")
 
-    print("4/4 Ilm (ERA5-Land 2023-2026, Open-Meteo, ainult arenduseks)")
+def lae_muld():
+    # WFS layer has geometry only, no attributes -> use the national file download (562 MB)
+    fetch("https://geoportaal.maaruum.ee/docs/muld/Mullakaart_GDB.zip", EESTI / "muld" / "Mullakaart_GDB.zip")
+    fetch("https://geoportaal.maaruum.ee/docs/muld/mullalegend.pdf", EESTI / "muld" / "mullalegend.pdf")
+
+
+def lae_ilm(target: Path, punktid: dict, algus="2023-01-01", lopp="2026-10-20"):
+    """ERA5-Land temperature + ERA5 precipitation/ET0 (Open-Meteo archive, development only),
+    then the last 14 days and a 3-day forecast from the forecast API (always refreshed)."""
     daily = ("temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
              "et0_fao_evapotranspiration,soil_moisture_0_to_7cm_mean,"
              "soil_moisture_7_to_28cm_mean,soil_temperature_0_to_7cm_mean")
     # Open-Meteo has no precipitation / ET0 for era5_land -> take those from ERA5 (~31 km)
     daily_era5 = "precipitation_sum,rain_sum,snowfall_sum,et0_fao_evapotranspiration"
-    for name, (lat, lon) in ILMAPUNKTID.items():
+    for name, (lat, lon) in punktid.items():
         for model, variables in [("era5_land", daily), ("era5", daily_era5)]:
             url = ("https://archive-api.open-meteo.com/v1/archive"
-                   f"?latitude={lat}&longitude={lon}&start_date=2023-01-01&end_date=2026-10-20"
+                   f"?latitude={lat}&longitude={lon}&start_date={algus}&end_date={lopp}"
                    f"&daily={variables}&models={model}&timezone=Europe%2FTallinn")
-            fetch(url, ROOT / "ilm" / f"{model.replace('_', '')}_{name}.json")
+            fetch(url, target / f"{model.replace('_', '')}_{name}.json")
             time.sleep(1)
-
-    # ERA5 lags ~5 days: the last two weeks up to today and the next 3 days come from the
-    # forecast API (model analysis + forecast). Always refreshed.
     print("   + viimased 14 paeva ja 3 paeva prognoos (Open-Meteo forecast)")
-    for name, (lat, lon) in ILMAPUNKTID.items():
+    for name, (lat, lon) in punktid.items():
         url = ("https://api.open-meteo.com/v1/forecast"
                f"?latitude={lat}&longitude={lon}&past_days=14&forecast_days=4"
                "&daily=temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
                "et0_fao_evapotranspiration&hourly=soil_temperature_6cm&timezone=Europe%2FTallinn")
-        fetch(url, ROOT / "ilm" / f"prognoos_{name}.json", refresh=True)
+        fetch(url, target / f"prognoos_{name}.json", refresh=True)
         time.sleep(1)
 
-    print(f"\nValmis. Andmed: {ROOT}")
+
+def main():
+    print("1/4 Korgusandmed (DTM 1 m, vorastiku korgus CHM)")
+    lae_korgus(TESTALA, TESTALA_CHM)
+    print("2/4 Metsaregister")
+    lae_metsaregister(TESTALA)
+    print("3/4 Mullakaart")
+    lae_muld()
+    print("4/4 Ilm (ERA5-Land 2023-2026, Open-Meteo, ainult arenduseks)")
+    lae_ilm(TESTALA.dir / "ilm", ILMAPUNKTID)
+    print(f"\nValmis. Andmed: {TESTALA.dir}")
 
 
 if __name__ == "__main__":
