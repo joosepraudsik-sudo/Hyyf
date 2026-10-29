@@ -325,7 +325,7 @@ svg.g { width: 100%; height: auto; display: block; overflow: visible; }
   --aktsent: #1f4d3a;
   --aktsent-tekst: #ffffff;
   --aktsent-pehme: #e6efe9;
-  --roheline: #9a3412;
+  --roheline: #a4432a;
   --klaas: #ffffff;
   --klaas-tugev: #ffffff;
   --klaas-serv: #dfe3dc;
@@ -365,25 +365,30 @@ body { font-family: Figtree, system-ui, -apple-system, "Segoe UI", Roboto, sans-
 
 .sahtel { border-radius: 16px; background: #fff; }
 .otsus-silt { border-radius: 6px; }
-.otsus-silt.k0 { background: #9a3412; color: #fff; }
-.otsus-silt.k1 { background: #ea7a0c; color: #2a1606; }
-.otsus-silt.k2 { background: #f6cf3c; color: #3a2a04; }
+.otsus-silt.k0 { background: #a4432a; color: #fff; }
+.otsus-silt.k1 { background: #d9894a; color: #2a1606; }
+.otsus-silt.k2 { background: #e9cf8f; color: #3a2a04; }
 .hinne-arv { color: var(--tint); }
 .naitaja { border-radius: 12px; background: var(--pind-2); border-color: transparent; }
 .riba.q-hea > span { background: #2f7a4f; }
 .kypseb, .vaike-nupp { border-radius: 10px; }
 .vaike-nupp { background: #fff; border-color: var(--joon); }
-.g-tee { stroke: #9a3412; }
-.g-tapp { fill: #9a3412; }
-.g-legend i.g-l-joon { background: #9a3412; }
+.g-tee { stroke: #a4432a; }
+.g-tapp { fill: #a4432a; }
+.g-legend i.g-l-joon { background: #a4432a; }
 
 #giid { border-radius: 16px; background: #fff; backdrop-filter: none; }
 .giid-pea { background: #fff; backdrop-filter: none; }
 #giid details { border-radius: 10px; background: #fff; }
 #giid .maatriks td { border-radius: 6px; }
 .valemikast, .naide { border-radius: 12px; }
-.vk.hinne { color: #9a3412; }
+.vk.hinne { color: #a4432a; }
 .giid-kaalud .riba > span { background: var(--aktsent); }
 
 .maplibregl-ctrl-group { border-radius: 12px !important; background: #fff !important; backdrop-filter: none; border: 1px solid var(--klaas-serv); }
 .maplibregl-ctrl-attrib { background: rgba(255, 255, 255, .9) !important; backdrop-filter: none; }
+
+/* timeline: month under the first day and at month changes */
+.paev .kuu { font-size: 10px; color: var(--tint-3); font-weight: 600; line-height: 1; height: 10px; }
+.paev.aktiivne .kuu { color: rgba(255, 255, 255, .8); }
+.paev.prognoos::after { bottom: 1px; }

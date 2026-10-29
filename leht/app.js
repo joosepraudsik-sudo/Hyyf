@@ -7,20 +7,24 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 
 // Display classes per mode: [label, colour]. A class comes from two steps, forest and mushroom
 // time (bounds in meta.astmed, from parameetrid.py), so small daily changes do not repaint the map.
-// Chanterelle tones, dark to light (OKLab L 0.47 / 0.69 / 0.86): they stand out on green forest and
-// on the orthophoto, and the lightness steps keep them apart for colour-blind users.
+// Soft autumn tones (rust / ochre / sand), dark to light; with KLASSI_ALFA the lower classes are
+// only a light wash, so the basemap stays readable.
 const KLASSID = {
-  tana: [["Väga hea", "#9a3412"], ["Hea", "#ea7a0c"], ["Võimalik", "#f6cf3c"]],
-  koht: [["Väga hea mets", "#9a3412"], ["Hea mets", "#ea7a0c"], ["Keskmine mets", "#f6cf3c"]],
+  tana: [["Väga hea", "#a4432a"], ["Hea", "#d9894a"], ["Võimalik", "#e9cf8f"]],
+  koht: [["Väga hea mets", "#a4432a"], ["Hea mets", "#d9894a"], ["Keskmine mets", "#e9cf8f"]],
 };
 const ASTE_KOHT = ["väga hea", "hea", "keskmine"];
 const ASTE_AEG = ["hea", "keskmine", "vähe"];
-// layer strength: strong when zoomed out, lighter up close so paths and tracks show through
-const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 0.75, 14, 0.5, 16, 0.4];
-const SILE = 4;   // drawing resolution per 50 m cell (smooth edges)
+// per-class opacity: the better the place, the more it stands out; "võimalik" is only a faint wash
+// so roads, tracks and names stay readable everywhere. The layer as a whole fades a bit up close.
+const KLASSI_ALFA = [0.72, 0.5, 0.28];
+const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 1, 14, 0.85, 16, 0.7];
+const SILE = 4;        // drawing resolution per 50 m cell (smooth edges)
+const SILU_KORDI = 2;  // smoothing passes for the class fields (more = rounder, small spots fade)
 const NADALAPAEV = ["P", "E", "T", "K", "N", "R", "L"];
 const NADALAPAEV_PIKK = ["pühapäev", "esmaspäev", "teisipäev", "kolmapäev", "neljapäev", "reede", "laupäev"];
-const AJATELG_TAGASI = 7, AJATELG_EDASI = 10;   // days shown before and after the window anchor
+const AJATELG_EDASI = 10;   // the strip shows the anchor day (today, or a date picked in the calendar) and 10 days ahead
+const KUU = ["jaan", "veebr", "märts", "apr", "mai", "juuni", "juuli", "aug", "sept", "okt", "nov", "dets"];
 const PARIMAID = 5;
 const PARIM_VAHE_M = 500;    // best spots at least this far apart
 const PARIM_YMBER_M = 300;   // good forest counted within this radius of a spot
@@ -109,32 +113,26 @@ function joonista() {
     v[i] = olek.reziim === "koht" ? h[0] : h[0] * h[1];
     kl[i] = klassKA(h[0], h[1]);
   }
-  // drawing on a SILE x finer grid: each fine pixel takes the class with the largest weight among
-  // the 4 x 4 surrounding 50 m cells, weighted with a cubic B-spline ("no class" counts as a class).
-  // Edges become smooth and rounded, and no false rings appear between a class and empty forest.
+  // drawing like contour lines: for each class a field "this class or better" (0/1 per 50 m cell)
+  // is smoothed on the cell grid, sampled bilinearly on a SILE x finer grid and cut at 0.5. The
+  // result is nested, rounded shapes (darkest inside) without stair steps or false rings.
   canvas.width = W * SILE;
   canvas.height = H * SILE;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(canvas.width, canvas.height);
-  const spliin = (t) => [(1 - t) ** 3 / 6, (3 * t ** 3 - 6 * t * t + 4) / 6, (-3 * t ** 3 + 3 * t * t + 3 * t + 1) / 6, t ** 3 / 6];
-  const wf = [], ix = [];
-  for (let s2 = 0; s2 < SILE; s2++) wf.push(spliin((s2 + 0.5) / SILE));   // same weights for every cell
-  const kaal = new Float32Array(4);
-  for (let cy = 0; cy < H; cy++) for (let sy = 0; sy < SILE; sy++) {
-    const wy = wf[sy];
-    for (let cx = 0; cx < W; cx++) for (let sx = 0; sx < SILE; sx++) {
-      const wx = wf[sx];
-      kaal.fill(0);
-      for (let j = 0; j < 4; j++) {
-        const yy = Math.max(0, Math.min(H - 1, cy - 1 + j)) * W;
-        for (let i = 0; i < 4; i++) {
-          const xx = Math.max(0, Math.min(W - 1, cx - 1 + i));
-          kaal[kl[yy + xx] + 1] += wx[i] * wy[j];
-        }
-      }
-      let c = 0;
-      for (let j = 1; j < 4; j++) if (kaal[j] > kaal[c]) c = j;
-      if (c > 0) img.data.set([...varvid[c - 1], 255], ((cy * SILE + sy) * canvas.width + cx * SILE + sx) * 4);
+  const valjad = [0, 1, 2].map((k) => silu(Float32Array.from(kl, (c) => (c >= 0 && c <= k ? 1 : 0)), W, H));
+  const proov = (f, i00, i10, i01, i11, fx, fy) => (f[i00] * (1 - fx) + f[i10] * fx) * (1 - fy) + (f[i01] * (1 - fx) + f[i11] * fx) * fy;
+  for (let py = 0; py < canvas.height; py++) {
+    const y = (py + 0.5) / SILE - 0.5;
+    const y0 = Math.max(0, Math.min(H - 1, Math.floor(y))), y1 = Math.min(H - 1, y0 + 1), fy = Math.max(0, Math.min(1, y - y0));
+    for (let px = 0; px < canvas.width; px++) {
+      const x = (px + 0.5) / SILE - 0.5;
+      const x0 = Math.max(0, Math.min(W - 1, Math.floor(x))), x1 = Math.min(W - 1, x0 + 1), fx = Math.max(0, Math.min(1, x - x0));
+      const i00 = y0 * W + x0, i10 = y0 * W + x1, i01 = y1 * W + x0, i11 = y1 * W + x1;
+      if (proov(valjad[2], i00, i10, i01, i11, fx, fy) < 0.5) continue;
+      const c = proov(valjad[0], i00, i10, i01, i11, fx, fy) >= 0.5 ? 0 : proov(valjad[1], i00, i10, i01, i11, fx, fy) >= 0.5 ? 1 : 2;
+      img.data.set(varvid[c], (py * canvas.width + px) * 4);
+      img.data[(py * canvas.width + px) * 4 + 3] = Math.round(KLASSI_ALFA[c] * 255);
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -150,6 +148,22 @@ function joonista() {
   const kohad = parimadKohad(v, kl);
   uuendaPaneel(kl, kohad);
   uuendaMarkerid(kohad);
+}
+
+// separable binomial smoothing of a cell field, SILU_KORDI passes of [1 2 1] / 4
+function silu(f, W, H) {
+  let a = f, b = new Float32Array(f.length);
+  for (let k = 0; k < SILU_KORDI; k++) {
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      b[i] = (a[y * W + Math.max(0, x - 1)] + 2 * a[i] + a[y * W + Math.min(W - 1, x + 1)]) / 4;
+    }
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      a[i] = (b[Math.max(0, y - 1) * W + x] + 2 * b[i] + b[Math.min(H - 1, y + 1) * W + x]) / 4;
+    }
+  }
+  return a;
 }
 
 // one image load at a time: a new updateImage while the previous one is still decoding aborts it
@@ -221,20 +235,23 @@ function uuendaPaneel(kl, kohad) {
   const tana = olek.reziim === "tana";
   document.getElementById("paeva-osa").style.visibility = tana ? "" : "hidden";
   document.getElementById("kuupaev").value = vilj.kuupaevad[paev];
-  document.getElementById("eelmine").disabled = paev === 0;
-  document.getElementById("jargmine").disabled = paev === vilj.kuupaevad.length - 1;
 
-  // timeline: a week back and the forecast ahead of the anchor day (today, or a picked date)
+  // timeline: the anchor day and the forecast ahead; the past is reached through the calendar only
   const nupud = document.getElementById("paevad");
   nupud.innerHTML = "";
   const aasta = vilj.kuupaevad[p0].slice(0, 4);
-  for (let i = p0 - AJATELG_TAGASI; i <= p0 + AJATELG_EDASI; i++) {
+  let eelmineKuu = null;
+  for (let i = p0; i <= p0 + AJATELG_EDASI; i++) {
     const d = vilj.kuupaevad[i];
     if (!d || d.slice(0, 4) !== aasta) continue;
     const b = document.createElement("button");
     const prog = vilj.paeva_allikas[i] === "prognoos";
     b.className = "paev" + (prog ? " prognoos" : "") + (d === vilj.tana ? " tana" : "") + (i === paev ? " aktiivne" : "");
-    b.innerHTML = `<span class="nadal">${d === vilj.tana ? "täna" : NADALAPAEV[new Date(d + "T12:00").getDay()]}</span><span class="kp">${+d.slice(8)}</span>`;
+    const kuu = +d.slice(5, 7) - 1;
+    // month under the first day and wherever the month changes
+    const kuuSilt = kuu !== eelmineKuu ? KUU[kuu] : "";
+    eelmineKuu = kuu;
+    b.innerHTML = `<span class="nadal">${d === vilj.tana ? "täna" : NADALAPAEV[new Date(d + "T12:00").getDay()]}</span><span class="kp">${+d.slice(8)}</span><span class="kuu">${kuuSilt || "&nbsp;"}</span>`;
     b.title = `${NADALAPAEV_PIKK[new Date(d + "T12:00").getDay()]} ${+d.slice(8)}.${d.slice(5, 7)}${prog ? " · prognoos" : ""}`;
     b.onclick = () => { olek.paev = i; joonista(); };
     nupud.append(b);
@@ -247,12 +264,10 @@ function uuendaPaneel(kl, kohad) {
   for (let i = 0; i < kl.length; i++) if (kl[i] >= 0) ha[kl[i]] += meta.ruut_m ** 2 / 1e4;
   const legend = document.getElementById("legend");
   legend.innerHTML = KLASSID[olek.reziim].map(([nimi, c], j) =>
-    `<li><span class="lapp" style="background:${c}"></span><span>${nimi}</span><span class="arv">${Math.round(ha[j])} ha</span></li>`).join("");
+    `<li><span class="lapp" style="background:${c};opacity:${Math.min(1, KLASSI_ALFA[j] + 0.25)}"></span><span>${nimi}</span><span class="arv">${Math.round(ha[j])} ha</span></li>`).join("");
 
   const kv = document.getElementById("kokkuvote");
-  const allikas = vilj.paeva_allikas[paev];
-  const dv = vilj.kuupaevad[paev], nadal = NADALAPAEV_PIKK[new Date(dv + "T12:00").getDay()];
-  const paevaMarkus = `<span class="pp-markus">${dv === vilj.tana ? "Täna" : `${nadal} ${+dv.slice(8)}.${dv.slice(5, 7)}`}${allikas === "prognoos" ? " · prognoos" : ""}</span> `;
+  const paevaMarkus = "";   // the chosen day is already highlighted in the strip
   if (!tana) kv.textContent = "Metsad, kus kasvukoht sobib kukeseenele – ilmast sõltumata.";
   else if (ha[0] + ha[1] < 5 && ha[2] >= 50) kv.innerHTML = `${paevaMarkus}<b>Tagasihoidlik aeg.</b> Kõrge hindega kohti pole, võimalikke ${Math.round(ha[2])} ha. ${aegPohjus(paev)}`;
   else if (ha[0] + ha[1] < 5) kv.innerHTML = `${paevaMarkus}<b>Kehv aeg.</b> ${aegPohjus(paev)}`;
@@ -393,7 +408,7 @@ function graafik(i, d, p, j) {
   const lahtrid = [];
   for (let k = a; k <= b; k++) {
     const q = Math.min(...["niiskus", "hooaeg", "temperatuur"].map((f) => T(k, p, j, F(f))));
-    const c = q >= 0.8 ? "#9a3412" : q >= 0.4 ? "#f6cf3c" : "var(--pind-3)";
+    const c = q >= 0.8 ? "#a4432a" : q >= 0.4 ? "#e9cf8f" : "var(--pind-3)";
     const w2 = (W - 2 * pad) / (n + 1);
     lahtrid.push(`<rect x="${(xs(k) - w2 / 2 + 1).toFixed(1)}" y="${H - 26}" width="${(w2 - 2).toFixed(1)}" height="${riba}" rx="2" style="fill:${c};stroke:none"/>`);
   }
@@ -410,7 +425,7 @@ function graafik(i, d, p, j) {
     <text x="${tx}" y="${H - 3}" class="g-silt g-tugev" text-anchor="middle">${v.kuupaevad[d] === v.tana ? "täna" : kp(d)}</text>
     ${b > d + 2 ? `<text x="${W - pad}" y="${H - 3}" class="g-silt" text-anchor="end">${kp(b)}</text>` : ""}
   </svg>
-  <div class="g-legend"><span><i class="g-l-joon"></i>seeni metsas</span><span><i style="background:#9a3412"></i>uued seened tekivad</span><span><i style="background:#f6cf3c"></i>vähe</span><span><i style="background:var(--pind-3)"></i>ei teki</span></div>`;
+  <div class="g-legend"><span><i class="g-l-joon"></i>seeni metsas</span><span><i style="background:#a4432a"></i>uued seened tekivad</span><span><i style="background:#e9cf8f"></i>vähe</span><span><i style="background:var(--pind-3)"></i>ei teki</span></div>`;
 }
 
 function naitaSelgitust(lnglat) {
@@ -737,8 +752,6 @@ document.getElementById("kuupaev").addEventListener("change", (e) => {
   if (i >= 0) valiKuupaev(i);
   else e.target.value = olek.vilj.kuupaevad[olek.paev];  // outside the season: snap back
 });
-document.getElementById("eelmine").onclick = () => valiKuupaev(olek.paev - 1);
-document.getElementById("jargmine").onclick = () => valiKuupaev(olek.paev + 1);
 document.querySelectorAll("#reziim button").forEach((b) => b.onclick = () => {
   document.querySelectorAll("#reziim button").forEach((x) => x.classList.toggle("aktiivne", x === b));
   olek.reziim = b.dataset.reziim;
