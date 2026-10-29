@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="et">
+<html lang="et" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -7,7 +7,7 @@
   <meta name="description" content="Kus on täna ja lähipäevil kõige tõenäolisem leida kukeseeni.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
   <link rel="stylesheet" href="style.css">
 </head>
@@ -33,9 +33,10 @@
         <svg viewBox="0 0 24 24"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/></svg>
       </button>
       <div id="aluskaart" class="menyy klaas" role="group" aria-label="Aluskaart" hidden>
-        <button data-kiht="hele" class="aktiivne">Hele kaart</button>
-        <button data-kiht="kaart">Eesti kaart</button>
+        <button data-kiht="loodus" class="aktiivne">Looduskaart</button>
+        <button data-kiht="topo">Topo (rajad, kõrgusjooned)</button>
         <button data-kiht="foto">Ortofoto</button>
+        <button data-kiht="kaart">Eesti kaart</button>
       </div>
     </div>
     <button id="giid-nupp" class="ring klaas" title="Kuidas hinne tekib" aria-label="Kuidas hinne tekib">

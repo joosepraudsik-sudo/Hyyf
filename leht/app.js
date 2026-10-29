@@ -7,14 +7,16 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 
 // Display classes per mode: [label, colour]. A class comes from two steps, forest and mushroom
 // time (bounds in meta.astmed, from parameetrid.py), so small daily changes do not repaint the map.
-// Colours differ in lightness too (OKLab L 0.56 / 0.73 / 0.84), so they separate for colour-blind users.
+// Chanterelle tones, dark to light (OKLab L 0.47 / 0.69 / 0.86): they stand out on green forest and
+// on the orthophoto, and the lightness steps keep them apart for colour-blind users.
 const KLASSID = {
-  tana: [["Parim koht", "#1e8a3e"], ["Hea koht", "#f08a00"], ["Võimalik", "#f2c40f"]],
-  koht: [["Väga hea mets", "#1e8a3e"], ["Hea mets", "#f08a00"], ["Keskmine mets", "#f2c40f"]],
+  tana: [["Parim koht", "#9a3412"], ["Hea koht", "#ea7a0c"], ["Võimalik", "#f6cf3c"]],
+  koht: [["Väga hea mets", "#9a3412"], ["Hea mets", "#ea7a0c"], ["Keskmine mets", "#f6cf3c"]],
 };
 const ASTE_KOHT = ["väga hea", "hea", "keskmine"];
 const ASTE_AEG = ["hea", "keskmine", "vähe"];
-const KIHI_TUGEVUS = 0.55;
+// layer strength: strong when zoomed out, lighter up close so paths and tracks show through
+const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 0.75, 14, 0.5, 16, 0.4];
 const NADALAPAEV = ["P", "E", "T", "K", "N", "R", "L"];
 const NADALAPAEV_PIKK = ["pühapäev", "esmaspäev", "teisipäev", "kolmapäev", "neljapäev", "reede", "laupäev"];
 const AJATELG_TAGASI = 7, AJATELG_EDASI = 10;   // days shown before and after the window anchor
@@ -365,7 +367,7 @@ function graafik(i, d, p, j) {
   const lahtrid = [];
   for (let k = a; k <= b; k++) {
     const q = Math.min(...["niiskus", "hooaeg", "temperatuur"].map((f) => T(k, p, j, F(f))));
-    const c = q >= 0.8 ? "#1e8a3e" : q >= 0.4 ? "#e0a100" : "var(--pind-3)";
+    const c = q >= 0.8 ? "#9a3412" : q >= 0.4 ? "#f6cf3c" : "var(--pind-3)";
     const w2 = (W - 2 * pad) / (n + 1);
     lahtrid.push(`<rect x="${(xs(k) - w2 / 2 + 1).toFixed(1)}" y="${H - 26}" width="${(w2 - 2).toFixed(1)}" height="${riba}" rx="2" style="fill:${c};stroke:none"/>`);
   }
@@ -382,7 +384,7 @@ function graafik(i, d, p, j) {
     <text x="${tx}" y="${H - 3}" class="g-silt g-tugev" text-anchor="middle">${v.kuupaevad[d] === v.tana ? "täna" : kp(d)}</text>
     ${b > d + 2 ? `<text x="${W - pad}" y="${H - 3}" class="g-silt" text-anchor="end">${kp(b)}</text>` : ""}
   </svg>
-  <div class="g-legend"><span><i class="g-l-joon"></i>seeni metsas</span><span><i style="background:#1e8a3e"></i>uued seened tekivad</span><span><i style="background:#e0a100"></i>vähe</span><span><i style="background:var(--pind-3)"></i>ei teki</span></div>`;
+  <div class="g-legend"><span><i class="g-l-joon"></i>seeni metsas</span><span><i style="background:#9a3412"></i>uued seened tekivad</span><span><i style="background:#f6cf3c"></i>vähe</span><span><i style="background:var(--pind-3)"></i>ei teki</span></div>`;
 }
 
 function naitaSelgitust(lnglat) {
@@ -626,29 +628,34 @@ function avaGiid() {
 
 // ---------- map ----------
 
-// Basemaps: a very light vector map (OpenFreeMap "Positron", OpenStreetMap data) by default, so the
-// coloured mushroom areas stand out; Maa- ja Ruumiamet's Estonian map and orthophoto as rasters.
-// Raster basemaps and the mushroom layer sit under the vector labels, so place names stay readable.
-const ALUS_STIIL = "https://tiles.openfreemap.org/styles/positron";
+// Basemaps: OpenFreeMap "Liberty" (natural vector map, OpenStreetMap data) by default; OpenTopoMap
+// (contours and forest tracks), Maa- ja Ruumiamet orthophoto and Estonian map as rasters. Raster
+// basemaps and the mushroom layer sit under the vector labels, so place names stay readable.
+const ALUS_STIIL = "https://tiles.openfreemap.org/styles/liberty";
+const RASTRID = {
+  topo: { tiles: ["https://tile.opentopomap.org/{z}/{x}/{y}.png"], maxzoom: 17,
+          attribution: '© <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)', omad_sildid: true },
+  foto: { tiles: [`${MAA}/foto@GMC/{z}/{x}/{y}.jpg`], scheme: "tms", maxzoom: 18,
+          attribution: '© <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>', omad_sildid: false },
+  kaart: { tiles: [`${MAA}/kaart@GMC/{z}/{x}/{y}.png`], scheme: "tms", maxzoom: 18,
+           attribution: '© <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>', omad_sildid: true },
+};
 
 function lisaAluskaardid() {
-  const kiht = (id, ext) => ({
-    type: "raster", tileSize: 256, scheme: "tms", maxzoom: 18,
-    tiles: [`${MAA}/${id}@GMC/{z}/{x}/{y}.${ext}`],
-    attribution: '© <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>',
-  });
   olek.siltideAlt = map.getStyle().layers.find((l) => l.type === "symbol")?.id;
-  for (const [id, ext] of [["kaart", "png"], ["foto", "jpg"]]) {
-    map.addSource(id, kiht(id, ext));
+  for (const [id, r] of Object.entries(RASTRID)) {
+    map.addSource(id, { type: "raster", tileSize: 256, tiles: r.tiles, maxzoom: r.maxzoom, attribution: r.attribution,
+                        ...(r.scheme ? { scheme: r.scheme } : {}) });
     map.addLayer({ id, type: "raster", source: id, layout: { visibility: "none" } }, olek.siltideAlt);
   }
 }
 
 function valiAluskaart(id) {
-  for (const r of ["kaart", "foto"]) map.setLayoutProperty(r, "visibility", r === id ? "visible" : "none");
-  // the Estonian map has its own labels; hide the vector ones there to avoid doubles
+  for (const r of Object.keys(RASTRID)) map.setLayoutProperty(r, "visibility", r === id ? "visible" : "none");
+  // rasters with their own labels (topo, Estonian map): hide the vector ones to avoid doubles
+  const peida = RASTRID[id]?.omad_sildid;
   for (const l of map.getStyle().layers) {
-    if (l.type === "symbol") map.setLayoutProperty(l.id, "visibility", id === "kaart" ? "none" : "visible");
+    if (l.type === "symbol") map.setLayoutProperty(l.id, "visibility", peida ? "none" : "visible");
   }
 }
 
