@@ -205,6 +205,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .sel-h { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
          color: var(--tint-2); margin: 20px 0 4px; padding-top: 14px; border-top: 1px solid var(--joon); }
 .sel-h svg { width: 17px; height: 17px; }
+.sel-sissejuhatus { margin: 0 0 4px; }
 .g-h { font-size: 13.5px; margin: 18px 0 6px; }
 .g-vesi { fill: none; stroke: #2f6f8f; stroke-width: 2.5; }
 .g-vordlus { fill: none; stroke: var(--tint-3); stroke-width: 1.5; stroke-dasharray: 3 3; opacity: .7; }

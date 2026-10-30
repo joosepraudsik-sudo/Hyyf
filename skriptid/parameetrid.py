@@ -85,12 +85,17 @@ MULD_ASTMED = {"niiskus": 0.45, "loimis": 0.35, "hape": 0.20}
 #   pohi groundwater floor as fraction of kp (capillary rise keeps storage above it)
 #   tous daily rate at which storage relaxes towards the floor when below it
 #   marg score of a saturated bucket (waterlogging hurts wet sites, not sands that drain)
+#   soojus topsoil warming of this forest type vs the regional model soil, C per C of air above
+#          SOOJUS_ALUS: sun reaches dry sand under a sparse pine canopy and it holds little water,
+#          so it warms fast; shaded wet and peat soils stay cooler (evaporation, heat capacity)
+#   mulla_aken days of topsoil temperature averaged: dry sand reacts in days (warms fast in
+#          spring, cools fast in autumn), wet and peat soils lag a week or more
 VEEREZIIM = {
-    1: dict(nimi="kuiv", kp=45, pohi=0.00, tous=0.00, marg=1.00),
-    2: dict(nimi="värske", kp=80, pohi=0.15, tous=0.02, marg=0.95),
-    3: dict(nimi="niiske", kp=110, pohi=0.40, tous=0.05, marg=0.75),
-    4: dict(nimi="märg", kp=140, pohi=0.70, tous=0.10, marg=0.40),
-    5: dict(nimi="kuivendatud turvas", kp=120, pohi=0.35, tous=0.04, marg=0.70),
+    1: dict(nimi="kuiv", kp=45, pohi=0.00, tous=0.00, marg=1.00, soojus=0.12, mulla_aken=3),
+    2: dict(nimi="värske", kp=80, pohi=0.15, tous=0.02, marg=0.95, soojus=0.00, mulla_aken=5),
+    3: dict(nimi="niiske", kp=110, pohi=0.40, tous=0.05, marg=0.75, soojus=-0.04, mulla_aken=7),
+    4: dict(nimi="märg", kp=140, pohi=0.70, tous=0.10, marg=0.40, soojus=-0.08, mulla_aken=10),
+    5: dict(nimi="kuivendatud turvas", kp=120, pohi=0.35, tous=0.04, marg=0.70, soojus=-0.08, mulla_aken=10),
 }
 VAHETUS = 0.20          # canopy interception: share of daily rain ...
 VAHETUS_MAX = 2.5       # ... up to this many mm/day
@@ -114,9 +119,11 @@ HOOAEG_NIISKUS = [(0.0, 0.3), (0.25, 0.3), (0.55, 1.0), (1.0, 1.0)]
 TOUKE_DW = 0.30          # rise of w over 3 days that counts as a full pulse
 TOUKE_PUSIV = 0.30       # initiation from sustained good moisture without a pulse
 ALGUS_TEMP = [(-10, 0.0), (9, 0.0), (14, 1.0), (22, 1.0), (27, 0.2), (40, 0.0)]  # Tmean, C
+ALGUS_TEMP_AKEN = 5     # air temperature as a 5-day mean: primordia respond to a warm spell, not one day
 # Soil temperature (0-7 cm, 5-day mean): primordia need warm soil; ends the season in autumn
 MULLA_TEMP = [(-10, 0.0), (10, 0.0), (14, 1.0), (40, 1.0)]
-MULLA_TEMP_AKEN = 5
+MULLA_TEMP_AKEN = 5      # fresh forest; per class in VEEREZIIM['mulla_aken']
+SOOJUS_ALUS = 5.0
 
 # Delay from initiation to mature fruit bodies: thermal time above 4 C
 VIIVITUS_ALUS = 4.0

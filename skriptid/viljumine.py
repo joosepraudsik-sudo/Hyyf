@@ -104,8 +104,12 @@ def simulate(wx, regime):
     # initiation: wetting pulse or sustained moisture
     dw = w - np.concatenate([np.full(3, w[0]), w[:-3]])
     pulse = np.clip(dw / P.TOUKE_DW, 0, 1)
-    soil_t = wx["tmuld"].rolling(P.MULLA_TEMP_AKEN, min_periods=1).mean().to_numpy()
-    temp = interp(t, P.ALGUS_TEMP) * interp(soil_t, P.MULLA_TEMP)
+    # warmth over the last days, not one day; the topsoil of this forest type warms and cools
+    # faster (dry sand) or slower (wet, peat) than the regional model soil
+    air_t = pd.Series(t).rolling(P.ALGUS_TEMP_AKEN, min_periods=1).mean().to_numpy()
+    soil_t = wx["tmuld"].rolling(r["mulla_aken"], min_periods=1).mean().to_numpy()
+    soil_t = soil_t + r["soojus"] * np.maximum(air_t - P.SOOJUS_ALUS, 0)
+    temp = interp(air_t, P.ALGUS_TEMP) * interp(soil_t, P.MULLA_TEMP)
     init = np.maximum(pulse, P.TOUKE_PUSIV) * moist * temp * season
 
     # thermal-time delay to mature fruit bodies
@@ -144,7 +148,9 @@ def simulate(wx, regime):
         "w": w, "niiskus": moist, "hooaeg": season, "temperatuur": temp, "algus": init, "kypseb": ready_in, "saak": crop,
         "indeks": np.minimum(1, crop / P.INDEKS_SKAALA),
         # weather of the point, for the place card (same for every class)
-        "sademed": wx["p"].to_numpy(), "temp": t, "kp": gdd,
+        "sademed": wx["p"].to_numpy(), "temp": t, "tmin": tmin, "kp": gdd,
+        # this forest type: 5-day air and topsoil temperature, daily survival of fruit bodies
+        "ohutemp": air_t, "mullatemp": soil_t, "sailimine": surv,
     }, index=wx.index)
 
 

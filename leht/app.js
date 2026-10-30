@@ -290,11 +290,22 @@ function uuendaPaneel(kl, kohad) {
   });
 }
 
-// why is the whole day poor: look at the most common forest class (fresh) at the centre point
+// why is the whole day poor: the weakest weather effect of the last weeks (not today's weather)
+// for the most common forest class (fresh) at the centre point
+const AEG_POHJUS = {
+  hooaeg: (q) => q < 0.05 ? "Hooaeg pole veel alanud – suvi pole piisavalt soe olnud." : "Seeneniidistik pole veel täies jõus.",
+  niiskus: () => "Viimastel nädalatel pole niiskus uutele seentele sobinud.",
+  soojus: () => "Viimastel nädalatel on olnud uutele seentele liiga jahe – hooaeg on lõppemas.",
+  sailimine: () => "Jahedus ja öökülmad on seened rikkunud.",
+};
 function aegPohjus(d) {
   const p = Math.floor(olek.vilj.ilmapunktid.length / 2), j = olek.klassid.indexOf(2);
-  const a = ajaSelgitus(d, p, j);
-  return a.indeks < 0.3 ? a.kokku : "";
+  if (T(d, p, j, F("indeks")) >= 0.3) return "";
+  const nork = seeneajaTegurid(d, p, j).reduce((a, b) => (b.q < a.q ? b : a));
+  if (nork.q < 0.6) return AEG_POHJUS[nork.nimi](nork.q);
+  return ajaSelgitus(d, p, j).read.every((r) => r.v >= 0.4)
+    ? "Uued seened juba tekivad – korjatavaks saavad need 1–3 nädala pärast."
+    : "Seened tekivad 1–3 nädalat pärast vihma – head tingimused on olnud liiga ammu või liiga hiljuti.";
 }
 
 const hinne = (v) => Math.round(v * 100);
@@ -370,8 +381,10 @@ function ajaSelgitus(d, p, j) {
 // mushroom-time factors at day d for the forest's water regime class (position j): summer warmth
 // and moisture (season), soil moisture now, warmth now. Moisture depends on the forest, warmth not.
 const ILM = (nimi, d, p) => olek.vilj.ilm[nimi][d]?.[p];
-const TEGUR_AEG = { soojus_suvi: "Suve soojus", niiskus_suvi: "Kevad-suve niiskus", niiskus: "Mulla niiskus praegu",
-  soojus: "Soojus praegu" };
+const TEGUR_AEG = { hooaeg: "Hooaja valmidus", niiskus: "Niiskus", soojus: "Soojus", sailimine: "Seente püsimine" };
+const PERIOOD = 28;      // mushrooms in the forest now started 1-4 weeks ago: weather effects over 4 weeks
+const PYSIMINE = 14;     // pickable mushrooms are at most ~2 weeks old
+const POOLESTUS = 7;     // recent days weigh more: weight halves every 7 days back
 const VEE_KIRJELDUS = {
   1: "Väike veevaru: kuivab paari päevaga ja vajab sagedast vihma, aga liigvett ei karda.",
   2: "Keskmine veevaru: talub nii lühikest põuda kui suurt vihma.",
@@ -386,23 +399,57 @@ function vihm(d, p, paevi) {
   return s;
 }
 
+// mushroom time as effects of the weather, not the weather itself: is the mycelium ready
+// (season), did moisture and warmth let new mushrooms start over the last 4 weeks, and how well
+// did the mushrooms last (cold, frost, drought). Moisture and soil warmth are this forest type's own.
 function seeneajaTegurid(d, p, j) {
-  const A = window.SIIL.juhend.aeg, g = (nimi) => T(d, p, j, F(nimi));
-  const kp = ILM("kp", d, p), t = ILM("temp", d, p);
-  const hooaeg = g("hooaeg"), w = g("w"), niiskus = g("niiskus"), temp = g("temperatuur");
+  const A = window.SIIL.juhend.aeg, v = olek.vilj, aasta = v.kuupaevad[d].slice(0, 4);
+  const g = (nimi, k = d) => T(k, p, j, F(nimi));
+  const paevad = (n) => { const r = []; for (let k = d; k > d - n && k >= 0 && v.kuupaevad[k].slice(0, 4) === aasta; k--) r.push(k); return r; };
+  const kaal = (k) => 0.5 ** ((d - k) / POOLESTUS);
+  const kesk = (arr, f) => arr.reduce((s, k) => s + kaal(k) * f(k), 0) / Math.max(1e-9, arr.reduce((s, k) => s + kaal(k), 0));
+  const per = paevad(PERIOOD), pys = paevad(PYSIMINE), n = per.length;
+  const nadalat = Math.round(n / 7);
+  const c = olek.klassid[j], R = A.reziim[c];
+
+  // season: warm enough summer (degree days) and moist spring-summer -> mycelium ready to fruit
+  const kp = ILM("kp", d, p), hooaeg = g("hooaeg");
   const kpVaja = A.hooaeg_kp.at(-1)[0];
   const sKp = kp == null ? hooaeg : kohal(A.hooaeg_kp, kp) / 100;
-  const read = [{ nimi: "soojus_suvi", q: sKp, pohjus: kp == null ? "" :
-    `${Math.round(kp)} kraadipäeva (üle ${nr(A.kp_alus)} °C), vaja ~${kpVaja} – ${sKp >= 1 ? "suvi on piisavalt soe olnud" : sKp > 0 ? "hooaeg alles algab" : "liiga vara"}` }];
-  // the season factor is warmth x the moisture of 6-13 weeks ago; split it when warmth is known
-  if (sKp > 0.05) {
-    const m = Math.min(1, hooaeg / sKp);
-    read.push({ nimi: "niiskus_suvi", q: m, pohjus: `${Math.round(A.hooaeg_aken[1] / 7)}–${Math.round(A.hooaeg_aken[0] / 7)} nädalat tagasi: ${m >= 0.9 ? "piisavalt niiske – seeneniidistik on tugev" : m >= 0.6 ? "kuivavõitu" : "kuiv – seeneniidistik on nõrgem"}` });
-  }
-  const sona = w < 0.2 ? "liiga kuiv" : w < 0.45 ? "kuivavõitu" : niiskus < 0.8 ? "liiga märg" : "parajalt niiske";
-  read.push({ nimi: "niiskus", q: niiskus, pohjus: `veevaru ${Math.round(w * 100)}% · vihma 3 nädalaga ${Math.round(vihm(d, p, 21))} mm – ${sona}` });
-  read.push({ nimi: "soojus", q: temp, pohjus: `${t == null ? "" : `õhk ${Math.round(t)} °C, `}arvestatud ka mulla soojust – ${temp < 0.2 ? "liiga jahe" : temp < 0.8 ? "jahedavõitu" : "piisav"}` });
-  return read;
+  const m = sKp > 0.05 ? Math.min(1, hooaeg / sKp) : 1;
+  const hooaegPohjus = sKp < 0.05 ? `liiga vara – suvi pole veel piisavalt soe olnud (${Math.round(kp)} kraadipäeva, vaja ~${kpVaja})`
+    : sKp < 1 ? `seeneniidistik alles valmib: ${Math.round(kp)} kraadipäeva ~${kpVaja}-st`
+    : m >= 0.9 ? "suvi on olnud piisavalt soe ja niiske – seeneniidistik on valmis vilju kandma"
+    : `suvi on olnud piisavalt soe, aga ${Math.round(A.hooaeg_aken[1] / 7)}–${Math.round(A.hooaeg_aken[0] / 7)} nädalat tagasi ${m >= 0.6 ? "kuivavõitu" : "kuiv"} – seeneniidistik on nõrgem`;
+
+  // new mushrooms over the period: share of days with good moisture / warmth for this forest
+  const niiskus = kesk(per, (k) => g("niiskus", k));
+  const hea = (f) => per.filter((k) => g(f, k) >= 0.8).length;
+  const kuivi = per.filter((k) => g("w", k) < 0.45).length, margi = per.filter((k) => g("w", k) >= 0.45 && g("niiskus", k) < 0.8).length;
+  const niiskusPohjus = `vihma ${Math.round(vihm(d, p, n))} mm · sobiv niiskus ${hea("niiskus")} päeval ${n}-st` +
+    (kuivi > n / 3 ? " – liiga kuiv" : margi > n / 3 ? " – liiga märg" : "");
+  const soojus = kesk(per, (k) => g("temperatuur", k));
+  const ohk = kesk(per, (k) => ILM("temp", k, p) ?? 0), muld = kesk(per, (k) => g("mullatemp", k) * v.mullatemp_skaala);
+  const soojusPohjus = `õhk keskmiselt ${Math.round(ohk)} °C, selle metsa muld ${Math.round(muld)} °C · piisavalt soe ${hea("temperatuur")} päeval ${n}-st` +
+    (R.soojus > 0 ? " (kuiv liivamuld soojeneb kiiresti)" : R.soojus < 0 ? " (märg muld soojeneb aeglaselt)" : "");
+
+  // how well mushrooms last, as in the model: daily survival and ageing (cool days age them
+  // 1.5x, frost 3x faster) relative to a normal warm, moist day
+  const vananeb = (k) => (ILM("tmin", k, p) ?? 99) < A.kulm ? A.vananemine_kulm : (ILM("temp", k, p) ?? 99) < A.jahe ? A.vananemine_jahe : 1;
+  const sailimine = Math.min(1, kesk(pys, (k) => g("sailimine", k) / (1 - A.elu / 100) / vananeb(k)));
+  const kylm = pys.filter((k) => (ILM("tmin", k, p) ?? 99) < A.kulm).length;
+  const jahe = pys.filter((k) => (ILM("temp", k, p) ?? 99) < A.jahe).length;
+  const poud = pys.filter((k) => g("w", k) < 0.2).length;
+  const halvad = [kylm && `öökülma ${kylm}`, jahe && `jahedaid päevi ${jahe}`, poud && `põuapäevi ${poud}`].filter(Boolean);
+  const sailPohjus = halvad.length ? `viimase ${pys.length} päeva jooksul ${halvad.join(", ")} – seened vananevad ja kaovad kiiremini`
+    : `viimased ${pys.length} päeva soojad ja niisked – seened püsivad kaua`;
+
+  return [
+    { nimi: "hooaeg", q: hooaeg, pohjus: hooaegPohjus },
+    { nimi: "niiskus", q: niiskus, pohjus: `${nadalat} nädalat: ${niiskusPohjus}` },
+    { nimi: "soojus", q: soojus, pohjus: `${nadalat} nädalat: ${soojusPohjus}` },
+    { nimi: "sailimine", q: sailimine, pohjus: sailPohjus },
+  ];
 }
 
 // soil water of this forest (its own bucket) with daily rain, 4 weeks back and the forecast;
@@ -563,7 +610,8 @@ function naitaSelgitust(lnglat) {
     <h3 class="sel-h">${IKOON.mets}Mets</h3>
     <ul class="omadused">${ribad.map(omadus).join("")}</ul>
 
-    ${tana ? `<h3 class="sel-h">${IKOON.aeg}Seeneaeg</h3>
+    ${tana ? `<h3 class="sel-h">${IKOON.aeg}Seeneaeg – ilma mõju</h3>
+    <p class="vaike sel-sissejuhatus">Kas seeneniidistik on valmis, kas niiskus ja soojus lasid viimastel nädalatel uusi seeni tekkida ja kui hästi need püsivad.</p>
     <ul class="omadused">${seeneajaTegurid(d, p, j).map((r) => omadus({ ...r, nimi: TEGUR_AEG[r.nimi] })).join("")}</ul>
 
     <h4 class="g-h">Mulla niiskus selles metsas</h4>
@@ -696,8 +744,8 @@ function giidHtml() {
   <h3>3. Aeg – kui palju seeni praegu metsas on</h3>
   <p>Aeg (0–100%) tuleb ilmast. Uued seened tekivad, kui kolm tingimust on korraga täidetud; korjatavaks saavad nad 1–3 nädala pärast ja püsivad umbes kaks nädalat.</p>
   ${osa("Mulla niiskus", `<p>Iga päev arvutatakse mulla veevaru: vihm miinus aurumine. Sama vihm mõjub eri metsades erinevalt, sest „veeämber“ on eri suurusega: ${Object.values(A.reziim).map((r) => `${r.nimi} ${r.kp} mm`).join(", ")}.</p>${tabel(kover(A.niiskus.map(([xx, y]) => [Math.round(xx * 100), y]), "%", (y) => y + "%"), ["veevaru täidetus", "tingimus täidetud"])}`)}
-  ${osa("Hooaeg", `<p>Suvi peab olema piisavalt soe: kraadipäevad üle ${nr(A.kp_alus)} °C alates 1. jaanuarist. Arvesse läheb ka 6–13 nädala tagune niiskus.</p>${tabel(kover(A.hooaeg_kp, "", (y) => y + "%"), ["kraadipäevi", "tingimus täidetud"])}`)}
-  ${osa("Soojus", `${tabel(kover(A.algus_temp, " °C", (y) => y + "%"), ["õhu keskmine temperatuur", "tingimus täidetud"])}${tabel(kover(A.mulla_temp, " °C", (y) => y + "%"), [`mulla temperatuur (${A.mulla_temp_aken} p keskmine)`, "tingimus täidetud"])}<p class="vaike">Sügisel jaheneva mullaga uusi seeni enam ei teki – nii lõpeb hooaeg.</p>`)}
+  ${osa("Hooaeg", `<p>Hooaja valmidus ütleb, kas seeneniidistik on valmis vilju kandma. Kraadipäevad (päeva keskmise temperatuuri osa üle ${nr(A.kp_alus)} °C, kokku alates 1. jaanuarist) määravad ainult <b>hooaja alguse</b>: enne ~${A.hooaeg_kp[1][0]} kraadipäeva (juuni lõpp) seeni ei teki, ~${A.hooaeg_kp.at(-1)[0]} juures (juuli keskpaik) on hooaeg täies jõus ja edasi soojus enam ei kogune. Teine pool on 6–13 nädala tagune niiskus: kuiva kevad-suvega jääb seeneniidistik nõrgemaks.</p>${tabel(kover(A.hooaeg_kp, "", (y) => y + "%"), ["kraadipäevi", "tingimus täidetud"])}`)}
+  ${osa("Soojus", `${tabel(kover(A.algus_temp, " °C", (y) => y + "%"), [`õhu temperatuur (${A.algus_temp_aken} p keskmine)`, "tingimus täidetud"])}${tabel(kover(A.mulla_temp, " °C", (y) => y + "%"), ["mulla temperatuur", "tingimus täidetud"])}<p class="vaike">Arvesse läheb mitme päeva keskmine, mitte üks päev. Mulla soojus sõltub metsast: ${Object.values(A.reziim).map((r) => `${r.nimi} ${r.mulla_aken} p keskmine${r.soojus ? `, ${r.soojus > 0 ? "+" : "−"}${nr(Math.abs(r.soojus * 10))} °C iga 10 °C õhusooja kohta üle ${nr(A.soojus_alus)} °C` : ""}`).join("; ")}. Kuiv liivamännik soojeneb päikese käes kiiresti ja hooaeg algab seal varem; märg ja varjuline mets soojeneb aeglaselt. Sügisel jaheneva mullaga uusi seeni enam ei teki – nii lõpeb hooaeg.</p>`)}
   ${osa("Viivitus ja säilimine", `<ul class="giid-loend"><li>Seened on korjatavad ${A.viivitus_kp} kraadipäeva (üle ${nr(A.viivitus_alus)} °C) pärast vihma: soojaga ~12 päeva, jahedaga ~4 nädalat.</li><li>Valmis seentest kaob iga päev ~${A.elu}%, jahedaga ~${A.elu_jahe}%, öökülmaga pooled.</li><li>Korjatavaks loetakse ainult kuni ${A.korjatav_vanus} päeva vanad seened. Jahedaga vananevad need ${nr(A.vananemine_jahe)} korda ja öökülmaga ${nr(A.vananemine_kulm)} korda kiiremini – sügisel on vanad seened läbivettinud ja pehmed.</li><li>Seetõttu määrab ka 3 päeva prognoosi peamiselt juba möödunud ilm.</li></ul>`)}
 
   <h3>Näide</h3>

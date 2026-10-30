@@ -39,7 +39,8 @@ OUT = BASE / "valjund"
 WEB = BASE / "leht" / "andmed"
 CLASSES = sorted(P.VEEREZIIM)
 MONTHS = (6, 11)   # June..November (the season ends in October, forecast may reach into November)
-TIME_COLS = ["indeks", "niiskus", "w", "hooaeg", "temperatuur", "kypseb"]
+TIME_COLS = ["indeks", "niiskus", "w", "hooaeg", "temperatuur", "kypseb", "mullatemp", "sailimine"]
+MULLATEMP_SKAALA = 30   # mullatemp is exported as C / 30 (0..30 C in one byte)
 
 LOIMIS_NIMI = {"l": "liiv", "pl": "peenliiv", "sl": "saviliiv", "plsl": "saviliiv", "tsl": "saviliiv",
                "ls": "liivsavi", "tls": "liivsavi", "s": "savi", "t": "turvas"}
@@ -133,13 +134,15 @@ def guide(site_names):
         "muld_hape": [["leetunud (happeline)", round(P.MULD_HAPE["L"] * 100)], ["leetjas", round(P.MULD_HAPE["KI"] * 100)],
                       ["lubjarikas", round(P.MULD_HAPE["K"] * 100)]],
         "aeg": {
-            "algus_temp": pts(P.ALGUS_TEMP), "mulla_temp": pts(P.MULLA_TEMP), "mulla_temp_aken": P.MULLA_TEMP_AKEN,
+            "algus_temp": pts(P.ALGUS_TEMP), "mulla_temp": pts(P.MULLA_TEMP), "mulla_temp_aken": P.MULLA_TEMP_AKEN, "soojus_alus": P.SOOJUS_ALUS,
+            "algus_temp_aken": P.ALGUS_TEMP_AKEN, "elu_poud": round((1 - P.ELU_POUD) * 100),
             "hooaeg_kp": pts(P.HOOAEG_KP), "kp_alus": P.KRAADIPAEV_ALUS,
             "niiskus": pts(P.NIISKUS), "viivitus_kp": P.VIIVITUS_KP, "viivitus_alus": P.VIIVITUS_ALUS,
             "viivitus_max": P.VIIVITUS_MAX, "elu": round((1 - P.ELU_PAEV) * 100), "elu_jahe": round((1 - P.ELU_JAHE) * 100),
             "jahe": P.JAHE_PIIR, "kulm": P.KULM_PIIR,
             "korjatav_vanus": P.KORJATAV_VANUS, "vananemine_jahe": P.VANANEMINE_JAHE, "vananemine_kulm": P.VANANEMINE_KULM,
-            "reziim": {k: {"nimi": v["nimi"], "kp": v["kp"], "pohi": v["pohi"], "marg": round(v["marg"] * 100)}
+            "reziim": {k: {"nimi": v["nimi"], "kp": v["kp"], "pohi": v["pohi"], "marg": round(v["marg"] * 100),
+                           "soojus": v["soojus"], "mulla_aken": v["mulla_aken"]}
                        for k, v in P.VEEREZIIM.items()},
             "hooaeg_niiskus": pts(P.HOOAEG_NIISKUS), "hooaeg_aken": P.HOOAEG_NIISKUS_AKEN,
         },
@@ -229,6 +232,7 @@ def main():
                     .reshape(len(days), len(names), len(CLASSES)) for col in TIME_COLS], axis=-1)
     k = TIME_COLS.index("kypseb")
     arr[..., k] = np.where(np.isnan(arr[..., k]), 255, np.minimum(arr[..., k], 254)) / 255
+    arr[..., TIME_COLS.index("mullatemp")] /= MULLATEMP_SKAALA
     source = fr.groupby("kuupaev")["allikas"].first().reindex(days)
     today = pd.Timestamp.today().normalize()
     fruiting = {
@@ -243,7 +247,8 @@ def main():
         # weather per day and point (not per class): rain mm, mean air temperature, degree days
         "ilm": {col: np.round(fr[fr["klass"] == CLASSES[0]].pivot_table(index="kuupaev", columns="punkt", values=col)
                               .reindex(index=days, columns=names).to_numpy(), nd).tolist()
-                for col, nd in (("sademed", 1), ("temp", 1), ("kp", 0))},
+                for col, nd in (("sademed", 1), ("temp", 1), ("tmin", 1), ("kp", 0))},
+        "mullatemp_skaala": MULLATEMP_SKAALA,
         "kypseb_markus": "kypseb: paevi kuni korjatav = vaartus*255, 255 = ei kupse (liiga jahe)",
     }
 
