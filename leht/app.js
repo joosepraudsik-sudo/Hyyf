@@ -453,13 +453,12 @@ function seeneajaTegurid(d, p, j) {
 }
 
 // soil water of this forest (its own bucket) with daily rain, 4 weeks back and the forecast;
-// a faint line shows a forest with another water regime under the same rain
 function niiskusGraafik(d, p, j) {
   const v = olek.vilj, J = window.SIIL.juhend.aeg, aasta = v.kuupaevad[d].slice(0, 4);
   let a = d, b = d;
   while (a > 0 && d - a < 27 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
   while (b < v.kuupaevad.length - 1 && b - d < 10 && v.kuupaevad[b + 1].slice(0, 4) === aasta) b++;
-  const c = olek.klassid[j], cv = c === 2 ? 1 : 2, jv = olek.klassid.indexOf(cv);
+  const c = olek.klassid[j];
   const W = 320, H = 132, pad = 6, n = Math.max(1, b - a), ylal = 14, alus = 84, rAlus = H - 16, rKorgus = 30;
   const xs = (k) => pad + (k - a) / n * (W - 2 * pad), ys = (w) => alus - w * (alus - ylal);
   const fw = F("w");
@@ -482,7 +481,6 @@ function niiskusGraafik(d, p, j) {
     <rect x="${pad}" y="${ys(opt.at(-1))}" width="${W - 2 * pad}" height="${ys(opt[0]) - ys(opt.at(-1))}" class="g-opt"/>
     ${marg < 90 ? `<rect x="${pad}" y="${ys(1)}" width="${W - 2 * pad}" height="${ys(opt.at(-1)) - ys(1)}" class="g-marg"/>` : ""}
     <line x1="${pad}" x2="${W - pad}" y1="${alus}" y2="${alus}" class="g-joon"/>
-    ${jv >= 0 ? `<path d="${tee(jv)}" class="g-vordlus"/>` : ""}
     <path d="${tee(j)}" class="g-vesi"/>
     <line x1="${tx}" x2="${tx}" y1="2" y2="${rAlus}" class="g-tana"/>
     <circle cx="${tx}" cy="${ys(T(d, p, j, fw))}" r="4.5" class="g-tapp g-tapp-vesi"/>
@@ -493,7 +491,7 @@ function niiskusGraafik(d, p, j) {
     <text x="${tx}" y="${H - 3}" class="g-silt g-tugev" text-anchor="middle">${v.kuupaevad[d] === v.tana ? "täna" : kp(d)}</text>
     ${b > d + 2 ? `<text x="${W - pad}" y="${H - 3}" class="g-silt" text-anchor="end">${kp(b)}</text>` : ""}
   </svg>
-  <div class="g-legend"><span><i class="g-l-vesi"></i>see mets (${nimi(c)}, ${J.reziim[c].kp} mm)</span>${jv >= 0 ? `<span><i class="g-l-vordlus"></i>${nimi(cv)} mets (${J.reziim[cv].kp} mm)</span>` : ""}<span><i class="g-l-opt"></i>parim niiskus</span>${marg < 90 ? `<span><i class="g-l-marg"></i>liiga märg</span>` : ""}<span><i class="g-l-vihm"></i>vihm päevas</span></div>
+  <div class="g-legend"><span><i class="g-l-vesi"></i>see mets (${nimi(c)}, ${J.reziim[c].kp} mm)</span><span><i class="g-l-opt"></i>parim niiskus</span>${marg < 90 ? `<span><i class="g-l-marg"></i>liiga märg</span>` : ""}<span><i class="g-l-vihm"></i>vihm päevas</span></div>
   <p class="vaike g-markus">${VEE_KIRJELDUS[c] || ""} Sama vihm täidab väikese veevaruga metsa kiiremini ja see ka kuivab kiiremini – seepärast on iga metsa jaoks sobiv vihmahulk erinev.</p>`;
 }
 

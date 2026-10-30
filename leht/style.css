@@ -208,7 +208,6 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .sel-sissejuhatus { margin: 0 0 4px; }
 .g-h { font-size: 13.5px; margin: 18px 0 6px; }
 .g-vesi { fill: none; stroke: #2f6f8f; stroke-width: 2.5; }
-.g-vordlus { fill: none; stroke: var(--tint-3); stroke-width: 1.5; stroke-dasharray: 3 3; opacity: .7; }
 .g-tapp.g-tapp-vesi { fill: #2f6f8f; }
 .g-vihm { fill: #8fb4cc; stroke: none; }
 .g-vihm-prog { opacity: .55; }
@@ -217,7 +216,6 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .g-legend i.g-l-marg { background: rgba(164, 67, 42, .18); }
 .g-marg { fill: #a4432a; opacity: .08; stroke: none; }
 .g-legend i.g-l-vesi { height: 3px; background: #2f6f8f; vertical-align: 2px; }
-.g-legend i.g-l-vordlus { height: 0; border-top: 2px dashed var(--tint-3); border-radius: 0; vertical-align: 3px; }
 .g-legend i.g-l-vihm { background: #8fb4cc; }
 .g-markus { margin: 8px 0 0; }
 svg.g { width: 100%; height: auto; display: block; overflow: visible; }
