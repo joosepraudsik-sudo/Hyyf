@@ -145,7 +145,6 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .paev .nadal { font-size: 10.5px; color: var(--tint-3); font-weight: 650; text-transform: uppercase; }
 .paev .kp { font-size: 14px; font-weight: 650; font-variant-numeric: tabular-nums; }
 .paev.prognoos .kp { color: var(--tint-2); font-weight: 500; }
-.paev.prognoos::after { content: ""; position: absolute; left: 30%; right: 30%; bottom: 2px; border-bottom: 2px dotted var(--tint-3); }
 .paev.tana .nadal { color: var(--tint); }
 .paev.aktiivne { background: var(--aktsent); }
 .paev.aktiivne .nadal, .paev.aktiivne .kp { color: var(--aktsent-tekst); }
@@ -203,7 +202,23 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .riba.q-keskmine > span { background: #e0a100; }
 .riba.q-nork > span { background: #c94a2a; }
 
-.sel-h { font-size: 14px; margin: 20px 0 8px; padding-top: 14px; border-top: 1px solid var(--joon); }
+.sel-h { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
+         color: var(--tint-2); margin: 20px 0 4px; padding-top: 14px; border-top: 1px solid var(--joon); }
+.sel-h svg { width: 17px; height: 17px; }
+.g-h { font-size: 13.5px; margin: 18px 0 6px; }
+.g-vesi { fill: none; stroke: #2f6f8f; stroke-width: 2.5; }
+.g-vordlus { fill: none; stroke: var(--tint-3); stroke-width: 1.5; stroke-dasharray: 3 3; opacity: .7; }
+.g-tapp.g-tapp-vesi { fill: #2f6f8f; }
+.g-vihm { fill: #8fb4cc; stroke: none; }
+.g-vihm-prog { opacity: .55; }
+.g-opt { fill: #2f7a4f; opacity: .10; stroke: none; }
+.g-legend i.g-l-opt { background: rgba(47, 122, 79, .22); }
+.g-legend i.g-l-marg { background: rgba(164, 67, 42, .18); }
+.g-marg { fill: #a4432a; opacity: .08; stroke: none; }
+.g-legend i.g-l-vesi { height: 3px; background: #2f6f8f; vertical-align: 2px; }
+.g-legend i.g-l-vordlus { height: 0; border-top: 2px dashed var(--tint-3); border-radius: 0; vertical-align: 3px; }
+.g-legend i.g-l-vihm { background: #8fb4cc; }
+.g-markus { margin: 8px 0 0; }
 svg.g { width: 100%; height: auto; display: block; overflow: visible; }
 .g-prognoosiala { fill: var(--tint); opacity: .05; stroke: none; }
 .g-tee { fill: none; stroke: var(--roheline); stroke-width: 2.5; }
@@ -217,9 +232,6 @@ svg.g { width: 100%; height: auto; display: block; overflow: visible; }
 .g-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 .g-legend i.g-l-joon { height: 3px; background: var(--roheline); vertical-align: 2px; }
 .kypseb { margin: 10px 0 0; padding: 10px 12px; border-radius: 14px; background: var(--pind-2); font-size: 13px; }
-.vaike-nupp { display: flex; align-items: center; gap: 6px; margin-top: 14px; padding: 8px 14px; font-size: 13px; font-weight: 600;
-              border-radius: 999px; background: var(--pind-2); border: 1px solid var(--joon); }
-.vaike-nupp:hover { background: var(--pind-3); }
 
 /* ---------- guide dialog ---------- */
 #giid { width: min(680px, calc(100% - 32px)); max-height: calc(100% - 48px); padding: 0; border: 1px solid var(--klaas-serv); border-radius: 24px;
@@ -371,8 +383,7 @@ body { font-family: Figtree, system-ui, -apple-system, "Segoe UI", Roboto, sans-
 .hinne-arv { color: var(--tint); }
 .naitaja { border-radius: 12px; background: var(--pind-2); border-color: transparent; }
 .riba.q-hea > span { background: #2f7a4f; }
-.kypseb, .vaike-nupp { border-radius: 10px; }
-.vaike-nupp { background: #fff; border-color: var(--joon); }
+.kypseb { border-radius: 10px; }
 .g-tee { stroke: #a4432a; }
 .g-tapp { fill: #a4432a; }
 .g-legend i.g-l-joon { background: #a4432a; }
@@ -391,4 +402,3 @@ body { font-family: Figtree, system-ui, -apple-system, "Segoe UI", Roboto, sans-
 /* timeline: month under the first day and at month changes */
 .paev .kuu { font-size: 10px; color: var(--tint-3); font-weight: 600; line-height: 1; height: 10px; }
 .paev.aktiivne .kuu { color: rgba(255, 255, 255, .8); }
-.paev.prognoos::after { bottom: 1px; }

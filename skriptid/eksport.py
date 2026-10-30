@@ -139,7 +139,9 @@ def guide(site_names):
             "viivitus_max": P.VIIVITUS_MAX, "elu": round((1 - P.ELU_PAEV) * 100), "elu_jahe": round((1 - P.ELU_JAHE) * 100),
             "jahe": P.JAHE_PIIR, "kulm": P.KULM_PIIR,
             "korjatav_vanus": P.KORJATAV_VANUS, "vananemine_jahe": P.VANANEMINE_JAHE, "vananemine_kulm": P.VANANEMINE_KULM,
-            "reziim": {k: {"nimi": v["nimi"], "kp": v["kp"]} for k, v in P.VEEREZIIM.items()},
+            "reziim": {k: {"nimi": v["nimi"], "kp": v["kp"], "pohi": v["pohi"], "marg": round(v["marg"] * 100)}
+                       for k, v in P.VEEREZIIM.items()},
+            "hooaeg_niiskus": pts(P.HOOAEG_NIISKUS), "hooaeg_aken": P.HOOAEG_NIISKUS_AKEN,
         },
     }
 
@@ -238,6 +240,10 @@ def main():
         "klassid": CLASSES,
         "valjad": TIME_COLS,
         "andmed": base64.b64encode(to_u8(arr).tobytes()).decode("ascii"),
+        # weather per day and point (not per class): rain mm, mean air temperature, degree days
+        "ilm": {col: np.round(fr[fr["klass"] == CLASSES[0]].pivot_table(index="kuupaev", columns="punkt", values=col)
+                              .reindex(index=days, columns=names).to_numpy(), nd).tolist()
+                for col, nd in (("sademed", 1), ("temp", 1), ("kp", 0))},
         "kypseb_markus": "kypseb: paevi kuni korjatav = vaartus*255, 255 = ei kupse (liiga jahe)",
     }
 

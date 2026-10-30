@@ -143,6 +143,8 @@ def simulate(wx, regime):
     return pd.DataFrame({
         "w": w, "niiskus": moist, "hooaeg": season, "temperatuur": temp, "algus": init, "kypseb": ready_in, "saak": crop,
         "indeks": np.minimum(1, crop / P.INDEKS_SKAALA),
+        # weather of the point, for the place card (same for every class)
+        "sademed": wx["p"].to_numpy(), "temp": t, "kp": gdd,
     }, index=wx.index)
 
 

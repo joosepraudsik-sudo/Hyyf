@@ -367,6 +367,89 @@ function ajaSelgitus(d, p, j) {
   return { indeks, read, kokku, kypseb: kypseb >= 255 ? null : kypseb };
 }
 
+// mushroom-time factors at day d for the forest's water regime class (position j): summer warmth
+// and moisture (season), soil moisture now, warmth now. Moisture depends on the forest, warmth not.
+const ILM = (nimi, d, p) => olek.vilj.ilm[nimi][d]?.[p];
+const TEGUR_AEG = { soojus_suvi: "Suve soojus", niiskus_suvi: "Kevad-suve niiskus", niiskus: "Mulla niiskus praegu",
+  soojus: "Soojus praegu" };
+const VEE_KIRJELDUS = {
+  1: "Väike veevaru: kuivab paari päevaga ja vajab sagedast vihma, aga liigvett ei karda.",
+  2: "Keskmine veevaru: talub nii lühikest põuda kui suurt vihma.",
+  3: "Suur veevaru, põhjavesi lähedal: põuas parem kui kuivad metsad, pikk vihmane aeg teeb liiga märjaks.",
+  4: "Põhjavesi maapinna lähedal: põud ei mõju, aga vihmane aeg teeb liiga märjaks.",
+  5: "Kuivendatud turvas: hoiab vett hästi, märjal ajal jääb liiga niiskeks.",
+};
+
+function vihm(d, p, paevi) {
+  let s = 0;
+  for (let k = Math.max(0, d - paevi + 1); k <= d; k++) s += ILM("sademed", k, p) || 0;
+  return s;
+}
+
+function seeneajaTegurid(d, p, j) {
+  const A = window.SIIL.juhend.aeg, g = (nimi) => T(d, p, j, F(nimi));
+  const kp = ILM("kp", d, p), t = ILM("temp", d, p);
+  const hooaeg = g("hooaeg"), w = g("w"), niiskus = g("niiskus"), temp = g("temperatuur");
+  const kpVaja = A.hooaeg_kp.at(-1)[0];
+  const sKp = kp == null ? hooaeg : kohal(A.hooaeg_kp, kp) / 100;
+  const read = [{ nimi: "soojus_suvi", q: sKp, pohjus: kp == null ? "" :
+    `${Math.round(kp)} kraadipäeva (üle ${nr(A.kp_alus)} °C), vaja ~${kpVaja} – ${sKp >= 1 ? "suvi on piisavalt soe olnud" : sKp > 0 ? "hooaeg alles algab" : "liiga vara"}` }];
+  // the season factor is warmth x the moisture of 6-13 weeks ago; split it when warmth is known
+  if (sKp > 0.05) {
+    const m = Math.min(1, hooaeg / sKp);
+    read.push({ nimi: "niiskus_suvi", q: m, pohjus: `${Math.round(A.hooaeg_aken[1] / 7)}–${Math.round(A.hooaeg_aken[0] / 7)} nädalat tagasi: ${m >= 0.9 ? "piisavalt niiske – seeneniidistik on tugev" : m >= 0.6 ? "kuivavõitu" : "kuiv – seeneniidistik on nõrgem"}` });
+  }
+  const sona = w < 0.2 ? "liiga kuiv" : w < 0.45 ? "kuivavõitu" : niiskus < 0.8 ? "liiga märg" : "parajalt niiske";
+  read.push({ nimi: "niiskus", q: niiskus, pohjus: `veevaru ${Math.round(w * 100)}% · vihma 3 nädalaga ${Math.round(vihm(d, p, 21))} mm – ${sona}` });
+  read.push({ nimi: "soojus", q: temp, pohjus: `${t == null ? "" : `õhk ${Math.round(t)} °C, `}arvestatud ka mulla soojust – ${temp < 0.2 ? "liiga jahe" : temp < 0.8 ? "jahedavõitu" : "piisav"}` });
+  return read;
+}
+
+// soil water of this forest (its own bucket) with daily rain, 4 weeks back and the forecast;
+// a faint line shows a forest with another water regime under the same rain
+function niiskusGraafik(d, p, j) {
+  const v = olek.vilj, J = window.SIIL.juhend.aeg, aasta = v.kuupaevad[d].slice(0, 4);
+  let a = d, b = d;
+  while (a > 0 && d - a < 27 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
+  while (b < v.kuupaevad.length - 1 && b - d < 10 && v.kuupaevad[b + 1].slice(0, 4) === aasta) b++;
+  const c = olek.klassid[j], cv = c === 2 ? 1 : 2, jv = olek.klassid.indexOf(cv);
+  const W = 320, H = 132, pad = 6, n = Math.max(1, b - a), ylal = 14, alus = 84, rAlus = H - 16, rKorgus = 30;
+  const xs = (k) => pad + (k - a) / n * (W - 2 * pad), ys = (w) => alus - w * (alus - ylal);
+  const fw = F("w");
+  const tee = (jj) => { const r = []; for (let k = a; k <= b; k++) r.push(`${k > a ? "L" : "M"}${xs(k).toFixed(1)},${ys(T(k, p, jj, fw)).toFixed(1)}`); return r.join(""); };
+  // optimum band: where the moisture condition is fully met; above it too wet on wet sites
+  const opt = J.niiskus.filter(([, y]) => y >= 100).map(([x]) => x);
+  const marg = J.reziim[c].marg;
+  const mm = [];
+  for (let k = a; k <= b; k++) mm.push(ILM("sademed", k, p) || 0);
+  const mmMax = Math.max(10, ...mm);
+  const w2 = (W - 2 * pad) / (n + 1);
+  const ribad = mm.map((x, kk) => x < 0.2 ? "" : `<rect x="${(xs(a + kk) - w2 / 2 + 0.5).toFixed(1)}" y="${(rAlus - x / mmMax * rKorgus).toFixed(1)}" width="${Math.max(1, w2 - 1).toFixed(1)}" height="${(x / mmMax * rKorgus).toFixed(1)}" class="g-vihm${v.paeva_allikas[a + kk] === "prognoos" ? " g-vihm-prog" : ""}"/>`).join("");
+  const progI = v.paeva_allikas.indexOf("prognoos", a);
+  const progAlgus = progI >= 0 && progI <= b ? xs(progI - 0.5) : null;
+  const kp = (k) => `${+v.kuupaevad[k].slice(8)}.${v.kuupaevad[k].slice(5, 7)}`;
+  const tx = xs(d);
+  const nimi = (cc) => J.reziim[cc].nimi;
+  return `<svg class="g" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mulla veevaru selles metsas ja vihm">
+    ${progAlgus != null ? `<rect x="${progAlgus}" y="2" width="${W - pad - progAlgus}" height="${rAlus - 2}" class="g-prognoosiala"/><text x="${(progAlgus + W - pad) / 2}" y="10" class="g-silt" text-anchor="middle">prognoos</text>` : ""}
+    <rect x="${pad}" y="${ys(opt.at(-1))}" width="${W - 2 * pad}" height="${ys(opt[0]) - ys(opt.at(-1))}" class="g-opt"/>
+    ${marg < 90 ? `<rect x="${pad}" y="${ys(1)}" width="${W - 2 * pad}" height="${ys(opt.at(-1)) - ys(1)}" class="g-marg"/>` : ""}
+    <line x1="${pad}" x2="${W - pad}" y1="${alus}" y2="${alus}" class="g-joon"/>
+    ${jv >= 0 ? `<path d="${tee(jv)}" class="g-vordlus"/>` : ""}
+    <path d="${tee(j)}" class="g-vesi"/>
+    <line x1="${tx}" x2="${tx}" y1="2" y2="${rAlus}" class="g-tana"/>
+    <circle cx="${tx}" cy="${ys(T(d, p, j, fw))}" r="4.5" class="g-tapp g-tapp-vesi"/>
+    ${ribad}
+    <line x1="${pad}" x2="${W - pad}" y1="${rAlus}" y2="${rAlus}" class="g-joon"/>
+    <text x="${pad}" y="${rAlus - rKorgus + 6}" class="g-silt">${Math.round(mmMax)} mm</text>
+    <text x="${pad}" y="${H - 3}" class="g-silt">${kp(a)}</text>
+    <text x="${tx}" y="${H - 3}" class="g-silt g-tugev" text-anchor="middle">${v.kuupaevad[d] === v.tana ? "täna" : kp(d)}</text>
+    ${b > d + 2 ? `<text x="${W - pad}" y="${H - 3}" class="g-silt" text-anchor="end">${kp(b)}</text>` : ""}
+  </svg>
+  <div class="g-legend"><span><i class="g-l-vesi"></i>see mets (${nimi(c)}, ${J.reziim[c].kp} mm)</span>${jv >= 0 ? `<span><i class="g-l-vordlus"></i>${nimi(cv)} mets (${J.reziim[cv].kp} mm)</span>` : ""}<span><i class="g-l-opt"></i>parim niiskus</span>${marg < 90 ? `<span><i class="g-l-marg"></i>liiga märg</span>` : ""}<span><i class="g-l-vihm"></i>vihm päevas</span></div>
+  <p class="vaike g-markus">${VEE_KIRJELDUS[c] || ""} Sama vihm täidab väikese veevaruga metsa kiiremini ja see ka kuivab kiiremini – seepärast on iga metsa jaoks sobiv vihmahulk erinev.</p>`;
+}
+
 const pk = (x) => String(Math.round(x));
 const kord = (x) => "×" + x.toFixed(2).replace(".", ",");
 const kvaliteet = (q) => (q >= 0.85 ? "hea" : q >= 0.6 ? "keskmine" : "nork");
@@ -445,7 +528,7 @@ function naitaSelgitust(lnglat) {
   // all forest properties as bars: host trees, age and light first, then the rest
   const ribad = [...kordajad.map((r) => ({ nimi: r.nimi, q: r.x, pohjus: r.pohjus })),
                  ...punktid.map((r) => ({ nimi: r.nimi, q: r.p / r.max, pohjus: r.pohjus }))];
-  const omadus = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi]}</span><span class="riba q-${kvaliteet(r.q)}"><span style="width:${Math.round(r.q * 100)}%"></span></span><span class="pohjus">${r.pohjus}</span></li>`;
+  const omadus = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi] || r.nimi}</span><span class="riba q-${kvaliteet(r.q)}"><span style="width:${Math.round(r.q * 100)}%"></span></span><span class="pohjus">${r.pohjus}</span></li>`;
 
   // where the forecast is heading, and when today's new mushrooms are ready
   const v = olek.vilj;
@@ -477,13 +560,18 @@ function naitaSelgitust(lnglat) {
       </div>` : ""}
     </div>
 
+    <h3 class="sel-h">${IKOON.mets}Mets</h3>
     <ul class="omadused">${ribad.map(omadus).join("")}</ul>
 
-    ${tana ? `<h3 class="sel-h">Seente hulk: nädal tagasi ja prognoos</h3>
-    ${graafik(i, d, p, j)}
-    <p class="kypseb">${suund ? suund + " " : ""}${korjatav}</p>` : ""}
+    ${tana ? `<h3 class="sel-h">${IKOON.aeg}Seeneaeg</h3>
+    <ul class="omadused">${seeneajaTegurid(d, p, j).map((r) => omadus({ ...r, nimi: TEGUR_AEG[r.nimi] })).join("")}</ul>
 
-    <button class="vaike-nupp" onclick="avaGiid()"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M12 17h.01"/></svg> Kuidas hinne tekib</button>`;
+    <h4 class="g-h">Mulla niiskus selles metsas</h4>
+    ${niiskusGraafik(d, p, j)}
+
+    <h4 class="g-h">Seente hulk</h4>
+    ${graafik(i, d, p, j)}
+    <p class="kypseb">${suund ? suund + " " : ""}${korjatav}</p>` : ""}`;
   // explanation in a side drawer (bottom sheet on phones), the spot marked with a dot
   peidaSelgitus();
   const silt = document.getElementById("sahtel-silt");
