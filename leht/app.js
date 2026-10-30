@@ -489,7 +489,7 @@ function seeneajaTegurid(d, p, j) {
 }
 
 // moisture and warmth of this forest, 4 weeks back and the forecast, one panel each on a shared
-// time axis (different units, so not one y axis): soil water of its own bucket, daily rain, and topsoil
+// time axis (different units, so not one y axis): soil water of its own bucket with daily rain under it, and topsoil
 // temperature of this forest type with the 5-day mean air temperature, each with its optimum band
 function ilmaGraafik(d, p, j) {
   const v = olek.vilj, J = window.SIIL.juhend.aeg, aasta = v.kuupaevad[d].slice(0, 4);
@@ -497,8 +497,8 @@ function ilmaGraafik(d, p, j) {
   while (a > 0 && d - a < 27 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
   while (b < v.kuupaevad.length - 1 && b - d < 10 && v.kuupaevad[b + 1].slice(0, 4) === aasta) b++;
   const c = olek.klassid[j], R = J.reziim[c];
-  const W = 320, H = 240, pad = 6, n = Math.max(1, b - a);
-  const N = [16, 70], V = [88, 114], S = [136, 214];   // panels (moisture, rain, warmth): [top, bottom] in px
+  const W = 320, H = 226, pad = 6, n = Math.max(1, b - a);
+  const N = [16, 70], V = [74, 100], S = [122, 200];   // moisture with its rain strip below, warmth: [top, bottom] in px
   const xs = (k) => pad + (k - a) / n * (W - 2 * pad);
   const paevad = [];
   for (let k = a; k <= b; k++) paevad.push(k);
@@ -545,9 +545,8 @@ function ilmaGraafik(d, p, j) {
     <text x="${pad + 2}" y="${yN(opt[0]) - 3}" class="g-silt g-halo">${Math.round(opt[0] * 100)} %</text>
     <text x="${pad + 2}" y="${yN(wMin) - 3}" class="g-silt g-halo">${Math.round(wMin * 100)} %</text>
 
-    <text x="${pad}" y="${V[0] - 4}" class="g-silt g-tugev">Vihm</text>
-    <text x="${W - pad}" y="${V[0] - 4}" class="g-silt g-halo" text-anchor="end">kuni ${Math.round(mmMax)} mm päevas</text>
     ${vihmaRibad}
+    <text x="${pad + 2}" y="${V[0] + 8}" class="g-silt g-halo">vihm, kuni ${Math.round(mmMax)} mm päevas</text>
     <line x1="${pad}" x2="${W - pad}" y1="${V[1]}" y2="${V[1]}" class="g-joon"/>
 
     <text x="${pad}" y="${S[0] - 4}" class="g-silt g-tugev">Soojus</text>
