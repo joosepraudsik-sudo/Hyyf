@@ -152,6 +152,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 
 .kokkuvote { margin: 0; font-size: 13.5px; line-height: 1.4; }
 .kokkuvote b { font-size: 14px; }
+.tekstinupp { padding: 0; border: 0; background: none; font: inherit; font-weight: 650; color: var(--aktsent); text-decoration: underline; cursor: pointer; }
 .pp-markus { display: inline-block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em;
              padding: 2px 7px; border-radius: 999px; background: var(--aktsent-pehme); color: var(--aktsent); margin-right: 4px; vertical-align: 1px; }
 .legend { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 16px; }

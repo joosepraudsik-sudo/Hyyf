@@ -322,7 +322,11 @@ function uuendaKokkuvote() {
   const pohjus = () => aegPohjus(paev, p, j);
   const head = ha.slice(0, -1).reduce((s, x) => s + x, 0), voimalik = ha.at(-1);
   if (!tana) kv.textContent = "Metsad, kus kasvukoht sobib kukeseenele – ilmast sõltumata.";
-  else if (p === null) kv.textContent = "Kaardi vaates pole hinnatud metsa.";
+  else if (p === null) {
+    // the page holds one area (test sheet, or ?ala=...): say which, and offer to go there
+    kv.innerHTML = `Siin pole hinnatud metsa. Andmed on alal <b>${meta.nimi}</b>. <button class="tekstinupp">Näita ala</button>`;
+    kv.querySelector("button").onclick = () => map.fitBounds([meta.nurgad[3], meta.nurgad[1]], { padding: vaba() });
+  }
   else if (head < 5 && voimalik >= 50) kv.innerHTML = `<b>Tagasihoidlik aeg.</b> Kõrge hindega kohti pole, võimalikke ${Math.round(voimalik)} ha. ${pohjus()}`;
   else if (head < 5) kv.innerHTML = `<b>Kehv aeg.</b> ${pohjus()}`;
   else if (head < 100) kv.innerHTML = `<b>Leidub üksikuid häid kohti</b> – kokku ${Math.round(head)} ha. ${pohjus()}`;
