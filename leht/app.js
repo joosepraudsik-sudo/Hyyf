@@ -489,7 +489,7 @@ function seeneajaTegurid(d, p, j) {
 }
 
 // moisture and warmth of this forest, 4 weeks back and the forecast, one panel each on a shared
-// time axis (different units, so not one y axis): soil water of its own bucket, and topsoil
+// time axis (different units, so not one y axis): soil water of its own bucket, daily rain, and topsoil
 // temperature of this forest type with the 5-day mean air temperature, each with its optimum band
 function ilmaGraafik(d, p, j) {
   const v = olek.vilj, J = window.SIIL.juhend.aeg, aasta = v.kuupaevad[d].slice(0, 4);
@@ -497,8 +497,8 @@ function ilmaGraafik(d, p, j) {
   while (a > 0 && d - a < 27 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
   while (b < v.kuupaevad.length - 1 && b - d < 10 && v.kuupaevad[b + 1].slice(0, 4) === aasta) b++;
   const c = olek.klassid[j], R = J.reziim[c];
-  const W = 320, H = 200, pad = 6, n = Math.max(1, b - a);
-  const N = [16, 70], S = [96, 174];   // panels: [top, bottom] in px
+  const W = 320, H = 240, pad = 6, n = Math.max(1, b - a);
+  const N = [16, 70], V = [88, 114], S = [136, 214];   // panels (moisture, rain, warmth): [top, bottom] in px
   const xs = (k) => pad + (k - a) / n * (W - 2 * pad);
   const paevad = [];
   for (let k = a; k <= b; k++) paevad.push(k);
@@ -510,6 +510,12 @@ function ilmaGraafik(d, p, j) {
   const fw = F("w"), wv = (k) => T(k, p, j, fw);
   const opt = J.niiskus.filter(([, y]) => y >= 100).map(([x]) => x);
   const marg = R.marg < 90;
+  const wMin = J.niiskus[Math.max(0, J.niiskus.findIndex(([, y]) => y > 0) - 1)][0];   // below: too dry
+
+  // daily rain, mm
+  const mm = paevad.map((k) => ILM("sademed", k, p) || 0), mmMax = Math.max(10, ...mm);
+  const w2 = (W - 2 * pad) / (n + 1);
+  const vihmaRibad = mm.map((x, kk) => x < 0.2 ? "" : `<rect x="${(xs(a + kk) - w2 / 2 + 0.5).toFixed(1)}" y="${(V[1] - x / mmMax * (V[1] - V[0])).toFixed(1)}" width="${Math.max(1, w2 - 1).toFixed(1)}" height="${(x / mmMax * (V[1] - V[0])).toFixed(1)}" class="g-vihm${v.paeva_allikas[a + kk] === "prognoos" ? " g-vihm-prog" : ""}"/>`).join("");
 
   // warmth: topsoil of this forest type and the 5-day mean air temperature, C
   const muld = (k) => T(k, p, j, F("mullatemp")) * v.mullatemp_skaala;
@@ -533,8 +539,16 @@ function ilmaGraafik(d, p, j) {
     ${riba(yN(opt[0]), yN(opt.at(-1)), "g-opt")}
     ${marg ? riba(yN(opt.at(-1)), yN(1), "g-marg") : ""}
     <line x1="${pad}" x2="${W - pad}" y1="${N[1]}" y2="${N[1]}" class="g-joon"/>
+    <line x1="${pad}" x2="${W - pad}" y1="${yN(wMin)}" y2="${yN(wMin)}" class="g-joon"/>
     <path d="${tee((k) => yN(wv(k)))}" class="g-vesi"/>
     <circle cx="${tx}" cy="${yN(wv(d))}" r="4" class="g-tapp g-tapp-vesi"/>
+    <text x="${pad + 2}" y="${yN(opt[0]) - 3}" class="g-silt g-halo">${Math.round(opt[0] * 100)} %</text>
+    <text x="${pad + 2}" y="${yN(wMin) - 3}" class="g-silt g-halo">${Math.round(wMin * 100)} %</text>
+
+    <text x="${pad}" y="${V[0] - 4}" class="g-silt g-tugev">Vihm</text>
+    <text x="${W - pad}" y="${V[0] - 4}" class="g-silt g-halo" text-anchor="end">kuni ${Math.round(mmMax)} mm päevas</text>
+    ${vihmaRibad}
+    <line x1="${pad}" x2="${W - pad}" y1="${V[1]}" y2="${V[1]}" class="g-joon"/>
 
     <text x="${pad}" y="${S[0] - 4}" class="g-silt g-tugev">Soojus</text>
     ${riba(yS(tOpt[0]), yS(Math.min(hi, tOpt.at(-1))), "g-opt")}
@@ -551,7 +565,7 @@ function ilmaGraafik(d, p, j) {
     <text x="${tx}" y="${H - 3}" class="g-silt g-tugev" text-anchor="middle">${v.kuupaevad[d] === v.tana ? "täna" : kp(d)}</text>
     ${b > d + 2 ? `<text x="${W - pad}" y="${H - 3}" class="g-silt" text-anchor="end">${kp(b)}</text>` : ""}
   </svg>
-  <div class="g-legend"><span><i class="g-l-vesi"></i>mulla veevaru (${R.nimi}, ${R.kp} mm)</span><span><i class="g-l-muld"></i>selle metsa muld</span><span><i class="g-l-ohk"></i>õhk (${J.algus_temp_aken} p keskmine)</span><span><i class="g-l-opt"></i>parim</span>${marg ? `<span><i class="g-l-marg"></i>liiga märg</span>` : ""}</div>
+  <div class="g-legend"><span><i class="g-l-vesi"></i>mulla veevaru (${R.nimi}, ${R.kp} mm)</span><span><i class="g-l-muld"></i>selle metsa muld</span><span><i class="g-l-ohk"></i>õhk (${J.algus_temp_aken} p keskmine)</span><span><i class="g-l-vihm"></i>vihm</span><span><i class="g-l-opt"></i>parim</span>${marg ? `<span><i class="g-l-marg"></i>liiga märg</span>` : ""}</div>
   <p class="vaike g-markus">${VEE_KIRJELDUS[c] || ""} ${soojusLause}</p>`;
 }
 

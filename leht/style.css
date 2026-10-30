@@ -208,6 +208,8 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .g-h { font-size: 13.5px; margin: 18px 0 6px; }
 .g-vesi { fill: none; stroke: #2f6f8f; stroke-width: 2.5; }
 .g-tapp.g-tapp-vesi { fill: #2f6f8f; }
+.g-vihm { fill: #8fb4cc; stroke: none; }
+.g-vihm-prog { opacity: .55; }
 .g-muld { fill: none; stroke: #c0632f; stroke-width: 2.5; }
 .g-ohk { fill: none; stroke: var(--tint-3); stroke-width: 1.25; opacity: .8; }
 .g-tapp.g-tapp-muld { fill: #c0632f; }
@@ -216,6 +218,7 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .g-legend i.g-l-marg { background: rgba(164, 67, 42, .18); }
 .g-marg { fill: #a4432a; opacity: .08; stroke: none; }
 .g-legend i.g-l-vesi { height: 3px; background: #2f6f8f; vertical-align: 2px; }
+.g-legend i.g-l-vihm { background: #8fb4cc; }
 .g-legend i.g-l-muld { height: 3px; background: #c0632f; vertical-align: 2px; }
 .g-legend i.g-l-ohk { height: 2px; background: var(--tint-3); vertical-align: 2px; }
 .g-markus { margin: 8px 0 0; }
