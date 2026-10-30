@@ -33,7 +33,7 @@ RES = 10
 YMBRUS_M = 100       # neighbourhood shown on the map
 OTSING_M = 200       # best value within this radius of the point
 # map classes, same rule as the page: forest step + time step (parameetrid.KLASS_KOHT / KLASS_AEG)
-KLASSID = ["väga hea", "hea", "võimalik"]
+KLASSID = ["tippkoht", "suurepärane", "väga hea", "hea", "võimalik"]
 TULEMUS = {0: "ei leidnud", 1: "üksikud", 2: "mõned", 3: "väga hea saak"}
 
 
@@ -49,7 +49,7 @@ def step(x, bounds):
 
 def class_index(koht, aeg):
     k, a = step(koht, P.KLASS_KOHT), step(aeg, P.KLASS_AEG)
-    return k + a if k >= 0 and a >= 0 and k + a <= 2 else 9
+    return k + a if k >= 0 and a >= 0 and k + a < len(KLASSID) else 9
 
 
 def check(row, to3301):
@@ -126,7 +126,7 @@ def check(row, to3301):
     if c_here:
         for kk, vv in aeg[c_here].items():
             res["a_" + kk] = float(vv)
-    nimi = lambda c: KLASSID[c] if c <= 2 else ("–" if c < 99 else "metsa pole")
+    nimi = lambda c: KLASSID[c] if c < len(KLASSID) else ("–" if c < 99 else "metsa pole")
     res["klass_punkt"] = nimi(int(cls[r, col]))
     res["klass_200m"] = nimi(best_cls)
     return res
