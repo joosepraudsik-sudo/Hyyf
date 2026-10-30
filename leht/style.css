@@ -239,6 +239,33 @@ svg.g { width: 100%; height: auto; display: block; overflow: visible; }
 .g-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 11px; color: var(--tint-2); }
 .g-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
 .g-legend i.g-l-joon { height: 3px; background: var(--roheline); vertical-align: 2px; }
+/* card overview: Koht x Aeg plane and forest waterfall */
+.vaade-valik { margin: 2px 0 12px; width: max-content; }
+.t-vali { stroke: var(--pind); stroke-width: 1; }
+.t-taust circle { fill: var(--tint); opacity: .22; }
+.t-tee { fill: none; stroke: var(--tint); stroke-width: 2.5; stroke-linecap: round; }
+.t-tee-prog { stroke-dasharray: 3 4; opacity: .7; }
+.t-moot { fill: var(--tint); stroke: var(--pind); stroke-width: 1; }
+.t-prog { fill: var(--pind); stroke: var(--tint); stroke-width: 1.2; }
+.t-tana { fill: #1f4d3a; stroke: #fff; stroke-width: 2.5; }
+.g-legend i.t-l-tana { border-radius: 50%; background: #1f4d3a; }
+.g-legend i.t-l-tee { height: 3px; background: var(--tint); vertical-align: 2px; }
+.g-legend i.t-l-taust { width: 4px; height: 4px; border-radius: 50%; background: var(--tint); opacity: .4; vertical-align: 1px; }
+.k-kosk rect, .k-kosk text, .t-tasand text, .t-taust circle { stroke: none; }
+.k-nimi, .k-arv { font-size: 11.5px; fill: var(--tint-2); }
+.k-arv { font-variant-numeric: tabular-nums; }
+.k-pluss { fill: #2f7a4f; }
+.k-kadu { fill: var(--pind-3); }
+.k-miinus { fill: #c94a2a; opacity: .55; }
+.k-summa { fill: var(--tint-2); }
+.k-koht { fill: #1f4d3a; }
+.k-sild { stroke: var(--tint-3); stroke-width: 1; stroke-dasharray: 2 2; }
+.k-piir { stroke: #a4432a; stroke-width: 1; stroke-dasharray: 1 3; opacity: .55; }
+.k-eraldus { stroke: var(--joon); stroke-width: 1; }
+.g-legend i.k-l-pluss { background: #2f7a4f; }
+.g-legend i.k-l-kadu { background: var(--pind-3); }
+.g-legend i.k-l-miinus { background: rgba(201, 74, 42, .55); }
+.g-legend i.k-l-piir { width: 2px; background: #a4432a; opacity: .6; }
 .kypseb { margin: 10px 0 0; padding: 10px 12px; border-radius: 14px; background: var(--pind-2); font-size: 13px; }
 
 /* ---------- guide dialog ---------- */

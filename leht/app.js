@@ -40,7 +40,8 @@ const TEGUR_NIMI = { puuliik: "Puuliigid", vanus: "Puistu vanus", valgus: "Valgu
   kasvukoht: "Metsatüüp", muld: "Muld", mikroniiskus: "Maastiku niiskus", okotoon: "Soo serv (ökotoon)",
   sidusus: "Metsamassiiv", tihedus: "Võra tihedus" };
 
-const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [], kihtNahtav: true };
+const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "read" };
+try { olek.kaardiVaade = localStorage.getItem("siil-kaardivaade") || "read"; } catch (e) { /* private mode */ }
 const canvas = document.createElement("canvas");
 
 // ---------- data ----------
@@ -589,12 +590,15 @@ const IKOON = {
 
 // step bar: equal segments (below, then the steps from low to high) in the class colours;
 // segments above the current step are faded, the marker sits inside its segment
-function astmeriba(x, piirid) {
+function astmeAsend(x, piirid) {
   const yles = [...piirid].reverse(), lo = [0, ...yles], hi = [...yles, 1];
-  const varv = ["var(--pind-3)", ...VARV.slice(1).reverse()];
   const k = Math.max(0, lo.findLastIndex((a) => x >= a));
-  const asend = (k + Math.min(1, (Math.min(x, 1) - lo[k]) / (hi[k] - lo[k]))) / lo.length;
-  const segs = varv.map((c, kk) => `<span class="aste-seg${kk > k ? " tuhm" : ""}" style="background:${c}"></span>`).join("");
+  return [(k + Math.min(1, (Math.min(x, 1) - lo[k]) / (hi[k] - lo[k]))) / lo.length, k];
+}
+function astmeriba(x, piirid) {
+  const varv = ["var(--pind-3)", ...VARV.slice(1).reverse()];
+  const [asend, k] = astmeAsend(x, piirid);
+  const segs = varv.slice(0, piirid.length + 1).map((c, kk) => `<span class="aste-seg${kk > k ? " tuhm" : ""}" style="background:${c}"></span>`).join("");
   return `<div class="astmeriba"><div class="aste-segmendid">${segs}<span class="aste-marker" style="left:${asend * 100}%"></span></div></div>`;
 }
 
@@ -640,6 +644,106 @@ function graafik(i, d, p, j) {
   <div class="g-legend"><span><i class="g-l-joon"></i>seeni metsas</span><span><i style="background:#a4432a"></i>uued seened tekivad</span><span><i style="background:#e9cf8f"></i>vähe</span><span><i style="background:var(--pind-3)"></i>ei teki</span></div>`;
 }
 
+// Koht x Aeg plane: both axes in equal steps (the class thresholds), each field coloured by the
+// map class it gives; faint dots = forest cells in the map view, the line = this place from a week
+// back through the forecast (the forest does not change, so it moves only up and down)
+function tasand(i, d, koht) {
+  const A = olek.meta.astmed, v = olek.vilj, aasta = v.kuupaevad[d].slice(0, 4);
+  const W = 320, H = 262, L = 40, R = W - 8, Y0 = 10, Y1 = H - 40;
+  const nx = A.koht.length + 1, ny = A.aeg.length + 1, cw = (R - L) / nx, ch = (Y1 - Y0) / ny;
+  const ux = (x) => L + astmeAsend(x, A.koht)[0] * (R - L), uy = (y) => Y1 - astmeAsend(Math.min(1, y), A.aeg)[0] * (Y1 - Y0);
+  const valjad = [];
+  for (let kk = 0; kk < nx; kk++) for (let rr = 0; rr < ny; rr++) {
+    const kl = kk && rr ? (nx - 1 - kk) + (ny - 1 - rr) : -1;
+    const ok = kl >= 0 && kl < VARV.length;
+    valjad.push(`<rect x="${(L + kk * cw).toFixed(1)}" y="${(Y1 - (rr + 1) * ch).toFixed(1)}" width="${cw.toFixed(1)}" height="${ch.toFixed(1)}"
+      style="fill:${ok ? VARV[kl] : "var(--pind-2)"};fill-opacity:${ok ? ALFA[kl] * 0.75 : 1}" class="t-vali"><title>${ok ? KLASSID.tana[kl][0] : "kaardil ei näidata"}</title></rect>`);
+  }
+  // context: forest cells in view (at most ~1500)
+  const rakud = vaateRakud().filter((c) => olek.kiht.ilmapunkt[c] !== 255);
+  const samm = Math.max(1, Math.ceil(rakud.length / 1500));
+  let taust = "";
+  for (let k = 0; k < rakud.length; k += samm) {
+    const h = hinnang(rakud[k], d);
+    if (h && h[0] > 0) taust += `<circle cx="${ux(h[0]).toFixed(1)}" cy="${uy(h[1]).toFixed(1)}" r="1.4"/>`;
+  }
+  // this place over time
+  let a = d, b = d;
+  while (a > 0 && d - a < 7 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
+  while (b < v.kuupaevad.length - 1 && b - d < 10 && v.kuupaevad[b + 1].slice(0, 4) === aasta) b++;
+  const x = ux(koht), yk = (k) => uy(hinnang(i, k)[1]);
+  const tee = (k0, k1) => { let s = ""; for (let k = k0; k <= k1; k++) s += `${k > k0 ? "L" : "M"}${x.toFixed(1)},${yk(k).toFixed(1)}`; return s; };
+  const kp = (k) => `${+v.kuupaevad[k].slice(8)}.${v.kuupaevad[k].slice(5, 7)}`;
+  let progAlgus = b + 1;
+  for (let k = a; k <= b; k++) if (v.paeva_allikas[k] === "prognoos") { progAlgus = k; break; }
+  const mootLopp = Math.min(d, progAlgus === b + 1 ? d : Math.max(a, progAlgus - 1));
+  const tapid = [];
+  for (let k = a; k <= b; k++) if (k !== d) tapid.push(`<circle cx="${x.toFixed(1)}" cy="${yk(k).toFixed(1)}" r="2.2" class="${k > d ? "t-prog" : "t-moot"}"/>`);
+  const ty = yk(d), yb = yk(b), poolel = x > (L + R) / 2;
+  const silt = (yy, tekst, cls = "") => `<text x="${(x + (poolel ? -9 : 9)).toFixed(1)}" y="${(yy + 3.5).toFixed(1)}" class="g-silt g-halo ${cls}" text-anchor="${poolel ? "end" : "start"}">${tekst}</text>`;
+  const telgX = A.koht.map((t, kk) => `<text x="${(L + (nx - 1 - kk) * cw).toFixed(1)}" y="${Y1 + 13}" class="g-silt" text-anchor="middle">${hinne(t)}</text>`).join("");
+  const telgY = A.aeg.map((t, rr) => `<text x="${L - 5}" y="${(Y1 - (ny - 1 - rr) * ch + 3.5).toFixed(1)}" class="g-silt" text-anchor="end">${hinne(t)}%</text>`).join("");
+  return `<svg class="g t-tasand" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mets ja seeneaeg koos">
+    ${valjad.join("")}
+    <g class="t-taust">${taust}</g>
+    ${b > d ? `<path d="${tee(d, b)}" class="t-tee t-tee-prog"/>` : ""}
+    ${mootLopp > a ? `<path d="${tee(a, d)}" class="t-tee"/>` : ""}
+    ${tapid.join("")}
+    <circle cx="${x.toFixed(1)}" cy="${ty.toFixed(1)}" r="6" class="t-tana"/>
+    ${silt(ty, v.kuupaevad[d] === v.tana ? "täna" : kp(d), "g-tugev")}
+    ${b > d && Math.abs(yb - ty) > 12 ? silt(yb, kp(b)) : ""}
+    ${a < d && Math.abs(yk(a) - ty) > 12 && Math.abs(yk(a) - yb) > 12 ? silt(yk(a), kp(a)) : ""}
+    ${telgX}${telgY}
+    <text x="${(L + R) / 2}" y="${H - 6}" class="g-silt g-tugev" text-anchor="middle">Mets (Koht) →</text>
+    <text x="10" y="${(Y0 + Y1) / 2}" class="g-silt g-tugev" text-anchor="middle" transform="rotate(-90 10 ${(Y0 + Y1) / 2})">Seeneaeg (Aeg) →</text>
+  </svg>
+  <div class="g-legend"><span><i class="t-l-tana"></i>see koht</span><span><i class="t-l-tee"></i>nädal tagasi → prognoos</span><span><i class="t-l-taust"></i>teised metsad vaates</span></div>`;
+}
+
+// forest waterfall: the forest points build up to 100 category by category (grey = points this
+// place does not get), then each multiplier cuts the total down to Koht
+const KOSK_NIMI = { valgus: "Valgus" };
+function kosk(i, koht) {
+  const { kordajad, punktid } = tegurid(i);
+  const W = 320, L = 112, R = W - 44, rida = 21, sx = (v) => L + v / 100 * (R - L);
+  const read = [];
+  let kum = 0;
+  for (const r of punktid) {
+    read.push({ nimi: TEGUR_NIMI[r.nimi], a: kum, b: kum + r.p, c: kum + r.max, tekst: `${pk(r.p)}/${pk(r.max)}`, liik: "p" });
+    kum += r.p;
+  }
+  read.push({ nimi: "Metsa punktid", a: 0, b: kum, tekst: pk(kum), liik: "s" });
+  let v = kum;
+  for (const r of kordajad) {
+    read.push({ nimi: KOSK_NIMI[r.nimi] || TEGUR_NIMI[r.nimi], a: v * r.x, b: v, tekst: kord(r.x), liik: "k" });
+    v *= r.x;
+  }
+  // the map uses the 100 m neighbourhood mean of whole scores, the rows above are neighbourhood
+  // means of each factor: the two differ a little
+  if (Math.abs(v - koht * 100) >= 1.5) read.push({ nimi: "100 m ümbrus", a: Math.min(v, koht * 100), b: Math.max(v, koht * 100), tekst: (koht * 100 > v ? "+" : "−") + pk(Math.abs(koht * 100 - v)), liik: "u" });
+  read.push({ nimi: "Koht", a: 0, b: koht * 100, tekst: pk(koht * 100), liik: "s" });
+  const H = read.length * rida + 22;
+  const A = olek.meta.astmed.koht;
+  const piirid = A.map((t) => `<line x1="${sx(t * 100)}" x2="${sx(t * 100)}" y1="2" y2="${H - 18}" class="k-piir"/>`).join("");
+  const ridu = read.map((r, k) => {
+    const y = k * rida + 4, h = rida - 7, ym = y + h / 2 + 3.5;
+    let bar = "";
+    if (r.liik === "p") bar = `<rect x="${sx(r.b)}" y="${y}" width="${Math.max(0, sx(r.c) - sx(r.b))}" height="${h}" class="k-kadu"/><rect x="${sx(r.a)}" y="${y}" width="${Math.max(0, sx(r.b) - sx(r.a))}" height="${h}" class="k-pluss"/>`;
+    else if (r.liik === "k" || r.liik === "u") bar = `<rect x="${sx(r.a)}" y="${y}" width="${Math.max(0.5, sx(r.b) - sx(r.a))}" height="${h}" class="k-miinus"/>`;
+    else bar = `<rect x="${sx(0)}" y="${y}" width="${sx(r.b) - sx(0)}" height="${h}" class="${r.nimi === "Koht" ? "k-koht" : "k-summa"}"/>`;
+    // connector to the next row at the running total
+    const jargmine = read[k + 1], ots = r.liik === "k" ? r.a : r.liik === "u" ? koht * 100 : r.b;
+    const sild = jargmine
+      ? `<line x1="${sx(ots)}" x2="${sx(ots)}" y1="${y + h}" y2="${y + rida}" class="k-sild"/>` : "";
+    const eraldus = r.liik === "s" ? `<line x1="0" x2="${W}" y1="${y - 3.5}" y2="${y - 3.5}" class="k-eraldus"/>` : "";
+    return `${eraldus}<text x="0" y="${ym}" class="k-nimi${r.liik === "s" ? " g-tugev" : ""}">${r.nimi}</text>${bar}${sild}
+      <text x="${W}" y="${ym}" class="k-arv${r.liik === "s" ? " g-tugev" : ""}" text-anchor="end">${r.tekst}</text>`;
+  }).join("");
+  const telg = [0, 25, 50, 75, 100].map((t) => `<text x="${sx(t)}" y="${H - 4}" class="g-silt" text-anchor="middle">${t}</text>`).join("");
+  return `<svg class="g k-kosk" viewBox="0 0 ${W} ${H}" role="img" aria-label="Kuidas metsa hinne kokku tuleb">${piirid}${ridu}${telg}</svg>
+  <div class="g-legend"><span><i class="k-l-pluss"></i>saadud punktid</span><span><i class="k-l-kadu"></i>jääb saamata</span><span><i class="k-l-miinus"></i>kordaja võtab maha</span><span><i class="k-l-piir"></i>klassipiirid</span></div>`;
+}
+
 function naitaSelgitust(lnglat) {
   const i = rakk(lnglat[0] ?? lnglat.lng, lnglat[1] ?? lnglat.lat);
   if (i < 0 || olek.kiht.ilmapunkt[i] === 255) return;
@@ -675,7 +779,17 @@ function naitaSelgitust(lnglat) {
     ? `Täna alanud seened on korjatavad umbes <b>${kuupaev(aeg.kypseb)}</b>.`
     : aeg.kypseb == null ? "Liiga jahe – uued seened ei jõua enam küpseda." : `Täna uusi seeni peaaegu ei teki (${aeg.read.filter((r) => r.v < 0.4).map((r) => r.sona).join(", ")}).`;
 
-  const html = `
+  const ylevaade = olek.kaardiVaade === "graafikud";
+  const valik = `<div class="segment vaade-valik" role="group" aria-label="Kaardi vaade">
+      <button data-vaade="read"${ylevaade ? "" : ' class="aktiivne"'}>Read</button>
+      <button data-vaade="graafikud"${ylevaade ? ' class="aktiivne"' : ""}>Graafikud</button></div>`;
+  const ylevaadeHtml = `
+    ${tana ? `<h3 class="sel-h">Mets × seeneaeg</h3>
+    ${tasand(i, d, koht)}` : ""}
+    <h3 class="sel-h">${IKOON.mets}Kuidas metsa hinne tuleb</h3>
+    ${kosk(i, koht)}`;
+
+  const html = valik + (ylevaade ? ylevaadeHtml : `
     <div class="kaksik${tana ? "" : " yks"}">
       <div class="naitaja">
         <div class="n-pea">${IKOON.mets}Mets</div>
@@ -693,8 +807,8 @@ function naitaSelgitust(lnglat) {
     <ul class="omadused">${ribad.map(omadus).join("")}</ul>
 
     ${tana ? `<h3 class="sel-h">${IKOON.aeg}Seeneaeg – ilma mõju</h3>
-    <ul class="omadused">${seeneajaTegurid(d, p, j).map((r) => omadus({ ...r, nimi: TEGUR_AEG[r.nimi] })).join("")}</ul>
-
+    <ul class="omadused">${seeneajaTegurid(d, p, j).map((r) => omadus({ ...r, nimi: TEGUR_AEG[r.nimi] })).join("")}</ul>` : ""}`) + `
+    ${tana ? `
     <h4 class="g-h">Niiskus ja soojus selles metsas</h4>
     ${ilmaGraafik(d, p, j)}
 
@@ -714,6 +828,11 @@ function naitaSelgitust(lnglat) {
   const sisu = document.getElementById("selgitus");
   sisu.innerHTML = html;
   sisu.scrollTop = 0;
+  sisu.querySelectorAll(".vaade-valik button").forEach((nupp) => nupp.onclick = () => {
+    olek.kaardiVaade = nupp.dataset.vaade;
+    try { localStorage.setItem("siil-kaardivaade", olek.kaardiVaade); } catch (e) { /* private mode */ }
+    naitaSelgitust(lnglat);
+  });
   document.getElementById("sahtel").hidden = false;
   document.getElementById("parimad-kaart").style.visibility = "hidden";
   const tapp = document.createElement("div");
