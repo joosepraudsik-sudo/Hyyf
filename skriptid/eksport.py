@@ -151,6 +151,21 @@ def guide(site_names):
     }
 
 
+def alade_nimekiri():
+    """leht/andmed/alad.js: every exported area (file name and display name from its meta), so the
+    page can offer them in a menu. A plain script like the data files, so file:// works too."""
+    alad = []
+    for f in sorted(WEB.glob("*.js")):
+        if f.name == "alad.js":
+            continue
+        with open(f, encoding="utf-8") as fh:
+            m = re.search(r'"nimi":"([^"]*)"', fh.read(4096))   # meta comes first in the payload
+        if m:
+            alad.append({"fail": f.stem, "nimi": m.group(1)})
+    alad.sort(key=lambda a: (a["fail"] != "testala_5458", a["nimi"]))
+    (WEB / "alad.js").write_text("window.SIIL_ALAD = " + json.dumps(alad, ensure_ascii=False) + ";\n", "utf-8")
+
+
 def to_u8(a, scale=255):
     return np.round(np.clip(np.nan_to_num(a), 0, 1) * scale).astype(np.uint8)
 
@@ -272,6 +287,7 @@ def main(ala=TESTALA, punktid=ILMAPUNKTID, nimi="Testala 5458 (Põlvamaa)", fail
                "juhend": guide(site_names)}
     (WEB / f"{fail}.js").write_text(
         "window.SIIL = " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n", "utf-8")
+    alade_nimekiri()
 
     for f in sorted(WEB.iterdir()):
         print(f"  {f.name}: {f.stat().st_size / 1024:.0f} KB")

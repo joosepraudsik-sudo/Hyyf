@@ -978,11 +978,27 @@ document.querySelectorAll("#reziim button").forEach((b) => b.onclick = () => {
   peidaSelgitus();
   if (olek.meta) joonista();
 });
-document.querySelectorAll("#aluskaart button").forEach((b) => b.onclick = () => {
-  document.querySelectorAll("#aluskaart button").forEach((x) => x.classList.toggle("aktiivne", x === b));
+document.querySelectorAll("#aluskaart button[data-kiht]").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("#aluskaart button[data-kiht]").forEach((x) => x.classList.toggle("aktiivne", x === b));
   valiAluskaart(b.dataset.kiht);
 });
 document.getElementById("kiht-nupp").onclick = () => lulitaKiht(!olek.kihtNahtav);
+// area choice (andmed/alad.js, more than one exported area): reload the page with that area
+const alad = window.SIIL_ALAD || [];
+if (alad.length > 1) {
+  const osa = document.getElementById("alad");
+  osa.hidden = false;
+  for (const a of alad) {
+    const b = document.createElement("button");
+    b.textContent = a.nimi;
+    b.classList.toggle("aktiivne", a.fail === window.SIIL_VALIK);
+    b.onclick = () => {
+      try { localStorage.setItem("siil-ala", a.fail); } catch (e) { /* private mode: the URL is enough */ }
+      location.search = "?ala=" + a.fail;
+    };
+    osa.append(b);
+  }
+}
 // basemap menu: opens under its round button, closes on choice or outside click
 const aluskaartNupp = document.getElementById("aluskaart-nupp"), aluskaartMenyy = document.getElementById("aluskaart");
 aluskaartNupp.onclick = (e) => {

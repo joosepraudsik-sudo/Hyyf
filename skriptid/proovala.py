@@ -7,7 +7,7 @@ leht/andmed/<nimi>.js. The model runs on a wider window than is shown, so neighb
 
 Open the page with ?ala=<nimi>, e.g. http://localhost:8000/?ala=proov_589056_6602827
 
-Run: uv run python -I skriptid/proovala.py 59.55356 25.57488 [--kulg 1000] [--varu 400] [--nimi NIMI]
+Run: uv run python -I skriptid/proovala.py 59.55356 25.57488 [--kulg 1000] [--varu 400] [--nimi NIMI] [--silt "Hara (Lahemaa)"]
 """
 import argparse
 import sys
@@ -35,7 +35,8 @@ def main():
     ap.add_argument("lon", type=float)
     ap.add_argument("--kulg", type=int, default=1000, help="shown square, m")
     ap.add_argument("--varu", type=int, default=400, help="extra margin computed around it, m")
-    ap.add_argument("--nimi")
+    ap.add_argument("--nimi", help="file name, default proov_<E>_<N>")
+    ap.add_argument("--silt", help="name shown on the page")
     a = ap.parse_args()
 
     x, y = Transformer.from_crs("EPSG:4326", "EPSG:3301", always_xy=True).transform(a.lon, a.lat)
@@ -73,7 +74,7 @@ def main():
         ala.valjund / f"viljumine_{nimi}.csv", float_format="%.4f", index=False)
 
     print("5/5 Eksport lehele")
-    eksport.main(ala, punktid, nimi=f"Proovala {a.lat:.5f}, {a.lon:.5f}", fail=nimi, kast=kast)
+    eksport.main(ala, punktid, nimi=a.silt or f"Proovala {a.lat:.5f}, {a.lon:.5f}", fail=nimi, kast=kast)
     print(f"\nAva: http://localhost:8000/?ala={nimi}")
 
 

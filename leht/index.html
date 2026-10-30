@@ -33,6 +33,8 @@
         <svg viewBox="0 0 24 24"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/></svg>
       </button>
       <div id="aluskaart" class="menyy klaas" role="group" aria-label="Aluskaart" hidden>
+        <div id="alad" class="menyy-osa" hidden><span class="menyy-pealkiri">Ala</span></div>
+        <span class="menyy-pealkiri">Aluskaart</span>
         <button data-kiht="loodus" class="aktiivne">Looduskaart</button>
         <button data-kiht="topo">Topo</button>
         <button data-kiht="foto">Ortofoto</button>
@@ -93,11 +95,20 @@
   </dialog>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="andmed/alad.js"></script>
   <script>
-    // data file: the test sheet, or another exported area with ?ala=<name> (skriptid/proovala.py);
-    // a plain script tag, so the page also works from file://
-    const ala = (new URLSearchParams(location.search).get("ala") || "testala_5458").replace(/[^a-z0-9_]/gi, "");
-    document.write(`<script src="andmed/${ala}.js"><\/script>`);
+    // data file: ?ala=<name>, else the area chosen last time, else the first in andmed/alad.js
+    // (written by eksport.py); a plain script tag, so the page also works from file://
+    (() => {
+      const alad = window.SIIL_ALAD || [];
+      let ala = new URLSearchParams(location.search).get("ala");
+      try { ala = ala || localStorage.getItem("siil-ala"); } catch (e) {}
+      if (alad.length && !alad.some((a) => a.fail === ala)) ala = alad[0].fail;
+      ala = (ala || "testala_5458").replace(/[^a-z0-9_]/gi, "");
+      try { localStorage.setItem("siil-ala", ala); } catch (e) {}
+      window.SIIL_VALIK = ala;
+      document.write(`<script src="andmed/${ala}.js"><\/script>`);
+    })();
   </script>
   <script src="app.js"></script>
 </body>
