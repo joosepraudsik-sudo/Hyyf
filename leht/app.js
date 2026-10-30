@@ -259,20 +259,8 @@ function uuendaPaneel(kl, kohad) {
   const valitud = nupud.querySelector(".aktiivne");
   if (valitud && nupud.scrollWidth > nupud.clientWidth) nupud.scrollLeft = valitud.offsetLeft - nupud.clientWidth / 2 + valitud.clientWidth / 2;
 
-  // area per class
-  const ha = KLASSID[olek.reziim].map(() => 0);
-  for (let i = 0; i < kl.length; i++) if (kl[i] >= 0) ha[kl[i]] += meta.ruut_m ** 2 / 1e4;
-  const legend = document.getElementById("legend");
-  legend.innerHTML = KLASSID[olek.reziim].map(([nimi, c], j) =>
-    `<li><span class="lapp" style="background:${c};opacity:${Math.min(1, KLASSI_ALFA[j] + 0.25)}"></span><span>${nimi}</span><span class="arv">${Math.round(ha[j])} ha</span></li>`).join("");
-
-  const kv = document.getElementById("kokkuvote");
-  const paevaMarkus = "";   // the chosen day is already highlighted in the strip
-  if (!tana) kv.textContent = "Metsad, kus kasvukoht sobib kukeseenele – ilmast sõltumata.";
-  else if (ha[0] + ha[1] < 5 && ha[2] >= 50) kv.innerHTML = `${paevaMarkus}<b>Tagasihoidlik aeg.</b> Kõrge hindega kohti pole, võimalikke ${Math.round(ha[2])} ha. ${aegPohjus(paev)}`;
-  else if (ha[0] + ha[1] < 5) kv.innerHTML = `${paevaMarkus}<b>Kehv aeg.</b> ${aegPohjus(paev)}`;
-  else if (ha[0] + ha[1] < 100) kv.innerHTML = `${paevaMarkus}<b>Leidub üksikuid häid kohti</b> – kokku ${Math.round(ha[0] + ha[1])} ha. ${aegPohjus(paev)}`;
-  else kv.innerHTML = `${paevaMarkus}<b>Hea aeg – tasub minna.</b> Väga häid ja häid metsi kokku ${Math.round(ha[0] + ha[1])} ha.`;
+  olek.kl = kl;
+  uuendaKokkuvote();
 
   const ol = document.getElementById("parimad");
   ol.innerHTML = kohad.length ? "" : `<li class="tuhi">Häid kohti selle päeva kohta ei ole.</li>`;
@@ -290,16 +278,59 @@ function uuendaPaneel(kl, kohad) {
   });
 }
 
-// why is the whole day poor: the weakest weather effect of the last weeks (not today's weather)
-// for the most common forest class (fresh) at the centre point
+// grid cells inside the current map view (the grid is a slightly rotated rectangle: take the cell
+// range spanned by the view's corners, clipped to the grid)
+function vaateRakud() {
+  const { laius: W, korgus: H } = olek.meta, b = map.getBounds();
+  const nurgad = [b.getNorthWest(), b.getNorthEast(), b.getSouthEast(), b.getSouthWest()].map((c) => rakkUV(c.lng, c.lat));
+  const x0 = Math.max(0, Math.floor(Math.min(...nurgad.map((c) => c[0])) * W)), x1 = Math.min(W - 1, Math.ceil(Math.max(...nurgad.map((c) => c[0])) * W));
+  const y0 = Math.max(0, Math.floor(Math.min(...nurgad.map((c) => c[1])) * H)), y1 = Math.min(H - 1, Math.ceil(Math.max(...nurgad.map((c) => c[1])) * H));
+  const rakud = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const [lng, lat] = rakkLngLat(x + 0.5, y + 0.5);
+    if (b.contains([lng, lat])) rakud.push(y * W + x);
+  }
+  return rakud;
+}
+
+// day summary and legend areas for what is on screen: classes counted in the view, the reason
+// from the view's most common weather point and forest water class
+function uuendaKokkuvote() {
+  if (!olek.kl) return;
+  const { kl, meta, paev } = olek, tana = olek.reziim === "tana";
+  const ha = KLASSID[olek.reziim].map(() => 0);
+  const punktid = {}, klassiS = olek.klassid.map(() => 0);
+  for (const i of vaateRakud()) {
+    if (olek.kiht.ilmapunkt[i] === 255) continue;
+    if (kl[i] >= 0) ha[kl[i]] += meta.ruut_m ** 2 / 1e4;
+    punktid[olek.kiht.ilmapunkt[i]] = (punktid[olek.kiht.ilmapunkt[i]] || 0) + 1;
+    olek.klassid.forEach((c, j) => (klassiS[j] += olek.kiht["S" + c][i]));
+  }
+  const legend = document.getElementById("legend");
+  legend.innerHTML = KLASSID[olek.reziim].map(([nimi, c], j) =>
+    `<li><span class="lapp" style="background:${c};opacity:${Math.min(1, KLASSI_ALFA[j] + 0.25)}"></span><span>${nimi}</span><span class="arv">${Math.round(ha[j])} ha</span></li>`).join("");
+
+  const kv = document.getElementById("kokkuvote");
+  const p = Object.keys(punktid).length ? +Object.entries(punktid).reduce((a, b) => (b[1] > a[1] ? b : a))[0] : null;
+  const j = klassiS.indexOf(Math.max(...klassiS));
+  const pohjus = () => aegPohjus(paev, p, j);
+  if (!tana) kv.textContent = "Metsad, kus kasvukoht sobib kukeseenele – ilmast sõltumata.";
+  else if (p === null) kv.textContent = "Kaardi vaates pole hinnatud metsa.";
+  else if (ha[0] + ha[1] < 5 && ha[2] >= 50) kv.innerHTML = `<b>Tagasihoidlik aeg.</b> Kõrge hindega kohti pole, võimalikke ${Math.round(ha[2])} ha. ${pohjus()}`;
+  else if (ha[0] + ha[1] < 5) kv.innerHTML = `<b>Kehv aeg.</b> ${pohjus()}`;
+  else if (ha[0] + ha[1] < 100) kv.innerHTML = `<b>Leidub üksikuid häid kohti</b> – kokku ${Math.round(ha[0] + ha[1])} ha. ${pohjus()}`;
+  else kv.innerHTML = `<b>Hea aeg – tasub minna.</b> Väga häid ja häid metsi kokku ${Math.round(ha[0] + ha[1])} ha.`;
+}
+
+// why is the day poor: the weakest weather effect of the last weeks (not today's weather) at
+// weather point p for forest water class position j
 const AEG_POHJUS = {
   hooaeg: (q) => q < 0.05 ? "Hooaeg pole veel alanud – suvi pole piisavalt soe olnud." : "Seeneniidistik pole veel täies jõus.",
   niiskus: () => "Viimastel nädalatel pole niiskus uutele seentele sobinud.",
   soojus: () => "Viimastel nädalatel on olnud uutele seentele liiga jahe – hooaeg on lõppemas.",
   sailimine: () => "Jahedus ja öökülmad on seened rikkunud.",
 };
-function aegPohjus(d) {
-  const p = Math.floor(olek.vilj.ilmapunktid.length / 2), j = olek.klassid.indexOf(2);
+function aegPohjus(d, p, j) {
   if (T(d, p, j, F("indeks")) >= 0.3) return "";
   const nork = seeneajaTegurid(d, p, j).reduce((a, b) => (b.q < a.q ? b : a));
   if (nork.q < 0.6) return AEG_POHJUS[nork.nimi](nork.q);
@@ -312,12 +343,17 @@ const hinne = (v) => Math.round(v * 100);
 
 // ---------- explanation ----------
 
-function rakk(lng, lat) {
-  const { nurgad, laius, korgus } = olek.meta;
-  const [nw, ne, , sw] = nurgad;
+// position in the grid as fractions 0..1 (u east, v south); outside the grid gives values out of range
+function rakkUV(lng, lat) {
+  const [nw, ne, , sw] = olek.meta.nurgad;
   const ax = ne[0] - nw[0], ay = ne[1] - nw[1], bx = sw[0] - nw[0], by = sw[1] - nw[1];
   const dx = lng - nw[0], dy = lat - nw[1], det = ax * by - ay * bx;
-  const u = (dx * by - dy * bx) / det, v = (ax * dy - ay * dx) / det;
+  return [(dx * by - dy * bx) / det, (ax * dy - ay * dx) / det];
+}
+
+function rakk(lng, lat) {
+  const { laius, korgus } = olek.meta;
+  const [u, v] = rakkUV(lng, lat);
   if (u < 0 || u >= 1 || v < 0 || v >= 1) return -1;
   return Math.floor(v * korgus) * laius + Math.floor(u * laius);
 }
@@ -452,47 +488,71 @@ function seeneajaTegurid(d, p, j) {
   ];
 }
 
-// soil water of this forest (its own bucket) with daily rain, 4 weeks back and the forecast;
-function niiskusGraafik(d, p, j) {
+// moisture and warmth of this forest, 4 weeks back and the forecast, one panel each on a shared
+// time axis (different units, so not one y axis): soil water of its own bucket, and topsoil
+// temperature of this forest type with the 5-day mean air temperature, each with its optimum band
+function ilmaGraafik(d, p, j) {
   const v = olek.vilj, J = window.SIIL.juhend.aeg, aasta = v.kuupaevad[d].slice(0, 4);
   let a = d, b = d;
   while (a > 0 && d - a < 27 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
   while (b < v.kuupaevad.length - 1 && b - d < 10 && v.kuupaevad[b + 1].slice(0, 4) === aasta) b++;
-  const c = olek.klassid[j];
-  const W = 320, H = 132, pad = 6, n = Math.max(1, b - a), ylal = 14, alus = 84, rAlus = H - 16, rKorgus = 30;
-  const xs = (k) => pad + (k - a) / n * (W - 2 * pad), ys = (w) => alus - w * (alus - ylal);
-  const fw = F("w");
-  const tee = (jj) => { const r = []; for (let k = a; k <= b; k++) r.push(`${k > a ? "L" : "M"}${xs(k).toFixed(1)},${ys(T(k, p, jj, fw)).toFixed(1)}`); return r.join(""); };
-  // optimum band: where the moisture condition is fully met; above it too wet on wet sites
+  const c = olek.klassid[j], R = J.reziim[c];
+  const W = 320, H = 200, pad = 6, n = Math.max(1, b - a);
+  const N = [16, 70], S = [96, 174];   // panels: [top, bottom] in px
+  const xs = (k) => pad + (k - a) / n * (W - 2 * pad);
+  const paevad = [];
+  for (let k = a; k <= b; k++) paevad.push(k);
+  const tee = (f) => paevad.map((k, kk) => `${kk ? "L" : "M"}${xs(k).toFixed(1)},${f(k).toFixed(1)}`).join("");
+  const riba = (y0, y1, cls) => `<rect x="${pad}" y="${Math.min(y0, y1).toFixed(1)}" width="${W - 2 * pad}" height="${Math.abs(y1 - y0).toFixed(1)}" class="${cls}"/>`;
+
+  // moisture: relative storage 0..1
+  const yN = (w) => N[1] - Math.max(0, Math.min(1, w)) * (N[1] - N[0]);
+  const fw = F("w"), wv = (k) => T(k, p, j, fw);
   const opt = J.niiskus.filter(([, y]) => y >= 100).map(([x]) => x);
-  const marg = J.reziim[c].marg;
-  const mm = [];
-  for (let k = a; k <= b; k++) mm.push(ILM("sademed", k, p) || 0);
-  const mmMax = Math.max(10, ...mm);
-  const w2 = (W - 2 * pad) / (n + 1);
-  const ribad = mm.map((x, kk) => x < 0.2 ? "" : `<rect x="${(xs(a + kk) - w2 / 2 + 0.5).toFixed(1)}" y="${(rAlus - x / mmMax * rKorgus).toFixed(1)}" width="${Math.max(1, w2 - 1).toFixed(1)}" height="${(x / mmMax * rKorgus).toFixed(1)}" class="g-vihm${v.paeva_allikas[a + kk] === "prognoos" ? " g-vihm-prog" : ""}"/>`).join("");
+  const marg = R.marg < 90;
+
+  // warmth: topsoil of this forest type and the 5-day mean air temperature, C
+  const muld = (k) => T(k, p, j, F("mullatemp")) * v.mullatemp_skaala;
+  const ohk = (k) => { let s = 0, m = 0; for (let q = Math.max(0, k - J.algus_temp_aken + 1); q <= k; q++) { const t = ILM("temp", q, p); if (t != null) { s += t; m++; } } return m ? s / m : null; };
+  const temps = paevad.flatMap((k) => [muld(k), ohk(k)]).filter((t) => t != null);
+  const lo = Math.min(4, Math.floor(Math.min(...temps))), hi = Math.max(24, Math.ceil(Math.max(...temps)));
+  const yS = (t) => S[1] - (Math.max(lo, Math.min(hi, t)) - lo) / (hi - lo) * (S[1] - S[0]);
+  const tOpt = J.algus_temp.filter(([, y]) => y >= 100).map(([x]) => x);   // e.g. 14..22 C
+  const tMin = J.mulla_temp[Math.max(0, J.mulla_temp.findIndex(([, y]) => y > 0) - 1)][0];   // below: too cold
+  const ohkTee = paevad.filter((k) => ohk(k) != null);
+
   const progI = v.paeva_allikas.indexOf("prognoos", a);
   const progAlgus = progI >= 0 && progI <= b ? xs(progI - 0.5) : null;
   const kp = (k) => `${+v.kuupaevad[k].slice(8)}.${v.kuupaevad[k].slice(5, 7)}`;
   const tx = xs(d);
-  const nimi = (cc) => J.reziim[cc].nimi;
-  return `<svg class="g" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mulla veevaru selles metsas ja vihm">
-    ${progAlgus != null ? `<rect x="${progAlgus}" y="2" width="${W - pad - progAlgus}" height="${rAlus - 2}" class="g-prognoosiala"/><text x="${(progAlgus + W - pad) / 2}" y="10" class="g-silt" text-anchor="middle">prognoos</text>` : ""}
-    <rect x="${pad}" y="${ys(opt.at(-1))}" width="${W - 2 * pad}" height="${ys(opt[0]) - ys(opt.at(-1))}" class="g-opt"/>
-    ${marg < 90 ? `<rect x="${pad}" y="${ys(1)}" width="${W - 2 * pad}" height="${ys(opt.at(-1)) - ys(1)}" class="g-marg"/>` : ""}
-    <line x1="${pad}" x2="${W - pad}" y1="${alus}" y2="${alus}" class="g-joon"/>
-    <path d="${tee(j)}" class="g-vesi"/>
-    <line x1="${tx}" x2="${tx}" y1="2" y2="${rAlus}" class="g-tana"/>
-    <circle cx="${tx}" cy="${ys(T(d, p, j, fw))}" r="4.5" class="g-tapp g-tapp-vesi"/>
-    ${ribad}
-    <line x1="${pad}" x2="${W - pad}" y1="${rAlus}" y2="${rAlus}" class="g-joon"/>
-    <text x="${pad}" y="${rAlus - rKorgus + 6}" class="g-silt">${Math.round(mmMax)} mm</text>
+  const soojusLause = R.soojus > 0 ? "Kuiv liivamuld soojeneb päikese käes kiiresti ja jahtub sügisel kiiresti."
+    : R.soojus < 0 ? "Märg muld soojeneb aeglaselt ja jääb suvel jahedamaks." : "";
+  return `<svg class="g" viewBox="0 0 ${W} ${H}" role="img" aria-label="Mulla niiskus ja soojus selles metsas">
+    ${progAlgus != null ? `<rect x="${progAlgus}" y="2" width="${W - pad - progAlgus}" height="${S[1] - 2}" class="g-prognoosiala"/><text x="${(progAlgus + W - pad) / 2}" y="10" class="g-silt" text-anchor="middle">prognoos</text>` : ""}
+    <text x="${pad}" y="${N[0] - 4}" class="g-silt g-tugev">Niiskus</text>
+    ${riba(yN(opt[0]), yN(opt.at(-1)), "g-opt")}
+    ${marg ? riba(yN(opt.at(-1)), yN(1), "g-marg") : ""}
+    <line x1="${pad}" x2="${W - pad}" y1="${N[1]}" y2="${N[1]}" class="g-joon"/>
+    <path d="${tee((k) => yN(wv(k)))}" class="g-vesi"/>
+    <circle cx="${tx}" cy="${yN(wv(d))}" r="4" class="g-tapp g-tapp-vesi"/>
+
+    <text x="${pad}" y="${S[0] - 4}" class="g-silt g-tugev">Soojus</text>
+    ${riba(yS(tOpt[0]), yS(Math.min(hi, tOpt.at(-1))), "g-opt")}
+    <line x1="${pad}" x2="${W - pad}" y1="${yS(tMin)}" y2="${yS(tMin)}" class="g-joon"/>
+    <line x1="${pad}" x2="${W - pad}" y1="${S[1]}" y2="${S[1]}" class="g-joon"/>
+    ${ohkTee.length > 1 ? `<path d="${ohkTee.map((k, kk) => `${kk ? "L" : "M"}${xs(k).toFixed(1)},${yS(ohk(k)).toFixed(1)}`).join("")}" class="g-ohk"/>` : ""}
+    <path d="${tee((k) => yS(muld(k)))}" class="g-muld"/>
+    <circle cx="${tx}" cy="${yS(muld(d))}" r="4" class="g-tapp g-tapp-muld"/>
+    <text x="${pad + 2}" y="${yS(tOpt[0]) - 3}" class="g-silt g-halo">${tOpt[0]} °C</text>
+    <text x="${pad + 2}" y="${yS(tMin) - 3}" class="g-silt g-halo">${tMin} °C</text>
+
+    <line x1="${tx}" x2="${tx}" y1="${N[0]}" y2="${S[1]}" class="g-tana"/>
     <text x="${pad}" y="${H - 3}" class="g-silt">${kp(a)}</text>
     <text x="${tx}" y="${H - 3}" class="g-silt g-tugev" text-anchor="middle">${v.kuupaevad[d] === v.tana ? "täna" : kp(d)}</text>
     ${b > d + 2 ? `<text x="${W - pad}" y="${H - 3}" class="g-silt" text-anchor="end">${kp(b)}</text>` : ""}
   </svg>
-  <div class="g-legend"><span><i class="g-l-vesi"></i>see mets (${nimi(c)}, ${J.reziim[c].kp} mm)</span><span><i class="g-l-opt"></i>parim niiskus</span>${marg < 90 ? `<span><i class="g-l-marg"></i>liiga märg</span>` : ""}<span><i class="g-l-vihm"></i>vihm päevas</span></div>
-  <p class="vaike g-markus">${VEE_KIRJELDUS[c] || ""} Sama vihm täidab väikese veevaruga metsa kiiremini ja see ka kuivab kiiremini – seepärast on iga metsa jaoks sobiv vihmahulk erinev.</p>`;
+  <div class="g-legend"><span><i class="g-l-vesi"></i>mulla veevaru (${R.nimi}, ${R.kp} mm)</span><span><i class="g-l-muld"></i>selle metsa muld</span><span><i class="g-l-ohk"></i>õhk (${J.algus_temp_aken} p keskmine)</span><span><i class="g-l-opt"></i>parim</span>${marg ? `<span><i class="g-l-marg"></i>liiga märg</span>` : ""}</div>
+  <p class="vaike g-markus">${VEE_KIRJELDUS[c] || ""} ${soojusLause}</p>`;
 }
 
 const pk = (x) => String(Math.round(x));
@@ -609,11 +669,10 @@ function naitaSelgitust(lnglat) {
     <ul class="omadused">${ribad.map(omadus).join("")}</ul>
 
     ${tana ? `<h3 class="sel-h">${IKOON.aeg}Seeneaeg – ilma mõju</h3>
-    <p class="vaike sel-sissejuhatus">Kas seeneniidistik on valmis, kas niiskus ja soojus lasid viimastel nädalatel uusi seeni tekkida ja kui hästi need püsivad.</p>
     <ul class="omadused">${seeneajaTegurid(d, p, j).map((r) => omadus({ ...r, nimi: TEGUR_AEG[r.nimi] })).join("")}</ul>
 
-    <h4 class="g-h">Mulla niiskus selles metsas</h4>
-    ${niiskusGraafik(d, p, j)}
+    <h4 class="g-h">Niiskus ja soojus selles metsas</h4>
+    ${ilmaGraafik(d, p, j)}
 
     <h4 class="g-h">Seente hulk</h4>
     ${graafik(i, d, p, j)}
@@ -873,6 +932,7 @@ map.once("style.load", () => {
   valiKuupaev(tana >= 0 ? tana : Math.max(viimaneMoot, olek.vilj.kuupaevad.length - 4));
 });
 
+map.on("moveend", () => olek.meta && uuendaKokkuvote());
 map.on("mousemove", (e) => {
   if (!olek.meta) return;
   const i = rakk(e.lngLat.lng, e.lngLat.lat);

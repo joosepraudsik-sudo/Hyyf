@@ -205,18 +205,19 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .sel-h { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em;
          color: var(--tint-2); margin: 20px 0 4px; padding-top: 14px; border-top: 1px solid var(--joon); }
 .sel-h svg { width: 17px; height: 17px; }
-.sel-sissejuhatus { margin: 0 0 4px; }
 .g-h { font-size: 13.5px; margin: 18px 0 6px; }
 .g-vesi { fill: none; stroke: #2f6f8f; stroke-width: 2.5; }
 .g-tapp.g-tapp-vesi { fill: #2f6f8f; }
-.g-vihm { fill: #8fb4cc; stroke: none; }
-.g-vihm-prog { opacity: .55; }
+.g-muld { fill: none; stroke: #c0632f; stroke-width: 2.5; }
+.g-ohk { fill: none; stroke: var(--tint-3); stroke-width: 1.25; opacity: .8; }
+.g-tapp.g-tapp-muld { fill: #c0632f; }
 .g-opt { fill: #2f7a4f; opacity: .10; stroke: none; }
 .g-legend i.g-l-opt { background: rgba(47, 122, 79, .22); }
 .g-legend i.g-l-marg { background: rgba(164, 67, 42, .18); }
 .g-marg { fill: #a4432a; opacity: .08; stroke: none; }
 .g-legend i.g-l-vesi { height: 3px; background: #2f6f8f; vertical-align: 2px; }
-.g-legend i.g-l-vihm { background: #8fb4cc; }
+.g-legend i.g-l-muld { height: 3px; background: #c0632f; vertical-align: 2px; }
+.g-legend i.g-l-ohk { height: 2px; background: var(--tint-3); vertical-align: 2px; }
 .g-markus { margin: 8px 0 0; }
 svg.g { width: 100%; height: auto; display: block; overflow: visible; }
 .g-prognoosiala { fill: var(--tint); opacity: .05; stroke: none; }
@@ -226,6 +227,7 @@ svg.g { width: 100%; height: auto; display: block; overflow: visible; }
 .g-tana { stroke: var(--tint-2); stroke-width: 1; }
 .g-tapp { fill: var(--roheline); stroke: var(--pind); stroke-width: 2; }
 .g-silt { fill: var(--tint-3); font-size: 10px; stroke: none; }
+.g-halo { stroke: #fff; stroke-width: 3px; paint-order: stroke; stroke-linejoin: round; }
 .g-tugev { fill: var(--tint); font-weight: 700; }
 .g-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 6px; font-size: 11px; color: var(--tint-2); }
 .g-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
