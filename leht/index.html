@@ -93,7 +93,12 @@
   </dialog>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="andmed/testala_5458.js"></script>
+  <script>
+    // data file: the test sheet, or another exported area with ?ala=<name> (skriptid/proovala.py);
+    // a plain script tag, so the page also works from file://
+    const ala = (new URLSearchParams(location.search).get("ala") || "testala_5458").replace(/[^a-z0-9_]/gi, "");
+    document.write(`<script src="andmed/${ala}.js"><\/script>`);
+  </script>
   <script src="app.js"></script>
 </body>
 </html>

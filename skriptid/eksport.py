@@ -14,6 +14,9 @@ index.html is opened straight from disk (file:// blocks fetch):
   mullad     soil table referenced by the "muld" bands: short description
   viljumine  dates, points, base64 uint8 [day][point][class][indeks, niiskus, w, hooaeg, temperatuur]
 
+Other areas (e.g. a small test window, skriptid/proovala.py) call main() with their own area,
+weather points and an optional inner box to cut out (computed with a margin against edge effects).
+
 Run: uv run python -I skriptid/eksport.py
 """
 import base64
@@ -29,13 +32,12 @@ from pyproj import Transformer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import parameetrid as P  # noqa: E402
+from ala import TESTALA  # noqa: E402
 from kasvukoht import forest_share, stand_table  # noqa: E402
+from lae_testala import ILMAPUNKTID  # noqa: E402
 from soojuskaart import BLOCK, MIN_FOREST, RES, nearest_point, neighbourhood  # noqa: E402
 
 BASE = Path(__file__).resolve().parent.parent
-AREA = BASE / "andmed" / "testala_5458"
-GRID = AREA / "ruudustik"
-OUT = BASE / "valjund"
 WEB = BASE / "leht" / "andmed"
 CLASSES = sorted(P.VEEREZIIM)
 MONTHS = (6, 11)   # June..November (the season ends in October, forecast may reach into November)
@@ -153,13 +155,15 @@ def to_u8(a, scale=255):
     return np.round(np.clip(np.nan_to_num(a), 0, 1) * scale).astype(np.uint8)
 
 
-def main():
+def main(ala=TESTALA, punktid=ILMAPUNKTID, nimi="Testala 5458 (Põlvamaa)", fail="testala_5458", kast=None):
+    """kast = (x0, y0, x1, y1) in L-EST97: export only this part (snapped to 50 m cells)."""
     WEB.mkdir(parents=True, exist_ok=True)
-    suit, d = read(OUT / "sobivus_5458.tif")
+    OUT, GRID, AREA = ala.valjund, ala.grid, ala.dir
+    suit, d = read(OUT / f"sobivus_{ala.nimi}.tif")
     t = d.transform
-    regime, _ = read(OUT / "veereziim_5458.tif")
+    regime, _ = read(OUT / f"veereziim_{ala.nimi}.tif")
     forest = ~np.isnan(suit)
-    with rasterio.open(OUT / "tegurid_5458.tif") as d:
+    with rasterio.open(OUT / f"tegurid_{ala.nimi}.tif") as d:
         factors = {d.descriptions[i]: d.read(i + 1) for i in range(d.count)}
     cover, _ = read(GRID / "katvus.tif")
     twi, _ = read(GRID / "twi.tif")
@@ -170,12 +174,21 @@ def main():
     s_c = [neighbourhood(np.where(forest & (regime == c), suit, 0), forest) for c in CLASSES]
     shown = np.isfinite(s_c[0])
     h, w = shown.shape
-    names, point_idx = nearest_point(t, suit.shape)
+    names, point_idx = nearest_point(t, suit.shape, punktid)
     centre = point_idx[BLOCK // 2::BLOCK, BLOCK // 2::BLOCK][:h, :w]
 
     # per-cell explanation layers (unsmoothed block means / modes)
-    stand_mode = block_mode(stand_id, forest)
-    soil_mode = block_mode(soil_idx, forest)
+    # cut-out in 50 m cells (the neighbourhood above is computed on the whole area)
+    by0, by1, bx0, bx1 = 0, h, 0, w
+    if kast:
+        cell = BLOCK * RES
+        bx0, bx1 = int((kast[0] - t.c) // cell), int(-(-(kast[2] - t.c) // cell))
+        by0, by1 = int((t.f - kast[3]) // cell), int(-(-(t.f - kast[1]) // cell))
+        bx0, by0, bx1, by1 = max(bx0, 0), max(by0, 0), min(bx1, w), min(by1, h)
+    loige = lambda a: a[by0:by1, bx0:bx1]
+
+    stand_mode = loige(block_mode(stand_id, forest))
+    soil_mode = loige(block_mode(soil_idx, forest))
     stand_ids = np.unique(stand_mode[stand_mode > 0])
     soil_rows = np.unique(soil_mode[soil_mode > 0])
     stand_ref = np.searchsorted(stand_ids, stand_mode) + 1
@@ -183,23 +196,23 @@ def main():
     stand_ref[stand_mode == 0] = 0
     soil_ref[soil_mode == 0] = 0
 
-    layers = {f"S{c}": to_u8(s) for c, s in zip(CLASSES, s_c)}
-    layers["ilmapunkt"] = np.where(shown, centre, 255).astype(np.uint8)
+    layers = {f"S{c}": to_u8(loige(s)) for c, s in zip(CLASSES, s_c)}
+    layers["ilmapunkt"] = loige(np.where(shown, centre, 255)).astype(np.uint8)
     for k, a in factors.items():
-        layers[f"t_{k}"] = to_u8(block_mean(a, forest))
-    layers["katvus"] = to_u8(block_mean(cover, forest), 100)
-    layers["twi"] = np.round(np.clip(np.nan_to_num(block_mean(twi, forest)), 0, 25.5) * 10).astype(np.uint8)
-    layers["metsaosa"] = to_u8(block_mean(forest_share(cover, RES), forest), 100)
-    mire_m, _ = read(OUT / "soo_kaugus_5458.tif")
-    layers["soo_10m"] = np.round(np.clip(np.nan_to_num(block_mean(mire_m, forest)) / 10, 0, 255)).astype(np.uint8)
-    layers["klass"] = block_mode(regime.astype(np.int64), forest).astype(np.uint8)
+        layers[f"t_{k}"] = to_u8(loige(block_mean(a, forest)))
+    layers["katvus"] = to_u8(loige(block_mean(cover, forest)), 100)
+    layers["twi"] = np.round(np.clip(np.nan_to_num(loige(block_mean(twi, forest))), 0, 25.5) * 10).astype(np.uint8)
+    layers["metsaosa"] = to_u8(loige(block_mean(forest_share(cover, RES), forest)), 100)
+    mire_m, _ = read(OUT / f"soo_kaugus_{ala.nimi}.tif")
+    layers["soo_10m"] = np.round(np.clip(np.nan_to_num(loige(block_mean(mire_m, forest))) / 10, 0, 255)).astype(np.uint8)
+    layers["klass"] = loige(block_mode(regime.astype(np.int64), forest)).astype(np.uint8)
     for name, ref in [("eraldis", stand_ref), ("muld", soil_ref)]:
         layers[f"{name}_lo"] = (ref & 255).astype(np.uint8)
         layers[f"{name}_hi"] = (ref >> 8).astype(np.uint8)
     data = np.stack(list(layers.values()))
 
     # stand and soil tables
-    st = stand_table().loc[stand_ids]
+    st = stand_table(ala).loc[stand_ids]
     kl = json.loads((AREA / "metsaregister" / "kl_kasvukoht.json").read_text("utf-8"))
     site_names = {f["properties"]["kood"]: f["properties"]["kirjeldus"] for f in kl["features"]}
     stands = [{"koosseis": r.koosseis, "vanus": None if pd.isna(r.vanus_a) else int(r.vanus_a),
@@ -208,11 +221,13 @@ def main():
     soils = [soil_text(r.Sif1, r.Lihtloimis) for r in soil.itertuples()]
 
     to_ll = Transformer.from_crs("EPSG:3301", "EPSG:4326", always_xy=True)
-    x0, y1 = t.c, t.f
+    shown = loige(shown)
+    h, w = shown.shape
+    x0, y1 = t.c + bx0 * BLOCK * RES, t.f - by0 * BLOCK * RES
     x1, y0 = x0 + w * BLOCK * RES, y1 - h * BLOCK * RES
     corners = [to_ll.transform(x, y) for x, y in [(x0, y1), (x1, y1), (x1, y0), (x0, y0)]]
     meta = {
-        "nimi": "Testala 5458 (Põlvamaa)",
+        "nimi": nimi,
         "laius": w, "korgus": h, "ruut_m": BLOCK * RES,
         "nurgad": [[round(lon, 6), round(lat, 6)] for lon, lat in corners],  # NW, NE, SE, SW
         "kihid": list(layers),
@@ -224,7 +239,7 @@ def main():
         "min_mets": MIN_FOREST,
     }
 
-    fr = pd.read_csv(OUT / "viljumine_5458.csv", parse_dates=["kuupaev"])
+    fr = pd.read_csv(OUT / f"viljumine_{ala.nimi}.csv", parse_dates=["kuupaev"])
     fr = fr[fr["kuupaev"].dt.month.between(*MONTHS)]
     cube = fr.pivot_table(index="kuupaev", columns=["punkt", "klass"], values=TIME_COLS)
     days = cube.index
@@ -255,9 +270,7 @@ def main():
     payload = {"meta": meta, "rakud": base64.b64encode(data.tobytes()).decode("ascii"),
                "eraldised": stands, "mullad": soils, "viljumine": fruiting,
                "juhend": guide(site_names)}
-    for old in WEB.glob("*_5458.*"):
-        old.unlink()
-    (WEB / "testala_5458.js").write_text(
+    (WEB / f"{fail}.js").write_text(
         "window.SIIL = " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n", "utf-8")
 
     for f in sorted(WEB.iterdir()):

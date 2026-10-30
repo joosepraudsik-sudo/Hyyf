@@ -36,10 +36,10 @@ def read(path):
         return d.read(1), d.transform
 
 
-def nearest_point(transform, shape):
+def nearest_point(transform, shape, punktid=ILMAPUNKTID):
     to3301 = Transformer.from_crs("EPSG:4326", "EPSG:3301", always_xy=True)
-    names = list(ILMAPUNKTID)
-    xy = np.array([to3301.transform(lon, lat) for lat, lon in ILMAPUNKTID.values()])
+    names = list(punktid)
+    xy = np.array([to3301.transform(lon, lat) for lat, lon in punktid.values()])
     x = transform.c + (np.arange(shape[1]) + 0.5) * transform.a
     y = transform.f + (np.arange(shape[0]) + 0.5) * transform.e
     d2 = (x[None, None, :] - xy[:, 0, None, None]) ** 2 + (y[None, :, None] - xy[:, 1, None, None]) ** 2
