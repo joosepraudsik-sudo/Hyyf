@@ -28,12 +28,13 @@ def interp(x, table):
     return np.interp(x, xs, ys)
 
 
-def load_weather(point, wx_dir=WX):
-    """Daily weather: temperature from ERA5-Land, precipitation and ET0 from ERA5."""
-    def daily(name):
-        d = pd.DataFrame(json.loads((wx_dir / f"{name}_{point}.json").read_text("utf-8"))["daily"])
+def load_weather(point, wx_dir=WX, era5_point=None):
+    """Daily weather: temperature from ERA5-Land, precipitation and ET0 from ERA5
+    (era5_point: name of the coarser ERA5 file, default the same point)."""
+    def daily(name, pt):
+        d = pd.DataFrame(json.loads((wx_dir / f"{name}_{pt}.json").read_text("utf-8"))["daily"])
         return d.set_index(pd.to_datetime(d.pop("time")))
-    land, era5 = daily("era5land"), daily("era5")
+    land, era5 = daily("era5land", point), daily("era5", era5_point or point)
     wx = pd.DataFrame({
         "t": land["temperature_2m_mean"],
         "tmin": land["temperature_2m_min"],

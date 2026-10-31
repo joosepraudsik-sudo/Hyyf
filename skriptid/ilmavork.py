@@ -1,0 +1,269 @@
+"""Weather grid for all of Estonia: the ERA5-Land 0.1 deg grid (about 11 x 6 km).
+
+Each 10 m forest cell belongs to the nearest grid node. Node id = round(lat * 10) * 1000 +
+round(lon * 10), e.g. 58.2 N 27.1 E -> 582271. Precipitation and ET0 come from ERA5 (0.25 deg,
+Open-Meteo has none for era5_land), so each node also has the nearest ERA5 node.
+
+  ruudud     rewrite valjund/eesti/ilmaruut_<leht>.tif and list the nodes with forest:
+             andmed/eesti/ilm/punktid.json  {node: {lat, lon, era5, lahtreid}}
+  lae        resumable download (Open-Meteo, development only): ERA5-Land and ERA5 from --algus,
+             only the missing days are fetched again; then the forecast for every node.
+             Paced under the free limit (10 000 calls a day): the first full download takes ~2 days,
+             later runs only add the latest days. Stops at the daily limit, run again tomorrow.
+  viljumine  fruiting model for every node x water regime class -> valjund/eesti/viljumine.csv.gz
+
+Run: uv run python -I skriptid/ilmavork.py [ruudud|lae|viljumine|koik] [--algus 2026-01-01]
+"""
+import argparse
+import json
+import sys
+import time
+from datetime import date, timedelta
+from pathlib import Path
+
+import numpy as np
+import rasterio
+from pyproj import Transformer
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ala import BASE  # noqa: E402
+
+ILM = BASE / "andmed" / "eesti" / "ilm"
+PUNKTID = ILM / "punktid.json"
+VALJUND = BASE / "valjund" / "eesti"
+SAMM = 10                        # node lookup on a 10 x 10 cell (100 m) grid, then repeated
+PROGNOOS_PAEVI = 10
+TUNNI_KAAL = 4500                # API call weight per hour we allow ourselves (limit 5000)
+MINUTI_KAAL = 500                # ... and per minute (limit 600)
+
+_to_wgs = Transformer.from_crs(3301, 4326, always_xy=True)
+
+
+def soolm(lat, lon):
+    return np.rint(np.asarray(lat) * 10).astype(np.int64) * 1000 + np.rint(np.asarray(lon) * 10).astype(np.int64)
+
+
+def soolme_koht(node):
+    return (node // 1000) / 10, (node % 1000) / 10
+
+
+def era5_soolm(lat, lon):
+    """Nearest ERA5 0.25 deg node as a file name part, e.g. '5825_2700'."""
+    return f"{round(lat * 4) * 25}_{round(lon * 4) * 25}"
+
+
+def ilmaruut(transform, height, width):
+    """Weather node id of every cell of a north-up grid (uint32)."""
+    ch, cw = -(-height // SAMM), -(-width // SAMM)
+    x = transform.c + (np.arange(cw) + 0.5) * SAMM * transform.a
+    y = transform.f + (np.arange(ch) + 0.5) * SAMM * transform.e
+    lon, lat = _to_wgs.transform(*np.meshgrid(x, y))
+    coarse = soolm(lat, lon).astype(np.uint32)
+    return np.repeat(np.repeat(coarse, SAMM, 0), SAMM, 1)[:height, :width]
+
+
+# ---------- ruudud ----------
+
+def ruudud():
+    counts = {}
+    files = sorted(VALJUND.glob("sobivus_*.tif"))
+    for i, f in enumerate(files, 1):
+        leht = f.stem.split("_")[1]
+        with rasterio.open(f) as d:
+            forest = ~np.isnan(d.read(1))
+            prof = d.profile
+        ids = np.where(forest, ilmaruut(prof["transform"], prof["height"], prof["width"]), 0).astype(np.uint32)
+        with rasterio.open(VALJUND / f"ilmaruut_{leht}.tif", "w",
+                           **dict(prof, dtype="uint32", nodata=0, compress="deflate")) as d:
+            d.write(ids, 1)
+        u, n = np.unique(ids[forest], return_counts=True)
+        for k, c in zip(u.tolist(), n.tolist()):
+            counts[k] = counts.get(k, 0) + c
+        if i % 50 == 0:
+            print(f"  {i}/{len(files)} lehte")
+    out = {}
+    for k in sorted(counts):
+        lat, lon = soolme_koht(k)
+        out[str(k)] = {"lat": lat, "lon": lon, "era5": era5_soolm(lat, lon), "lahtreid": counts[k]}
+    ILM.mkdir(parents=True, exist_ok=True)
+    PUNKTID.write_text(json.dumps(out, indent=0), encoding="utf-8")
+    print(f"Ilmapunkte metsaga {len(out)}, ERA5 punkte {len({v['era5'] for v in out.values()})}")
+
+
+# ---------- lae ----------
+
+class Paevalimiit(Exception):
+    pass
+
+
+_kasutatud = []   # (time, weight) of requests in the last hour
+
+
+def _oota(kaal):
+    while True:
+        now = time.time()
+        _kasutatud[:] = [(t, w) for t, w in _kasutatud if now - t < 3600]
+        minute = sum(w for t, w in _kasutatud if now - t < 60)
+        if not _kasutatud or (sum(w for _, w in _kasutatud) + kaal <= TUNNI_KAAL and minute + kaal <= MINUTI_KAAL):
+            break
+        time.sleep(5)
+    _kasutatud.append((time.time(), kaal))
+
+
+def _paring(url, params, kaal):
+    from lae_testala import session
+    for k in range(8):
+        _oota(kaal)
+        try:
+            r = session.get(url, params=params, timeout=300)
+        except Exception as e:  # noqa: BLE001
+            print(f"  viga ({e.__class__.__name__}), proovin uuesti")
+            time.sleep(30 * (k + 1))
+            continue
+        if r.status_code == 429:
+            reason = r.json().get("reason", "")
+            if "Daily" in reason:
+                raise Paevalimiit(reason)
+            print(f"  limiit: {reason} - ootan")
+            time.sleep(600 if "Hourly" in reason else 65)
+            continue
+        r.raise_for_status()
+        out = r.json()
+        return out if isinstance(out, list) else [out]
+    raise RuntimeError(f"päring ebaõnnestus: {url}")
+
+
+def _kaal(n_loc, n_var, n_days):
+    # Open-Meteo counts > 10 variables or > 14 days of one location as several calls
+    return n_loc * max(1.0, n_var / 10) * max(1.0, n_days / 14)
+
+
+def _viimane(path, key):
+    """Data of a stored file without the trailing missing days, and its last date."""
+    if not path.exists():
+        return None, None
+    d = json.loads(path.read_text("utf-8"))["daily"]
+    ok = [i for i, v in enumerate(d[key]) if v is not None]
+    if not ok:
+        return None, None
+    n = ok[-1] + 1
+    d = {k: v[:n] for k, v in d.items()}
+    return d, date.fromisoformat(d["time"][-1])
+
+
+def lae_arhiiv(nodes, model, variables, key, algus, lopp, batch=10):
+    """nodes: {file name part: (lat, lon)}. Appends only the days after the last stored one."""
+    url = "https://archive-api.open-meteo.com/v1/archive"
+    prefix = model.replace("_", "")
+    todo = {}
+    for name in nodes:
+        _, last = _viimane(ILM / f"{prefix}_{name}.json", key)
+        start = algus if last is None else last + timedelta(days=1)
+        if start <= lopp:
+            todo.setdefault(start, []).append(name)
+    total = sum(len(v) for v in todo.values())
+    print(f"  {model}: {len(nodes)} punkti, laadida {total}")
+    done = 0
+    for start, names in sorted(todo.items()):
+        days = (lopp - start).days + 1
+        for i in range(0, len(names), batch):
+            part = names[i:i + batch]
+            res = _paring(url, {
+                "latitude": ",".join(str(nodes[n][0]) for n in part),
+                "longitude": ",".join(str(nodes[n][1]) for n in part),
+                "start_date": start.isoformat(), "end_date": lopp.isoformat(),
+                "daily": variables, "models": model, "timezone": "Europe/Tallinn",
+            }, _kaal(len(part), variables.count(",") + 1, days))
+            for name, r in zip(part, res):
+                path = ILM / f"{prefix}_{name}.json"
+                old, _ = _viimane(path, key)
+                if old:
+                    r["daily"] = {k: old[k] + r["daily"][k] for k in r["daily"]}
+                path.write_text(json.dumps(r), encoding="utf-8")
+            done += len(part)
+            print(f"  {model} {start}: {done}/{total}")
+
+
+def lae_prognoos(nodes, batch=50):
+    from lae_testala import FORECAST
+    url = "https://api.open-meteo.com/v1/forecast"
+    names = list(nodes)
+    days = 14 + PROGNOOS_PAEVI + 1
+    for i in range(0, len(names), batch):
+        part = names[i:i + batch]
+        res = _paring(f"{url}?{FORECAST}", {
+            "latitude": ",".join(str(nodes[n][0]) for n in part),
+            "longitude": ",".join(str(nodes[n][1]) for n in part),
+            "past_days": 14, "forecast_days": PROGNOOS_PAEVI + 1, "timezone": "Europe/Tallinn",
+        }, _kaal(len(part), 6, days))
+        for name, r in zip(part, res):
+            (ILM / f"prognoos_{name}.json").write_text(json.dumps(r), encoding="utf-8")
+        print(f"  prognoos: {min(i + batch, len(names))}/{len(names)}")
+
+
+def lae(algus):
+    from lae_testala import DAILY_ERA5, DAILY_LAND
+    pts = json.loads(PUNKTID.read_text("utf-8"))
+    land = {k: (v["lat"], v["lon"]) for k, v in pts.items()}
+    era5 = {}
+    for v in pts.values():
+        a, b = v["era5"].split("_")
+        era5[v["era5"]] = (int(a) / 100, int(b) / 100)
+    lopp = date.today() - timedelta(days=1)
+    try:
+        lae_arhiiv(era5, "era5", DAILY_ERA5, "precipitation_sum", algus, lopp)
+        lae_arhiiv(land, "era5_land", DAILY_LAND, "temperature_2m_mean", algus, lopp)
+        lae_prognoos(land)
+    except Paevalimiit as e:
+        print(f"\nPäevane limiit täis ({e}). Käivita homme uuesti, laadimine jätkub samast kohast.")
+        sys.exit(1)
+
+
+# ---------- viljumine ----------
+
+def viljumine():
+    import pandas as pd
+    import parameetrid as P
+    from viljumine import load_weather, simulate
+
+    pts = json.loads(PUNKTID.read_text("utf-8"))
+    rows, puudu = [], []
+    t0 = time.time()
+    for i, (node, v) in enumerate(pts.items(), 1):
+        if not (ILM / f"era5land_{node}.json").exists() or not (ILM / f"era5_{v['era5']}.json").exists():
+            puudu.append(node)
+            continue
+        wx = load_weather(node, ILM, era5_point=v["era5"])
+        for regime in P.VEEREZIIM:
+            d = simulate(wx, regime)
+            d["allikas"] = wx["allikas"]
+            d.insert(0, "klass", regime)
+            d.insert(0, "punkt", int(node))
+            rows.append(d)
+        if i % 100 == 0:
+            print(f"  {i}/{len(pts)} punkti, {time.time() - t0:.0f} s")
+    out = pd.concat(rows).rename_axis("kuupaev").reset_index()
+    VALJUND.mkdir(parents=True, exist_ok=True)
+    out.to_csv(VALJUND / "viljumine.csv.gz", float_format="%.4f", index=False)
+    print(f"valjund/eesti/viljumine.csv.gz: {len(out)} rida, punkte {out['punkt'].nunique()}"
+          f"{f', ilmata {len(puudu)}' if puudu else ''}")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("mis", nargs="?", default="koik", choices=["ruudud", "lae", "viljumine", "koik"])
+    ap.add_argument("--algus", default="2026-01-01", help="first day of the weather history")
+    a = ap.parse_args()
+    if a.mis in ("ruudud", "koik"):
+        print("Ilmaruudud")
+        ruudud()
+    if a.mis in ("lae", "koik"):
+        print("Ilm (Open-Meteo, ainult arenduseks)")
+        lae(date.fromisoformat(a.algus))
+    if a.mis in ("viljumine", "koik"):
+        print("Viljumine")
+        viljumine()
+
+
+if __name__ == "__main__":
+    main()

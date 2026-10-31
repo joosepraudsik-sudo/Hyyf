@@ -26,6 +26,13 @@ ILMAPUNKTID = {
     "edel": (58.165, 27.075), "loe": (58.235, 27.080), "keskel": (58.197, 27.147),
     "kirre": (58.230, 27.220), "kagu": (58.160, 27.215),
 }
+DAILY_LAND = ("temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
+              "et0_fao_evapotranspiration,soil_moisture_0_to_7cm_mean,"
+              "soil_moisture_7_to_28cm_mean,soil_temperature_0_to_7cm_mean")
+# Open-Meteo has no precipitation / ET0 for era5_land -> take those from ERA5 (~31 km)
+DAILY_ERA5 = "precipitation_sum,rain_sum,snowfall_sum,et0_fao_evapotranspiration"
+FORECAST = ("daily=temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
+            "et0_fao_evapotranspiration&hourly=soil_temperature_6cm")
 # Test sheet CHM files used so far (other years exist for some sheets)
 TESTALA_CHM = [r".*kevad_2023\.tif", r".*suvi_2021\.tif"]
 
@@ -98,13 +105,8 @@ def lae_muld():
 def lae_ilm(target: Path, punktid: dict, algus="2023-01-01", lopp="2026-10-20", prognoos_paevi=10):
     """ERA5-Land temperature + ERA5 precipitation/ET0 (Open-Meteo archive, development only),
     then the last 14 days and a forecast (default 10 days) from the forecast API (always refreshed)."""
-    daily = ("temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
-             "et0_fao_evapotranspiration,soil_moisture_0_to_7cm_mean,"
-             "soil_moisture_7_to_28cm_mean,soil_temperature_0_to_7cm_mean")
-    # Open-Meteo has no precipitation / ET0 for era5_land -> take those from ERA5 (~31 km)
-    daily_era5 = "precipitation_sum,rain_sum,snowfall_sum,et0_fao_evapotranspiration"
     for name, (lat, lon) in punktid.items():
-        for model, variables in [("era5_land", daily), ("era5", daily_era5)]:
+        for model, variables in [("era5_land", DAILY_LAND), ("era5", DAILY_ERA5)]:
             url = ("https://archive-api.open-meteo.com/v1/archive"
                    f"?latitude={lat}&longitude={lon}&start_date={algus}&end_date={lopp}"
                    f"&daily={variables}&models={model}&timezone=Europe%2FTallinn")
@@ -114,8 +116,7 @@ def lae_ilm(target: Path, punktid: dict, algus="2023-01-01", lopp="2026-10-20", 
     for name, (lat, lon) in punktid.items():
         url = ("https://api.open-meteo.com/v1/forecast"
                f"?latitude={lat}&longitude={lon}&past_days=14&forecast_days={prognoos_paevi + 1}"
-               "&daily=temperature_2m_mean,temperature_2m_min,temperature_2m_max,precipitation_sum,"
-               "et0_fao_evapotranspiration&hourly=soil_temperature_6cm&timezone=Europe%2FTallinn")
+               f"&{FORECAST}&timezone=Europe%2FTallinn")
         fetch(url, target / f"prognoos_{name}.json", refresh=True)
         time.sleep(1)
 

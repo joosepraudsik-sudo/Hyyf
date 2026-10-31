@@ -97,6 +97,7 @@ uv run python -I skriptid/lae_testala.py   # andmed/ (u 1 GB)
 uv run python -I skriptid/lae_eesti.py     # andmed/eesti/ kogu Eesti (u 20 GB, jätkatav; metsaregister|koosseis|korgus|koik)
 uv run python -I skriptid/ruudustik.py     # andmed/testala_5458/ruudustik/*.tif, 10 m
 uv run python -I skriptid/eesti.py         # kogu Eesti ruudustik + kasvukoht lehtede kaupa (u 1 h, jätkatav; [leht ...] [--too 4])
+uv run python -I skriptid/ilmavork.py      # kogu Eesti ilmavõrk, ilm (Open-Meteo, jätkatav) ja viljumine; [ruudud|lae|viljumine]
 uv run python -I skriptid/kasvukoht.py     # valjund/sobivus, veereziim, ilmaruut, tegurid
 uv run python -I skriptid/kaart.py         # valjund/*.png
 uv run python -I skriptid/viljumine.py     # valjund/viljumine_5458.csv (punkt x klass x päev)
@@ -134,7 +135,11 @@ Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobiv
 - Mullakaart on juba kogu Eesti GDB.
 - `eesti.py`: iga metsaga 1:20 000 leht arvutatakse 500 m varuga (TWI, sidusus 300 m, soo kaugus) ja lõigatakse lehe piirini: `andmed/eesti/lehed/<leht>/ruudustik/` (katvus, korgus, twi, eraldis, muld + muld.csv; dtm ja kalle jäetakse ära) ja `valjund/eesti/<kiht>_<leht>.tif` (sobivus, veereziim, ilmaruut, soo_kaugus, tegurid), logi `valjund/eesti/logi/<leht>.txt`. Kõrgus ühisest kaustast (`Ala.korgus_kaust`, failid valitakse lehe numbri järgi). Koosseis ühes tabelis `eraldis_element.pkl` (kõik read, ka täpselt samade väärtustega – need on eri `sys_id`-ga päris read).
 - Tulemus (31.10.2026): 556 lehte, vigu 0, metsa 22 085 km² (49 % maismaast); Koht ≥ 0,85 2,3 %, 0,80–0,85 2,1 %, 0,65–0,80 7,9 %, 0,50–0,65 14,6 %, alla 0,50 73 % metsast; veerežiim kuiv 8 / värske 53 / niiske 19 / märg 6 / kuivend. turvas 14 %. Lehtede piiril õmblust pole (naaberlehtede servaveergude vahe 0,037 vs lehe sees 0,041). Testala 5458 sisemuses sobivus sama mis testalal (keskmine vahe 0,0001). Mahud: `valjund/eesti` 3,4 GB, `andmed/eesti` 19 GB.
-- Veel tegemata: kogu Eesti ilm (ilmaruudud on alles 2,5 km kohatäide), viljumine ja eksport lehele (PMTiles).
+- Ilmavõrk (`ilmavork.py`, 31.10.2026): ERA5-Landi 0,1° sõlmed (u 11 × 6 km), iga 10 m metsalahter lähima sõlme külge (otsing 100 m sammuga). Sõlme id = round(lat·10)·1000 + round(lon·10), nt 582271. Metsaga sõlmi 836; sademed ja ET0 lähimast ERA5 0,25° sõlmest (162). `kasvukoht.py` kirjutab sama id `ilmaruut_<ala>.tif`-i (testala sobivus bitt-biti sama).
+  - `ilmavork.py ruudud` kirjutab `valjund/eesti/ilmaruut_<leht>.tif` ümber ja `andmed/eesti/ilm/punktid.json`.
+  - `ilmavork.py lae [--algus 2026-01-01]`: Open-Meteo, jätkatav, laeb ainult puuduvad päevad juurde (lõpu tühjad päevad lõigatakse ära), siis prognoos. Tempo ≤ 500 kaalu/min ja 4500/h; esimene täislaadimine u 25 000 kaalu = u 2,5 päeva (päevalimiit 10 000, skript peatub ja jätkab järgmisel käivitusel). Hiljem igapäevaselt u 1500 kaalu.
+  - `ilmavork.py viljumine` → `valjund/eesti/viljumine.csv.gz` (sõlm × klass × päev).
+- Veel tegemata: eksport lehele (PMTiles), tootmisallikad (MEPS, CDS).
 
 ## Järgmised sammud
 

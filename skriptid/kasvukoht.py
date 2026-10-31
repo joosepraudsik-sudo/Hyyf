@@ -3,7 +3,7 @@
 Reads the grid layers from ruudustik.py and forest register attributes, writes to valjund/:
   sobivus_<ala>.tif     suitability 0..1 (NaN outside forest register stands)
   veereziim_<ala>.tif   water regime class 1 dry, 2 fresh, 3 moist, 4 wet, 5 drained peat (0 = none)
-  ilmaruut_<ala>.tif    weather cell id (placeholder 2.5 km L-EST97 grid: row * 1000 + col)
+  ilmaruut_<ala>.tif    weather node id, ERA5-Land 0.1 deg grid (ilmavork.py)
   tegurid_<ala>.tif     one band per factor score, for inspection
 
 Run: uv run python -I skriptid/kasvukoht.py
@@ -23,6 +23,7 @@ from scipy.signal import fftconvolve
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import parameetrid as P  # noqa: E402
 from ala import TESTALA  # noqa: E402
+from ilmavork import ilmaruut  # noqa: E402
 
 YEAR = 2026
 
@@ -208,10 +209,7 @@ def run(ala=TESTALA):
     drained = np.where(forest, st["kuivendatud"].to_numpy()[row], False)
     regime = np.where(drained & ((regime == 3) | (regime == 4)), regime - 1, regime).astype(np.uint8)
 
-    t = profile["transform"]
-    cols = (t.c + (np.arange(profile["width"]) + 0.5) * t.a - 360000) // 2500
-    rows = (t.f + (np.arange(profile["height"]) + 0.5) * t.e - 6370000) // 2500
-    weather = (rows[:, None] * 1000 + cols[None, :]).astype(np.uint32)
+    weather = ilmaruut(profile["transform"], profile["height"], profile["width"])
 
     base = dict(profile, count=1, compress="deflate")
     with rasterio.open(out / f"sobivus_{ala.nimi}.tif", "w", **dict(base, dtype="float32", nodata=np.nan)) as d:
