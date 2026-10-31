@@ -96,6 +96,7 @@ uv sync
 uv run python -I skriptid/lae_testala.py   # andmed/ (u 1 GB)
 uv run python -I skriptid/lae_eesti.py     # andmed/eesti/ kogu Eesti (u 20 GB, jätkatav; metsaregister|koosseis|korgus|koik)
 uv run python -I skriptid/ruudustik.py     # andmed/testala_5458/ruudustik/*.tif, 10 m
+uv run python -I skriptid/eesti.py         # kogu Eesti ruudustik + kasvukoht lehtede kaupa (u 1 h, jätkatav; [leht ...] [--too 4])
 uv run python -I skriptid/kasvukoht.py     # valjund/sobivus, veereziim, ilmaruut, tegurid
 uv run python -I skriptid/kaart.py         # valjund/*.png
 uv run python -I skriptid/viljumine.py     # valjund/viljumine_5458.csv (punkt x klass x päev)
@@ -131,6 +132,9 @@ Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobiv
 - Kõrgus ainult metsaga lehtedele: **DTM 5 m** 1:10 000 lehe kaupa (DTM 1 m oleks kogu Eestile u 150 GB). CHM: lehe uusim ja uusim suvine (lehestikuga).
 - `ruudustik.py` võtab DTM-i `DTM_MUSTRID` järgi (1 m, puudumisel 5 m); mõlemad keskmistatakse 10 m ruudule enne kallet ja TWI-d. Testalal 1 m vs 5 m (31.10.2026): DTM ja kalle samad, TWI keskmine vahe 0,008 (korr 0,997), sobivus sama, Koht ≥ 0,85 kattuvus 99,9 % – TWI optimum 7,3–10 kehtib edasi.
 - Mullakaart on juba kogu Eesti GDB.
+- `eesti.py`: iga metsaga 1:20 000 leht arvutatakse 500 m varuga (TWI, sidusus 300 m, soo kaugus) ja lõigatakse lehe piirini: `andmed/eesti/lehed/<leht>/ruudustik/` (katvus, korgus, twi, eraldis, muld + muld.csv; dtm ja kalle jäetakse ära) ja `valjund/eesti/<kiht>_<leht>.tif` (sobivus, veereziim, ilmaruut, soo_kaugus, tegurid), logi `valjund/eesti/logi/<leht>.txt`. Kõrgus ühisest kaustast (`Ala.korgus_kaust`, failid valitakse lehe numbri järgi). Koosseis ühes tabelis `eraldis_element.pkl` (kõik read, ka täpselt samade väärtustega – need on eri `sys_id`-ga päris read).
+- Tulemus (31.10.2026): 556 lehte, vigu 0, metsa 22 085 km² (49 % maismaast); Koht ≥ 0,85 2,3 %, 0,80–0,85 2,1 %, 0,65–0,80 7,9 %, 0,50–0,65 14,6 %, alla 0,50 73 % metsast; veerežiim kuiv 8 / värske 53 / niiske 19 / märg 6 / kuivend. turvas 14 %. Lehtede piiril õmblust pole (naaberlehtede servaveergude vahe 0,037 vs lehe sees 0,041). Testala 5458 sisemuses sobivus sama mis testalal (keskmine vahe 0,0001). Mahud: `valjund/eesti` 3,4 GB, `andmed/eesti` 19 GB.
+- Veel tegemata: kogu Eesti ilm (ilmaruudud on alles 2,5 km kohatäide), viljumine ja eksport lehele (PMTiles).
 
 ## Järgmised sammud
 

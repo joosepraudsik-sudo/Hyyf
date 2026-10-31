@@ -32,7 +32,7 @@ from rasterio.warp import reproject
 from scipy.ndimage import uniform_filter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from ala import BASE, TESTALA  # noqa: E402
+from ala import BASE, TESTALA, lehed_10k, lehed_20k  # noqa: E402
 
 RES = 10
 CRS = "EPSG:3301"
@@ -77,10 +77,13 @@ def mosaic(g, files, transform_fn=None):
     return out
 
 
-def chm_files(folder):
-    """Per sheet: the newest CHM and the newest leaf-on (summer) CHM, falling back to the newest."""
+def chm_files(folder, lehed=None):
+    """Per sheet: the newest CHM and the newest leaf-on (summer) CHM, falling back to the newest.
+    lehed: only these 1:20 000 sheets (a shared nationwide folder holds all of them)."""
     by_sheet = defaultdict(list)
     for f in folder.glob("*chm*.tif"):
+        if lehed is not None and f.name.split("_chm")[0] not in lehed:
+            continue
         m = re.search(r"(\d{4})\.tif$", f.name)
         by_sheet[f.name.split("_chm")[0]].append((int(m.group(1)) if m else 0, f))
     newest, leaf_on = [], []
@@ -148,9 +151,10 @@ def flow_accumulation(filled):
     return np.array(acc).reshape(h, w)
 
 
-def dtm_files(folder):
+def dtm_files(folder, lehed=None):
+    """DTM tiles of the first available resolution; lehed: only these 1:10 000 sheets."""
     for pattern in DTM_MUSTRID:
-        files = sorted(folder.glob(pattern))
+        files = sorted(f for f in folder.glob(pattern) if lehed is None or f.name.split("_dtm")[0] in lehed)
         if files:
             return files
     return []
@@ -170,17 +174,17 @@ def terrain(g, files):
 def build(ala=TESTALA):
     g = grid_of(ala)
     g.out.mkdir(parents=True, exist_ok=True)
-    korgus = ala.dir / "korgus"
+    korgus = ala.korgus
 
     print("DTM, kalle, TWI")
-    dtm, kalle, twi = terrain(g, dtm_files(korgus))
+    dtm, kalle, twi = terrain(g, dtm_files(korgus, set(lehed_10k(ala))))
     write(g, "dtm.tif", dtm, np.nan)
     write(g, "kalle.tif", kalle, np.nan)
     write(g, "twi.tif", twi, np.nan)
 
     print("Vorastik (CHM)")
     trees = lambda a: np.where(np.isnan(a), np.nan, (a > 5).astype(np.float32))
-    newest, leaf_on = chm_files(korgus)
+    newest, leaf_on = chm_files(korgus, set(lehed_20k(ala)))
     h_new, h_leaf = mosaic(g, newest), mosaic(g, leaf_on)
     c_new, c_leaf = mosaic(g, newest, trees), mosaic(g, leaf_on, trees)
     # leaf-on (summer) cover is better for deciduous trees; the newest scan catches newer clearcuts

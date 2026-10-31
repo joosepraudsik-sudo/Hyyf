@@ -19,10 +19,15 @@ class Ala:
     y1: int
     kaust: str           # data folder under andmed/
     valjund_alam: str = ""
+    korgus_kaust: str = ""  # shared height data folder under andmed/ (default: <dir>/korgus)
 
     @property
     def dir(self) -> Path:
         return BASE / "andmed" / self.kaust
+
+    @property
+    def korgus(self) -> Path:
+        return BASE / "andmed" / self.korgus_kaust if self.korgus_kaust else self.dir / "korgus"
 
     @property
     def grid(self) -> Path:
