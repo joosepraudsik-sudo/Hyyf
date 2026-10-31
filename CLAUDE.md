@@ -128,7 +128,8 @@ Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobiv
 ## Kogu Eesti andmed (`lae_eesti.py`)
 
 - Metsaregister 1:20 000 lehtede kaupa (`andmed/eesti/metsaregister/lehed/<leht>.geojson`, serva eraldised mõlemal lehel, `lehed.json` = eraldiste arv lehel; tühjad lehed faili ei saa). Koosseis kogu kihina WFS 2.0 lehekülgedena (`eraldis_element/osa_NNNN.json`, 16 384 rida, `sortBy=sys_id`; kokku 6,8 mln rida).
-- Kõrgus ainult metsaga lehtedele: **DTM 5 m** 1:10 000 lehe kaupa (DTM 1 m oleks kogu Eestile u 150 GB) – `ruudustik.py` loeb praegu `*_dtm_1m.tif`, tuleb kohandada. CHM: lehe uusim ja uusim suvine (lehestikuga).
+- Kõrgus ainult metsaga lehtedele: **DTM 5 m** 1:10 000 lehe kaupa (DTM 1 m oleks kogu Eestile u 150 GB). CHM: lehe uusim ja uusim suvine (lehestikuga).
+- `ruudustik.py` võtab DTM-i `DTM_MUSTRID` järgi (1 m, puudumisel 5 m); mõlemad keskmistatakse 10 m ruudule enne kallet ja TWI-d. Testalal 1 m vs 5 m (31.10.2026): DTM ja kalle samad, TWI keskmine vahe 0,008 (korr 0,997), sobivus sama, Koht ≥ 0,85 kattuvus 99,9 % – TWI optimum 7,3–10 kehtib edasi.
 - Mullakaart on juba kogu Eesti GDB.
 
 ## Järgmised sammud

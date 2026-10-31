@@ -1,6 +1,7 @@
 """Build the common 10 m grid (EPSG:3301) for an area (default: the test sheet, see ala.py).
 
-Inputs (<area>/korgus, <area>/metsaregister, andmed/eesti): DTM 1 m tiles, CHM per sheet,
+Inputs (<area>/korgus, <area>/metsaregister, andmed/eesti): DTM tiles (1 m, or 5 m where 1 m is
+missing, e.g. nationwide), CHM per sheet,
 forest stands, soil map.
 Outputs (<area>/ruudustik/):
   dtm.tif       mean elevation, m
@@ -35,6 +36,8 @@ from ala import BASE, TESTALA  # noqa: E402
 
 RES = 10
 CRS = "EPSG:3301"
+# DTM tiles in order of preference; both are averaged onto the 10 m grid
+DTM_MUSTRID = ("*_dtm_1m.tif", "*_dtm_5m.tif")
 
 
 def grid_of(ala):
@@ -145,20 +148,35 @@ def flow_accumulation(filled):
     return np.array(acc).reshape(h, w)
 
 
+def dtm_files(folder):
+    for pattern in DTM_MUSTRID:
+        files = sorted(folder.glob(pattern))
+        if files:
+            return files
+    return []
+
+
+def terrain(g, files):
+    """Elevation, slope (degrees) and TWI on the 10 m grid."""
+    dtm = mosaic(g, files)
+    gy, gx = np.gradient(dtm.astype(np.float64), RES)
+    tan_b = np.hypot(gx, gy)
+    kalle = np.degrees(np.arctan(tan_b)).astype(np.float32)
+    acc = flow_accumulation(fill_depressions(np.nan_to_num(dtm, nan=np.nanmin(dtm))))
+    twi = np.log(acc * RES / np.maximum(tan_b, 0.001)).astype(np.float32)
+    return dtm, kalle, twi
+
+
 def build(ala=TESTALA):
     g = grid_of(ala)
     g.out.mkdir(parents=True, exist_ok=True)
     korgus = ala.dir / "korgus"
 
     print("DTM, kalle, TWI")
-    dtm = mosaic(g, sorted(korgus.glob("*_dtm_1m.tif")))
+    dtm, kalle, twi = terrain(g, dtm_files(korgus))
     write(g, "dtm.tif", dtm, np.nan)
-    gy, gx = np.gradient(dtm.astype(np.float64), RES)
-    tan_b = np.hypot(gx, gy)
-    write(g, "kalle.tif", np.degrees(np.arctan(tan_b)).astype(np.float32), np.nan)
-    acc = flow_accumulation(fill_depressions(np.nan_to_num(dtm, nan=np.nanmin(dtm))))
-    twi = np.log(acc * RES / np.maximum(tan_b, 0.001))
-    write(g, "twi.tif", twi.astype(np.float32), np.nan)
+    write(g, "kalle.tif", kalle, np.nan)
+    write(g, "twi.tif", twi, np.nan)
 
     print("Vorastik (CHM)")
     trees = lambda a: np.where(np.isnan(a), np.nan, (a > 5).astype(np.float32))
