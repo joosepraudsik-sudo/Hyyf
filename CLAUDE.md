@@ -94,6 +94,7 @@ Peremeespuu (mänd parim, kuusk ja kask segus head), metsa vanus (noor kuni valm
 ```
 uv sync
 uv run python -I skriptid/lae_testala.py   # andmed/ (u 1 GB)
+uv run python -I skriptid/lae_eesti.py     # andmed/eesti/ kogu Eesti (u 20 GB, jätkatav; metsaregister|koosseis|korgus|koik)
 uv run python -I skriptid/ruudustik.py     # andmed/testala_5458/ruudustik/*.tif, 10 m
 uv run python -I skriptid/kasvukoht.py     # valjund/sobivus, veereziim, ilmaruut, tegurid
 uv run python -I skriptid/kaart.py         # valjund/*.png
@@ -123,6 +124,12 @@ Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobiv
 - Skriptid on ala-põhised (`skriptid/ala.py`: `TESTALA`, `punkti_ala()`); `ruudustik.build(ala)`, `kasvukoht.run(ala)`, `lae_testala.lae_korgus/lae_metsaregister/lae_ilm` töötavad suvalise ala peal. Testala tulemus on refaktoreerimise järel bitt-biti sama.
 - `skriptid/proovala.py LAT LON [--kulg 1000] [--varu 400] [--nimi NIMI]`: väike proovala ühe punkti ümber (vaikimisi 1 × 1 km). Laeb andmed kausta `andmed/proov/<nimi>`, arvutab mudeli 400 m varuga (metsamassiivi ja soo kauguse servaefektide vastu), ilm ühe punkti järgi alates 2025, ja ekspordib keskmise ruudu faili `leht/andmed/<nimi>.js`. `--silt` annab alale lehel näidatava nime. `eksport.py` kirjutab iga kord ka `leht/andmed/alad.js` (kõik eksporditud alad); leht näitab neid aluskaardi menüüs jaotises "Ala" ja jätab valiku meelde (localStorage), `?ala=<nimi>` valib otse, muidu esimene (testala). `eksport.main(ala, punktid, nimi, fail, kast)` on ala-põhine; testala tulemus jäi bitt-biti samaks.
 - `skriptid/kontroll.py`: loeb `andmed/leiud/leiud.csv` (gitist väljas), teeb iga leiu ümber 3 × 3 km ala, jooksutab sama mudeli ja võrdleb hinnet leiukuupäeval (punkt ja parim 200 m raadiuses). Tulemus `valjund/kontroll/kontroll_leiud.csv`. Leide kasutatakse ainult kontrolliks, mitte parameetrite seadmiseks.
+
+## Kogu Eesti andmed (`lae_eesti.py`)
+
+- Metsaregister 1:20 000 lehtede kaupa (`andmed/eesti/metsaregister/lehed/<leht>.geojson`, serva eraldised mõlemal lehel, `lehed.json` = eraldiste arv lehel; tühjad lehed faili ei saa). Koosseis kogu kihina WFS 2.0 lehekülgedena (`eraldis_element/osa_NNNN.json`, 16 384 rida, `sortBy=sys_id`; kokku 6,8 mln rida).
+- Kõrgus ainult metsaga lehtedele: **DTM 5 m** 1:10 000 lehe kaupa (DTM 1 m oleks kogu Eestile u 150 GB) – `ruudustik.py` loeb praegu `*_dtm_1m.tif`, tuleb kohandada. CHM: lehe uusim ja uusim suvine (lehestikuga).
+- Mullakaart on juba kogu Eesti GDB.
 
 ## Järgmised sammud
 
