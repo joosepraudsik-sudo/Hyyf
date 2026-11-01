@@ -40,9 +40,12 @@ def read(ala, name):
 
 # ---------- forest stands ----------
 
-def stand_table(ala=TESTALA):
-    st = gpd.read_file(ala.dir / "metsaregister" / "eraldis.geojson", ignore_geometry=True)
-    el = pd.DataFrame(json.loads((ala.dir / "metsaregister" / "eraldis_element.json").read_text("utf-8")))
+def stand_table(ala=TESTALA, st=None, el=None):
+    """st, el: stand attributes and composition rows (default: read from the area's folder)."""
+    if st is None:
+        st = gpd.read_file(ala.dir / "metsaregister" / "eraldis.geojson", ignore_geometry=True)
+        el = pd.DataFrame(json.loads((ala.dir / "metsaregister" / "eraldis_element.json").read_text("utf-8")))
+    el = el.copy()
     el["score"] = el["puuliik_kood"].map(P.PUULIIK).fillna(P.PUULIIK_MUU)
 
     def layer(rinne):

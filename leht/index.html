@@ -125,7 +125,9 @@
       ala = (ala || "testala_5458").replace(/[^a-z0-9_]/gi, "");
       try { localStorage.setItem("hyyf-ala", ala); } catch (e) {}
       window.HYYF_VALIK = ala;
-      document.write(`<script src="andmed/${ala}.js"><\/script>`);
+      // all of Estonia: files loaded on demand by app.js (needs a web server, not file://)
+      if (ala === "eesti" && location.protocol !== "file:") window.HYYF_EESTI = "andmed/eesti/";
+      else document.write(`<script src="andmed/${ala === "eesti" ? "testala_5458" : ala}.js"><\/script>`);
     })();
   </script>
   <script src="app.js"></script>

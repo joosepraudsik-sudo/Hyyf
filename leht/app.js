@@ -46,20 +46,164 @@ const canvas = document.createElement("canvas");
 
 // ---------- data ----------
 
-function lae() {
-  const S = window.HYYF;
-  const meta = S.meta;
-  const rakud = Uint8Array.from(atob(S.rakud), (c) => c.charCodeAt(0));
-  const n = meta.laius * meta.korgus;
+const NONE = 65535;          // no weather point: cell not shown
+const Z_LEHT = 11;           // from this zoom on the 50 m sheets are drawn (all of Estonia), below it the overview
+const LEHTI_MALUS = 60;      // sheets kept in memory
+const EESTI = window.HYYF_EESTI;   // "andmed/eesti/" when the whole country is chosen (eksport_eesti.py)
+
+// A grid of cells: one small area, one 10 km sheet with `varu` cells of its neighbours around it
+// (only for the smoothed drawing), or the overview of Estonia. The inner part (Wi x Hi) is placed on
+// the map by its corners (NW, NE, SE, SW), the overview exactly in Web Mercator (`merc`).
+function vork(o) {
+  const G = Object.assign({ varu: 0, kiht: null, info: null }, o);
+  G.Wi = G.laius - 2 * G.varu;
+  G.Hi = G.korgus - 2 * G.varu;
+  G.n = G.laius * G.korgus;
+  if (G.merc) {
+    const { x0, y1, ruut_m: c } = G.merc;
+    G.uv = (lng, lat) => { const [x, y] = merc(lng, lat); return [(x - x0) / (c * G.Wi), (y1 - y) / (c * G.Hi)]; };
+    G.lngLat = (x, y) => unmerc(x0 + x * c, y1 - y * c);
+  } else {
+    const [nw, ne, , sw] = G.nurgad;
+    const ax = ne[0] - nw[0], ay = ne[1] - nw[1], bx = sw[0] - nw[0], by = sw[1] - nw[1], det = ax * by - ay * bx;
+    G.uv = (lng, lat) => { const dx = lng - nw[0], dy = lat - nw[1]; return [(dx * by - dy * bx) / det, (ax * dy - ay * dx) / det]; };
+    G.lngLat = (x, y) => { const u = x / G.Wi, v = y / G.Hi; return [nw[0] + u * ax + v * bx, nw[1] + u * ay + v * by]; };
+  }
+  const xs = G.nurgad.map((c) => c[0]), ys = G.nurgad.map((c) => c[1]);
+  G.bbox = [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+  return G;
+}
+const R_MAA = 6378137;
+const merc = (lng, lat) => [R_MAA * lng * Math.PI / 180, R_MAA * Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360))];
+const unmerc = (x, y) => [x / R_MAA * 180 / Math.PI, (2 * Math.atan(Math.exp(y / R_MAA)) - Math.PI / 2) * 180 / Math.PI];
+// distance in metres between two [lng, lat] (short distances)
+const kaugus = (a, b) => Math.hypot((a[0] - b[0]) * 111320 * Math.cos(a[1] * Math.PI / 180), (a[1] - b[1]) * 110540);
+
+// cell of grid G at a map position: index into its layers, -1 outside the inner part
+function rakkG(G, lng, lat) {
+  const [u, v] = G.uv(lng, lat);
+  if (u < 0 || u >= 1 || v < 0 || v >= 1) return -1;
+  return (Math.floor(v * G.Hi) + G.varu) * G.laius + Math.floor(u * G.Wi) + G.varu;
+}
+// inner cell coordinates (x east, y south) of index i
+const xy = (G, i) => [i % G.laius - G.varu, Math.floor(i / G.laius) - G.varu];
+// area of one cell in ha: the overview counts only its good 50 m cells
+const haRakk = (G, i) => (G.yle ? G.kiht.rakke[i] * 0.25 : G.ruut_m ** 2 / 1e4);
+
+const b64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+function jaga(baidid, nimed, n) {
   const kiht = {};
-  meta.kihid.forEach((k, i) => (kiht[k] = rakud.subarray(i * n, (i + 1) * n)));
-  const v = S.viljumine;
-  const aeg = Uint8Array.from(atob(v.andmed), (c) => c.charCodeAt(0));
+  nimed.forEach((k, i) => (kiht[k] = baidid.subarray(i * n, (i + 1) * n)));
+  return kiht;
+}
+
+function seaIlm(v, aeg) {
   // "today" is the viewer's date when the data covers it, not the day the data was exported
   const kohalik = new Date().toLocaleDateString("sv-SE");
   if (v.kuupaevad.includes(kohalik)) v.tana = kohalik;
-  Object.assign(olek, { meta, n, kiht, vilj: v, aeg, eraldised: S.eraldised, mullad: S.mullad,
-                        klassid: Object.keys(meta.klassid).map(Number) });
+  Object.assign(olek, { vilj: v, aeg });
+}
+
+// one area in a script file (window.HYYF): one grid with its own weather and explanation data
+function laeAla() {
+  const S = window.HYYF, meta = S.meta;
+  const kiht = jaga(b64(S.rakud), meta.kihid, meta.laius * meta.korgus);
+  const info = { kiht, eraldised: S.eraldised, mullad: S.mullad };
+  kiht.ilmapunkt = Uint16Array.from(kiht.ilmapunkt, (p) => (p === 255 ? NONE : p));
+  olek.ala = vork({ id: "ala", laius: meta.laius, korgus: meta.korgus, ruut_m: meta.ruut_m, nurgad: meta.nurgad, kiht, info });
+  seaIlm(S.viljumine, b64(S.viljumine.andmed));
+  Object.assign(olek, { meta, klassid: Object.keys(meta.klassid).map(Number) });
+}
+
+// gzip files of andmed/eesti, unpacked here (any static host serves them as they are)
+async function laeGz(url, json = false) {
+  const r = await fetch(url);
+  if (!r.ok) throw new Error(`${url}: ${r.status}`);
+  let b = new Uint8Array(await r.arrayBuffer());
+  if (b[0] === 0x1f && b[1] === 0x8b) {
+    b = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
+  }
+  return json ? JSON.parse(new TextDecoder().decode(b)) : b;
+}
+
+// all of Estonia: index, weather and the overview now, the 50 m sheets when the view needs them
+async function laeEesti() {
+  const [ix, v, aeg, yle] = await Promise.all([laeGz(EESTI + "indeks.json.gz", true), laeGz(EESTI + "ilm.json.gz", true),
+                                               laeGz(EESTI + "ilm.bin.gz"), laeGz(EESTI + "ylevaade.bin.gz")]);
+  window.HYYF = { juhend: ix.juhend };
+  seaIlm(v, aeg);
+  const Y = ix.ylevaade, n = Y.laius * Y.korgus, u8 = Y.kihid.length - 1;
+  const kiht = jaga(yle, Y.kihid.slice(0, u8), n);
+  kiht.ilmapunkt = new Uint16Array(yle.slice(u8 * n, (u8 + 2) * n).buffer);
+  olek.yle = vork({ id: "yle", yle: true, laius: Y.laius, korgus: Y.korgus, nurgad: Y.nurgad,
+                    merc: { x0: Y.x0, y1: Y.y1, ruut_m: Y.ruut_m }, kiht });
+  const m = ix.meta, L = m.laius + 2 * m.varu;
+  olek.lehed = ix.lehed.map((e) => vork({ ...e, laius: L, korgus: L, varu: m.varu, ruut_m: m.ruut_m }));
+  Object.assign(olek, { meta: { ...m, nimi: ix.nimi, nurgad: Y.nurgad }, klassid: Object.keys(m.klassid).map(Number) });
+}
+
+function laeLeht(G) {
+  G.kasutatud = performance.now();
+  if (G.kiht) return Promise.resolve(G);
+  G.laeb ||= laeGz(`${EESTI}kaart/${G.id}.bin.gz`).then((b) => {
+    const kiht = jaga(b, olek.meta.kihid, G.n);
+    kiht.ilmapunkt = Uint16Array.from(kiht.ilmapunkt, (p) => (p === 255 ? NONE : G.punktid[p]));
+    G.kiht = kiht;
+    G.laeb = null;
+    unusta();
+    return G;
+  }, (e) => { G.laeb = null; throw e; });
+  return G.laeb;
+}
+
+function laeInfo(G) {
+  if (G.info) return Promise.resolve(G.info);
+  return laeGz(`${EESTI}info/${G.id}.json.gz`, true).then((S) => (G.info = {
+    kiht: jaga(b64(S.rakud), S.kihid, G.Wi * G.Hi), eraldised: S.eraldised, mullad: S.mullad }));
+}
+
+// drop the sheets used longest ago (not on the map now) when too many are in memory
+function unusta() {
+  const laetud = olek.lehed.filter((G) => G.kiht);
+  if (laetud.length <= LEHTI_MALUS) return;
+  const nahtav = new Set(vaateLehed(0.5));
+  laetud.filter((G) => !nahtav.has(G)).sort((a, b) => a.kasutatud - b.kasutatud)
+    .slice(0, laetud.length - LEHTI_MALUS).forEach((G) => {
+      eemaldaPilt(G);
+      Object.assign(G, { kiht: null, info: null, kl: null, v: null, voti: null });
+    });
+}
+
+// sheets overlapping the view, widened by `lisa` x its size on each side
+function vaateLehed(lisa = 0) {
+  const b = map.getBounds(), dx = (b.getEast() - b.getWest()) * lisa, dy = (b.getNorth() - b.getSouth()) * lisa;
+  const [w, s, e, n] = [b.getWest() - dx, b.getSouth() - dy, b.getEast() + dx, b.getNorth() + dy];
+  return olek.lehed.filter((G) => G.bbox[2] > w && G.bbox[0] < e && G.bbox[3] > s && G.bbox[1] < n);
+}
+
+// grids whose cells are on the map now: counted in the summary and searched for best spots
+function nahtavadVorgud() {
+  if (!EESTI) return [olek.ala];
+  if (map.getZoom() < Z_LEHT) return [olek.yle];
+  return vaateLehed().filter((G) => G.kiht && G.kl);
+}
+
+// cell of a loaded grid at a map position (no loading), for the cursor
+function rakkNahtav(lng, lat) {
+  for (const G of EESTI ? (map.getZoom() < Z_LEHT ? [olek.yle] : olek.lehed.filter((L) => L.kiht)) : [olek.ala]) {
+    const i = rakkG(G, lng, lat);
+    if (i >= 0) return G.kiht.ilmapunkt[i] === NONE ? null : { G, i };
+  }
+  return null;
+}
+
+// 50 m cell at a map position with its explanation data, loading the sheet if needed
+async function leiaRakk(lng, lat) {
+  const G = EESTI ? olek.lehed.find((L) => rakkG(L, lng, lat) >= 0) : olek.ala;
+  if (!G) return null;
+  if (EESTI) await Promise.all([laeLeht(G), laeInfo(G)]);
+  const i = rakkG(G, lng, lat);
+  return i < 0 || G.kiht.ilmapunkt[i] === NONE ? null : { G, i };
 }
 
 // time component f (index into valjad) for day d, point p, class position j, 0..1
@@ -70,26 +214,22 @@ function T(d, p, j, f) {
 }
 const F = (nimi) => olek.vilj.valjad.indexOf(nimi);
 
-function kohaSobivus(i) {
-  return olek.klassid.reduce((s, c) => s + olek.kiht["S" + c][i], 0) / 255;
+function kohaSobivus(G, i) {
+  return olek.klassid.reduce((s, c) => s + G.kiht["S" + c][i], 0) / 255;
 }
 
 // [Koht, Aeg] of a cell: Koht = neighbourhood suitability, Aeg = suitability-weighted fruiting index
-function hinnang(i, d = olek.paev) {
-  const p = olek.kiht.ilmapunkt[i];
-  if (p === 255) return null;
-  const koht = kohaSobivus(i);
+function hinnangG(G, i, d = olek.paev) {
+  const p = G.kiht.ilmapunkt[i];
+  if (p === NONE) return null;
+  const koht = kohaSobivus(G, i);
   if (koht <= 0) return [0, 0];
   const fi = F("indeks");
-  const kaal = olek.klassid.reduce((s, c, j) => s + T(d, p, j, fi) * olek.kiht["S" + c][i] / 255, 0);
+  const kaal = olek.klassid.reduce((s, c, j) => s + T(d, p, j, fi) * G.kiht["S" + c][i] / 255, 0);
   return [koht, kaal / koht];
 }
-
-function vaartus(i, d = olek.paev) {
-  const h = hinnang(i, d);
-  if (!h) return null;
-  return olek.reziim === "koht" ? h[0] : h[0] * h[1];
-}
+// the same for a cell {G, i}
+const hinnang = (r, d) => hinnangG(r.G, r.i, d);
 
 const aste = (x, piirid) => piirid.findIndex((piir) => x >= piir);
 
@@ -104,25 +244,66 @@ function klassKA(koht, aeg) {
 
 // ---------- map drawing ----------
 
+// drawing resolution per cell: finer up close
+const sileSuum = () => (map.getZoom() >= 14 ? SILE : map.getZoom() >= 13 ? 4 : map.getZoom() >= 12 ? 3 : 2);
+
+// a new day or mode: everything is drawn again
 function joonista() {
-  const { meta, n } = olek;
-  const W = meta.laius, H = meta.korgus;
-  const varvid = KLASSID[olek.reziim].map(([, c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
-  // per 50 m cell: forest (Koht) and mushroom time (Aeg); used for the stats and best spots
-  const kl = new Int8Array(n).fill(-1);
-  const v = new Float32Array(n);
-  for (let i = 0; i < n; i++) {
-    const h = hinnang(i);
-    if (h === null) continue;
-    v[i] = olek.reziim === "koht" ? h[0] : h[0] * h[1];
-    kl[i] = klassKA(h[0], h[1]);
+  olek.versioon = (olek.versioon || 0) + 1;
+  uuendaKaart();
+}
+
+// draw what the view needs and is not yet drawn for this day and mode, then the panel and best spots
+async function uuendaKaart() {
+  const voti = `${olek.reziim}|${olek.paev}|${olek.versioon}`;
+  if (!EESTI) joonistaVork(olek.ala, SILE, voti);
+  else {
+    // the overview only while it is on the map (zooming out draws it then)
+    if (map.getZoom() < Z_LEHT) joonistaVork(olek.yle, 2, voti);
+    else {
+      const lehed = vaateLehed();
+      if (lehed.some((G) => !G.kiht)) document.getElementById("kokkuvote").textContent = "Laen selle vaate metsi…";
+      await Promise.allSettled(lehed.map(laeLeht));
+      if (voti !== `${olek.reziim}|${olek.paev}|${olek.versioon}`) return;   // a newer call took over
+      const sile = sileSuum();
+      for (const G of vaateLehed()) if (G.kiht) joonistaVork(G, sile, voti);
+    }
+    // sheets far from the view leave the map (their data stays in memory for a while)
+    const lahedal = new Set(vaateLehed(1));
+    olek.lehed.forEach((G) => { if (G.pilt && !lahedal.has(G)) eemaldaPilt(G); });
   }
-  // drawing like contour lines: for each class a field "this class or better" (0/1 per 50 m cell)
-  // is smoothed on the cell grid, sampled with a cubic B-spline on a SILE x finer grid (smooth
-  // curves, no corners) and cut at 0.5 with a soft one-pixel edge. Nested, rounded shapes, darkest
-  // inside, the class edges blended into each other.
-  canvas.width = W * SILE;
-  canvas.height = H * SILE;
+  const kohad = parimadKohad(nahtavadVorgud());
+  uuendaPaneel(kohad);
+  uuendaMarkerid(kohad);
+}
+
+// classes of grid G for this day and mode, then its picture unless already drawn this fine
+function joonistaVork(G, sile, voti) {
+  if (G.voti !== voti) {
+    G.kl = new Int8Array(G.n).fill(-1);
+    G.v = new Float32Array(G.n);
+    for (let i = 0; i < G.n; i++) {
+      const h = hinnangG(G, i);
+      if (h === null) continue;
+      G.v[i] = olek.reziim === "koht" ? h[0] : h[0] * h[1];
+      G.kl[i] = klassKA(h[0], h[1]);
+    }
+    Object.assign(G, { voti, sile: 0 });
+  }
+  if (G.sile >= sile && G.pilt) return;
+  G.sile = sile;
+  naitaPilt(G, pilt(G, sile));
+}
+
+// picture of grid G: like contour lines, for each class a field "this class or better" (0/1 per
+// cell) is smoothed on the cell grid (margin cells included, so neighbouring sheets meet without
+// a seam), sampled with a cubic B-spline on a sile x finer grid (smooth curves, no corners) and cut
+// at 0.5 with a soft one-pixel edge. Nested, rounded shapes, darkest inside, class edges blended.
+function pilt(G, sile) {
+  const W = G.laius, H = G.korgus, kl = G.kl;
+  const varvid = KLASSID[olek.reziim].map(([, c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
+  canvas.width = G.Wi * sile;
+  canvas.height = G.Hi * sile;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(canvas.width, canvas.height);
   const kl0 = KLASSID[olek.reziim], nk = kl0.length;
@@ -131,7 +312,7 @@ function joonista() {
   const kaalud = (n, N) => {
     const idx = new Int32Array(n * 4), w = new Float32Array(n * 4);
     for (let q = 0; q < n; q++) {
-      const x = (q + 0.5) / SILE - 0.5, x0 = Math.floor(x), t = x - x0, t2 = t * t, t3 = t2 * t;
+      const x = (q + 0.5) / sile - 0.5 + G.varu, x0 = Math.floor(x), t = x - x0, t2 = t * t, t3 = t2 * t;
       const ww = [(1 - t) ** 3 / 6, (3 * t3 - 6 * t2 + 4) / 6, (-3 * t3 + 3 * t2 + 3 * t + 1) / 6, t3 / 6];
       for (let m = 0; m < 4; m++) { idx[q * 4 + m] = Math.max(0, Math.min(N - 1, x0 - 1 + m)); w[q * 4 + m] = ww[m]; }
     }
@@ -149,7 +330,11 @@ function joonista() {
   };
   const SERV = 0.07;   // edge softness in field units (about one fine pixel)
   const kate = (f) => Math.max(0, Math.min(1, (f - 0.5) / SERV + 0.5));
+  // rows of cells with nothing drawn are skipped quickly
+  const tyhi = new Uint8Array(H);
+  for (let y = 0; y < H; y++) tyhi[y] = valjad[nk - 1].subarray(y * W, (y + 1) * W).every((x) => x < 1e-4) ? 1 : 0;
   for (let py = 0; py < canvas.height; py++) {
+    if (tyhi[ry[py * 4]] && tyhi[ry[py * 4 + 1]] && tyhi[ry[py * 4 + 2]] && tyhi[ry[py * 4 + 3]]) continue;
     for (let px = 0; px < canvas.width; px++) {
       const valine = kate(proov(valjad[nk - 1], px, py));
       if (valine <= 0) continue;
@@ -167,18 +352,7 @@ function joonista() {
     }
   }
   ctx.putImageData(img, 0, 0);
-  const url = canvas.toDataURL();
-  if (map.getSource("hinnang")) uuendaPilt(url);
-  else {
-    map.addSource("hinnang", { type: "image", url, coordinates: meta.nurgad });
-    map.addLayer({ id: "hinnang", type: "raster", source: "hinnang",
-                   layout: { visibility: olek.kihtNahtav ? "visible" : "none" },
-                   paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "linear", "raster-fade-duration": 0 } },
-                 olek.siltideAlt);
-  }
-  const kohad = parimadKohad(v, kl);
-  uuendaPaneel(kl, kohad);
-  uuendaMarkerid(kohad);
+  return canvas.toDataURL();
 }
 
 // separable binomial smoothing of a cell field, SILU_KORDI passes of [1 2 1] / 4
@@ -197,47 +371,103 @@ function silu(f, W, H) {
   return a;
 }
 
-// one image load at a time: a new updateImage while the previous one is still decoding aborts it
-// (AbortError in the console), so keep only the latest pending frame and send it when done
-const pilt = { laeb: false, ootel: null };
-function uuendaPilt(url) {
-  if (pilt.laeb) { pilt.ootel = url; return; }
-  pilt.laeb = true;
-  map.getSource("hinnang").updateImage({ url, coordinates: olek.meta.nurgad });
-  const valmis = () => {
-    clearTimeout(pilt.taimer);
-    map.off("sourcedata", kuula);
-    pilt.laeb = false;
-    if (pilt.ootel) { const u = pilt.ootel; pilt.ootel = null; uuendaPilt(u); }
-  };
-  const kuula = (e) => { if (e.sourceId === "hinnang" && map.isSourceLoaded("hinnang")) valmis(); };
-  map.on("sourcedata", kuula);
-  pilt.taimer = setTimeout(valmis, 1500);   // safety net if the event never comes
+// one image source per grid. With all of Estonia the overview shows only zoomed out, the sheets up close.
+function naitaPilt(G, url) {
+  const id = "hinnang-" + G.id;
+  if (!map.getSource(id)) {
+    G.pilt = { laeb: true, ootel: null };
+    map.addSource(id, { type: "image", url, coordinates: G.nurgad });
+    map.addLayer({ id, type: "raster", source: id, ...(EESTI ? (G.yle ? { maxzoom: Z_LEHT } : { minzoom: Z_LEHT }) : {}),
+                   layout: { visibility: olek.kihtNahtav ? "visible" : "none" },
+                   paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "linear", "raster-fade-duration": 0 } },
+                 olek.siltideAlt);
+    ootaPilt(G);
+    return;
+  }
+  uuendaPilt(G, url);
 }
 
-// best spots: highest cells of class "hea" or better, at least VAHE apart; each with the area
-// of good forest within YMBER cells around it (a point to walk to, not one giant blob)
-function parimadKohad(v, kl) {
-  const { laius: W } = olek.meta;
-  const vahe = Math.round(PARIM_VAHE_M / olek.meta.ruut_m), ymber = Math.round(PARIM_YMBER_M / olek.meta.ruut_m);
-  const kandidaadid = [];
+function eemaldaPilt(G) {
+  const id = "hinnang-" + G.id;
+  if (map.getLayer(id)) map.removeLayer(id);
+  if (map.getSource(id)) map.removeSource(id);
+  clearTimeout(G.pilt?.taimer);
+  Object.assign(G, { pilt: null, sile: 0 });
+}
+
+// one image load at a time per source: a new updateImage while the previous one is still decoding
+// aborts it (AbortError in the console), so keep only the latest pending frame and send it when done
+function uuendaPilt(G, url) {
+  const P = G.pilt;
+  if (P.laeb) { P.ootel = url; return; }
+  P.laeb = true;
+  map.getSource("hinnang-" + G.id).updateImage({ url, coordinates: G.nurgad });
+  ootaPilt(G);
+}
+function ootaPilt(G) {
+  const P = G.pilt, id = "hinnang-" + G.id;
+  const valmis = () => {
+    clearTimeout(P.taimer);
+    map.off("sourcedata", kuula);
+    P.laeb = false;
+    if (P.ootel && G.pilt === P) { const u = P.ootel; P.ootel = null; uuendaPilt(G, u); }
+  };
+  const kuula = (e) => { if (e.sourceId === id && map.isSourceLoaded(id)) valmis(); };
+  map.on("sourcedata", kuula);
+  P.taimer = setTimeout(valmis, 1500);   // safety net if the event never comes
+}
+
+// shown cells of grid G inside the current map view (a sheet is a slightly rotated rectangle: take
+// the cell range spanned by the view's corners, clipped to the grid)
+function vaatesRakud(G) {
+  const b = map.getBounds();
+  const nurgad = [b.getNorthWest(), b.getNorthEast(), b.getSouthEast(), b.getSouthWest()].map((c) => G.uv(c.lng, c.lat));
+  const x0 = Math.max(0, Math.floor(Math.min(...nurgad.map((c) => c[0])) * G.Wi)), x1 = Math.min(G.Wi - 1, Math.ceil(Math.max(...nurgad.map((c) => c[0])) * G.Wi));
+  const y0 = Math.max(0, Math.floor(Math.min(...nurgad.map((c) => c[1])) * G.Hi)), y1 = Math.min(G.Hi - 1, Math.ceil(Math.max(...nurgad.map((c) => c[1])) * G.Hi));
+  const rakud = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const i = (y + G.varu) * G.laius + x + G.varu;
+    if (G.kiht.ilmapunkt[i] !== NONE && (G.merc || b.contains(G.lngLat(x + 0.5, y + 0.5)))) rakud.push(i);
+  }
+  return rakud;
+}
+
+// best spots in the view: the highest cells of class "hea" or better, at least 500 m apart, more
+// when zoomed out (an eighth of the view); from the overview at most two per weather point, so they
+// spread over the country. Each with the good forest around it (a point to walk to, not one blob).
+function parimadKohad(vorgud) {
+  const b = map.getBounds();
   const hea = KLASSID[olek.reziim].length - 2;   // every class but the lowest
-  for (let i = 0; i < kl.length; i++) if (kl[i] >= 0 && kl[i] <= hea) kandidaadid.push(i);
-  kandidaadid.sort((a, b) => v[b] - v[a]);
-  const valitud = [];
-  for (const i of kandidaadid) {
-    const x = i % W, y = (i / W) | 0;
-    if (valitud.some((k) => (k.x - x) ** 2 + (k.y - y) ** 2 < vahe * vahe)) continue;
-    let rakke = 0;
-    for (let dy = -ymber; dy <= ymber; dy++) for (let dx = -ymber; dx <= ymber; dx++) {
-      const xx = x + dx, yy = y + dy, j = yy * W + xx;
-      if (dx * dx + dy * dy <= ymber * ymber && xx >= 0 && xx < W && j >= 0 && j < kl.length && kl[j] >= 0 && kl[j] <= hea) rakke++;
-    }
-    if (rakke < MIN_RAKKE) continue;
-    valitud.push({ x, y, parim: v[i], h: hinnang(i), kl: kl[i], ha: rakke * olek.meta.ruut_m ** 2 / 1e4, lnglat: rakkLngLat(x + 0.5, y + 0.5) });
+  const kaugelt = vorgud.some((G) => G.yle);
+  const vahe = Math.max(PARIM_VAHE_M, kaugus(b.getNorthWest().toArray(), b.getNorthEast().toArray()) / 8);
+  const kandidaadid = [];
+  for (const G of vorgud) for (const i of vaatesRakud(G)) if (G.kl[i] >= 0 && G.kl[i] <= hea) kandidaadid.push({ G, i });
+  kandidaadid.sort((a, c) => c.G.v[c.i] - a.G.v[a.i]);
+  const valitud = [], punktis = {};
+  for (const r of kandidaadid) {
+    const [x, y] = xy(r.G, r.i), lnglat = r.G.lngLat(x + 0.5, y + 0.5);
+    if (valitud.some((k) => kaugus(k.lnglat, lnglat) < vahe)) continue;
+    const p = r.G.kiht.ilmapunkt[r.i];
+    if (kaugelt && (punktis[p] || 0) >= 2) continue;
+    const ha = heaUmber(r.G, x, y, hea);
+    if (ha < MIN_RAKKE * 0.25) continue;
+    punktis[p] = (punktis[p] || 0) + 1;
+    valitud.push({ parim: r.G.v[r.i], h: hinnang(r), kl: r.G.kl[r.i], ha, lnglat });
     if (valitud.length === PARIMAID) break;
   }
   return valitud;
+}
+
+// good forest (ha) around an inner cell: within PARIM_YMBER_M on the 50 m grid, the 3 x 3
+// neighbouring cells (about 800 m square) in the overview
+function heaUmber(G, x, y, hea) {
+  const r = G.yle ? 1 : Math.round(PARIM_YMBER_M / G.ruut_m);
+  let ha = 0;
+  for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) {
+    const xx = x + dx + G.varu, yy = y + dy + G.varu, j = yy * G.laius + xx;
+    if ((G.yle || dx * dx + dy * dy <= r * r) && xx >= 0 && xx < G.laius && yy >= 0 && yy < G.korgus && G.kl[j] >= 0 && G.kl[j] <= hea) ha += haRakk(G, j);
+  }
+  return ha;
 }
 
 function uuendaMarkerid(kohad) {
@@ -255,7 +485,9 @@ function uuendaMarkerid(kohad) {
 
 function lulitaKiht(nahtav) {
   olek.kihtNahtav = nahtav;
-  if (map.getLayer("hinnang")) map.setLayoutProperty("hinnang", "visibility", nahtav ? "visible" : "none");
+  for (const l of map.getStyle().layers) {
+    if (l.id.startsWith("hinnang-")) map.setLayoutProperty(l.id, "visibility", nahtav ? "visible" : "none");
+  }
   olek.markerid.forEach((m) => (m.getElement().hidden = !nahtav));
   naitaReziim();
 }
@@ -274,8 +506,8 @@ function naitaReziim() {
 
 // ---------- panel ----------
 
-function uuendaPaneel(kl, kohad) {
-  const { vilj, paev, p0, meta } = olek;
+function uuendaPaneel(kohad) {
+  const { vilj, paev, p0 } = olek;
   naitaReziim();
   document.getElementById("kuupaev").value = vilj.kuupaevad[paev];
 
@@ -302,7 +534,6 @@ function uuendaPaneel(kl, kohad) {
   const valitud = nupud.querySelector(".aktiivne");
   if (valitud && nupud.scrollWidth > nupud.clientWidth) nupud.scrollLeft = valitud.offsetLeft - nupud.clientWidth / 2 + valitud.clientWidth / 2;
 
-  olek.kl = kl;
   uuendaKokkuvote();
 
   const ol = document.getElementById("parimad");
@@ -321,33 +552,18 @@ function uuendaPaneel(kl, kohad) {
   });
 }
 
-// grid cells inside the current map view (the grid is a slightly rotated rectangle: take the cell
-// range spanned by the view's corners, clipped to the grid)
-function vaateRakud() {
-  const { laius: W, korgus: H } = olek.meta, b = map.getBounds();
-  const nurgad = [b.getNorthWest(), b.getNorthEast(), b.getSouthEast(), b.getSouthWest()].map((c) => rakkUV(c.lng, c.lat));
-  const x0 = Math.max(0, Math.floor(Math.min(...nurgad.map((c) => c[0])) * W)), x1 = Math.min(W - 1, Math.ceil(Math.max(...nurgad.map((c) => c[0])) * W));
-  const y0 = Math.max(0, Math.floor(Math.min(...nurgad.map((c) => c[1])) * H)), y1 = Math.min(H - 1, Math.ceil(Math.max(...nurgad.map((c) => c[1])) * H));
-  const rakud = [];
-  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
-    const [lng, lat] = rakkLngLat(x + 0.5, y + 0.5);
-    if (b.contains([lng, lat])) rakud.push(y * W + x);
-  }
-  return rakud;
-}
-
 // day summary and legend areas for what is on screen: classes counted in the view, the reason
 // from the view's most common weather point and forest water class
 function uuendaKokkuvote() {
-  if (!olek.kl) return;
-  const { kl, meta, paev } = olek, tana = olek.reziim === "tana";
+  if (!olek.vilj) return;
+  const { meta, paev } = olek, tana = olek.reziim === "tana";
   const ha = KLASSID[olek.reziim].map(() => 0);
   const punktid = {}, klassiS = olek.klassid.map(() => 0);
-  for (const i of vaateRakud()) {
-    if (olek.kiht.ilmapunkt[i] === 255) continue;
-    if (kl[i] >= 0) ha[kl[i]] += meta.ruut_m ** 2 / 1e4;
-    punktid[olek.kiht.ilmapunkt[i]] = (punktid[olek.kiht.ilmapunkt[i]] || 0) + 1;
-    olek.klassid.forEach((c, j) => (klassiS[j] += olek.kiht["S" + c][i]));
+  for (const G of nahtavadVorgud()) for (const i of vaatesRakud(G)) {
+    if (G.kl[i] >= 0) ha[G.kl[i]] += haRakk(G, i);
+    const p = G.kiht.ilmapunkt[i];
+    punktid[p] = (punktid[p] || 0) + 1;
+    olek.klassid.forEach((c, j) => (klassiS[j] += G.kiht["S" + c][i]));
   }
   const legend = document.getElementById("legend");
   legend.innerHTML = KLASSID[olek.reziim].map(([nimi, c, alfa], j) =>
@@ -358,7 +574,9 @@ function uuendaKokkuvote() {
   const j = klassiS.indexOf(Math.max(...klassiS));
   const pohjus = () => aegPohjus(paev, p, j);
   const head = ha.slice(0, -1).reduce((s, x) => s + x, 0), voimalik = ha.at(-1);
-  if (p === null) {
+  if (p === null && EESTI) kv.innerHTML = vaateLehed().some((G) => !G.kiht) && map.getZoom() >= Z_LEHT
+    ? "Laen selle vaate metsi…" : "Siin pole hinnatud metsa.";
+  else if (p === null) {
     // the page holds one area (test sheet, or ?ala=...): say which, and offer to go there
     kv.innerHTML = `Siin pole hinnatud metsa. Andmed on alal <b>${meta.nimi}</b>. <button class="tekstinupp">Näita ala</button>`;
     kv.querySelector("button").onclick = () => map.fitBounds([meta.nurgad[3], meta.nurgad[1]], { padding: vaba() });
@@ -396,38 +614,18 @@ const hinne = (v) => Math.round(v * 100);
 
 // ---------- explanation ----------
 
-// position in the grid as fractions 0..1 (u east, v south); outside the grid gives values out of range
-function rakkUV(lng, lat) {
-  const [nw, ne, , sw] = olek.meta.nurgad;
-  const ax = ne[0] - nw[0], ay = ne[1] - nw[1], bx = sw[0] - nw[0], by = sw[1] - nw[1];
-  const dx = lng - nw[0], dy = lat - nw[1], det = ax * by - ay * bx;
-  return [(dx * by - dy * bx) / det, (ax * dy - ay * dx) / det];
-}
-
-function rakk(lng, lat) {
-  const { laius, korgus } = olek.meta;
-  const [u, v] = rakkUV(lng, lat);
-  if (u < 0 || u >= 1 || v < 0 || v >= 1) return -1;
-  return Math.floor(v * korgus) * laius + Math.floor(u * laius);
-}
-
-function rakkLngLat(x, y) {
-  const { nurgad, laius, korgus } = olek.meta;
-  const [nw, ne, , sw] = nurgad, u = x / laius, v = y / korgus;
-  return [nw[0] + u * (ne[0] - nw[0]) + v * (sw[0] - nw[0]), nw[1] + u * (ne[1] - nw[1]) + v * (sw[1] - nw[1])];
-}
-
 function puud(koosseis) {
   const osad = [...(koosseis || "").matchAll(/(\d+)([A-Z]+)/g)];
   if (!osad.length) return koosseis ? PUUD[koosseis] || koosseis : "puistu andmed puuduvad";
   return osad.map(([, k, s]) => `${PUUD[s] || s} ${k * 10}%`).join(", ");
 }
 
-function tegurid(i) {
-  const k = olek.kiht;
+function tegurid(r) {
+  // explanation layers cover the inner cells only
+  const I = r.G.info, k = I.kiht, [x, y] = xy(r.G, r.i), i = y * r.G.Wi + x;
   const t = (nimi) => k["t_" + nimi][i] / 255;
-  const er = olek.eraldised[(k.eraldis_hi[i] << 8 | k.eraldis_lo[i]) - 1];
-  const mu = olek.mullad[(k.muld_hi[i] << 8 | k.muld_lo[i]) - 1];
+  const er = I.eraldised[(k.eraldis_hi[i] << 8 | k.eraldis_lo[i]) - 1];
+  const mu = I.mullad[(k.muld_hi[i] << 8 | k.muld_lo[i]) - 1];
   const katvus = k.katvus[i], twi = k.twi[i] / 10, mets = k.metsaosa[i], soo = k.soo_10m[i] * 10;
   const vanus = er?.vanus;
   const pohjus = {
@@ -645,7 +843,7 @@ function astmeriba(x, piirid) {
 
 // mushroom time: one week back and the forecast ahead; below it, day by day, how well new
 // mushrooms can start (they are ready to pick 1-3 weeks later)
-function graafik(i, d, p, j) {
+function graafik(r, d, p, j) {
   const v = olek.vilj, aasta = v.kuupaevad[d].slice(0, 4);
   let a = d, b = d;
   while (a > 0 && d - a < 7 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
@@ -653,7 +851,7 @@ function graafik(i, d, p, j) {
   const W = 320, H = 92, pad = 6, n = Math.max(1, b - a), riba = 10, alus = H - 30;
   const xs = (k) => pad + (k - a) / n * (W - 2 * pad), ys = (val) => alus - val * (alus - 8);
   const pts = [];
-  for (let k = a; k <= b; k++) pts.push([xs(k), ys(Math.min(1, hinnang(i, k)[1])), v.paeva_allikas[k] === "prognoos"]);
+  for (let k = a; k <= b; k++) pts.push([xs(k), ys(Math.min(1, hinnang(r, k)[1])), v.paeva_allikas[k] === "prognoos"]);
   const tee = (arr) => arr.map(([x, y], k) => `${k ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
   const moot = pts.filter((q) => !q[2]), prog = pts.slice(Math.max(0, moot.length - 1));
   const A = olek.meta.astmed.aeg;
@@ -688,8 +886,8 @@ function graafik(i, d, p, j) {
 // forest waterfall: the forest points build up to 100 category by category (grey = points this
 // place does not get), then each multiplier cuts the total down to Koht
 const KOSK_NIMI = { valgus: "Valgus" };
-function kosk(i, koht) {
-  const { kordajad, punktid } = tegurid(i);
+function kosk(r, koht) {
+  const { kordajad, punktid } = tegurid(r);
   const W = 320, L = 112, R = W - 44, rida = 19, sx = (v) => L + v / 100 * (R - L);
   const read = [];
   let kum = 0;
@@ -751,18 +949,18 @@ function aegKosk(d, p, j, aegV) {
   <p class="vaike g-markus">Uued seened tekivad, kui hooaeg, niiskus ja soojus on korraga head; püsimine ütleb, kui kaua need metsas korjatavad on.</p>`;
 }
 
-function naitaSelgitust(lnglat) {
-  const i = rakk(lnglat[0] ?? lnglat.lng, lnglat[1] ?? lnglat.lat);
-  if (i < 0 || olek.kiht.ilmapunkt[i] === 255) return;
-  const p = olek.kiht.ilmapunkt[i], d = olek.paev, A = olek.meta.astmed;
+async function naitaSelgitust(lnglat) {
+  const r = await leiaRakk(lnglat[0] ?? lnglat.lng, lnglat[1] ?? lnglat.lat);
+  if (!r) return;
+  const p = r.G.kiht.ilmapunkt[r.i], d = olek.paev, A = olek.meta.astmed;
   const tana = olek.reziim === "tana";
   // headline: the same numbers the map colour comes from (100 m neighbourhood)
-  const [koht, aegV] = hinnang(i);
+  const [koht, aegV] = hinnang(r);
   const kl = klassKA(koht, aegV);
   // conditions for new mushrooms: the water regime class that dominates this place
-  const j = olek.klassid.map((c) => olek.kiht["S" + c][i]).reduce((b, x, jj, a) => (x > a[b] ? jj : b), 0);
+  const j = olek.klassid.map((c) => r.G.kiht["S" + c][r.i]).reduce((b, x, jj, a) => (x > a[b] ? jj : b), 0);
   const aeg = ajaSelgitus(d, p, j);
-  const { kordajad, punktid } = tegurid(i);
+  const { kordajad, punktid } = tegurid(r);
   const kAste = aste(koht, A.koht), aAste = aste(aegV, A.aeg);
 
   // all forest properties as bars: host trees, age and light first, then the rest
@@ -775,7 +973,7 @@ function naitaSelgitust(lnglat) {
   const v = olek.vilj;
   let lopp = d;
   while (lopp < v.kuupaevad.length - 1 && lopp - d < 10 && v.kuupaevad[lopp + 1].slice(0, 4) === v.kuupaevad[d].slice(0, 4)) lopp++;
-  const muutus = hinnang(i, lopp)[1] - aegV;
+  const muutus = hinnang(r, lopp)[1] - aegV;
   const suund = lopp === d ? "" : muutus > 0.08 ? "Prognoosi järgi seeni lisandub." : muutus < -0.08 ? "Prognoosi järgi seeni jääb vähemaks." : "Prognoosi järgi jääb seeni umbes sama palju.";
   const kuupaev = (k) => {
     const x = new Date(v.kuupaevad[d] + "T12:00");
@@ -817,7 +1015,7 @@ function naitaSelgitust(lnglat) {
   // mushrooms and weather over time: amount of mushrooms, then moisture and warmth of this forest
   const seenedHtml = `
     <h3 class="sel-h sel-h-esimene">${IKOON.aeg}Seente hulk</h3>
-    ${graafik(i, d, p, j)}
+    ${graafik(r, d, p, j)}
     ${kypsebHtml}
     <h3 class="sel-h">Niiskus ja soojus selles metsas</h3>
     ${ilmaGraafik(d, p, j)}`;
@@ -825,7 +1023,7 @@ function naitaSelgitust(lnglat) {
   // how the two scores add up: forest points and multipliers, then the weather effects
   const arvutusHtml = `
     <h3 class="sel-h sel-h-esimene">${IKOON.mets}Metsa hinne</h3>
-    ${kosk(i, koht)}
+    ${kosk(r, koht)}
     ${tana ? `<h3 class="sel-h">${IKOON.aeg}Seeneaja hinne</h3>
     ${aegKosk(d, p, j, aegV)}` : ""}`;
 
@@ -1010,13 +1208,17 @@ function giidHtml() {
 // how the class bounds were chosen, with shares computed from the data on the page
 function laved() {
   const A = olek.meta.astmed, v = olek.vilj;
-  const mets = A.koht.map(() => 0);
-  let rakke = 0;
-  for (let i = 0; i < olek.n; i++) {
-    if (olek.kiht.ilmapunkt[i] === 255) continue;
-    rakke++;
-    const x = kohaSobivus(i);
-    A.koht.forEach((b, j) => { if (x >= b) mets[j]++; });
+  let mets = A.koht.map(() => 0), rakke = 0;
+  if (EESTI) {   // counted at export for every sheet
+    for (const G of olek.lehed) { rakke += G.rakke; mets = mets.map((m, j) => m + G.koht_astmed[j]); }
+  } else {
+    const G = olek.ala;
+    for (let i = 0; i < G.n; i++) {
+      if (G.kiht.ilmapunkt[i] === NONE) continue;
+      rakke++;
+      const x = kohaSobivus(G, i);
+      A.koht.forEach((b, j) => { if (x >= b) mets[j]++; });
+    }
   }
   // mushroom time: fresh forest at the middle weather point, July-September
   const p = Math.floor(v.ilmapunktid.length / 2), j2 = olek.klassid.indexOf(2), fi = F("indeks");
@@ -1034,7 +1236,7 @@ function laved() {
   const ay = [...aastad].sort();
   return `<p><b>Läved ei ole mõõdetud tõenäosused.</b> Mudelit pole veel piisavalt leidudega kontrollitud, et öelda „tippkoht = nii mitu protsenti tõenäosusega seeni“. Läved on valitud nii, et kaart saadaks inimesed vähestesse, tõeliselt headesse kohtadesse.</p>
     ${tabel(ASTE_KOHT.map((n, j) => [`Mets ${n} (Koht ${Math.round(A.koht[j] * 100)}+)`, `parim ${pr(mets[j], rakke)}`]), ["metsa aste", "osa kaardi metsast"])}
-    <p class="vaike">Metsa astmed on seatud testala metsa jaotuse järgi: „${ASTE_KOHT[0]}“ on ainult parim ${pr(mets[0], rakke)}, „${ASTE_KOHT[1]}“ parim ${pr(mets[1], rakke)}.</p>
+    <p class="vaike">Metsa astmed on seatud testala metsa jaotuse järgi${EESTI ? ", siin kogu Eesti metsa kohta" : ""}: „${ASTE_KOHT[0]}“ on ainult parim ${pr(mets[0], rakke)}, „${ASTE_KOHT[1]}“ parim ${pr(mets[1], rakke)}.</p>
     ${tabel(ASTE_AEG.map((n, jj) => [`Seeneaeg ${n} (Aeg ${Math.round(A.aeg[jj] * 100)}%+)`, pr(aeg[jj], paevi)]), ["seeneaja aste", `osa juuli–septembri päevadest ${ay[0]}–${ay.at(-1)}`])}
     <p class="vaike">Seeneaja indeks on skaleeritud nii, et tavalise hea hooaja tipp on umbes 75%. „Väga hea“ (70%+) on hea hooaja tipp, „hea“ (50%+) umbes kaks kolmandikku sellest.</p>
     <p class="vaike">Päris tõenäosuseks saab hinde muuta alles siis, kui leide ja tühje käike on palju – siis saab kontrollida, kui tihti tumedal alal tegelikult seeni leitakse.</p>`;
@@ -1123,15 +1325,19 @@ function vaba() {
   return telefon ? { top: 70, right: 20, bottom: 220, left: 20 } : { top: 80, right: 300, bottom: 200, left: 40 };
 }
 
-// data comes from andmed/testala_5458.js (window.HYYF), a plain script so file:// works too;
-// only wait for the style, not for all basemap tiles ("load")
-map.once("style.load", () => {
+// data: one area from a script file (window.HYYF, so file:// works too), or all of Estonia from
+// andmed/eesti (needs a web server); only wait for the style, not for all basemap tiles ("load")
+map.once("style.load", async () => {
   lisaAluskaardid();
-  if (!window.HYYF) {
-    document.getElementById("kokkuvote").textContent = "Andmefail puudub: käivita skriptid/eksport.py.";
+  const kv = document.getElementById("kokkuvote");
+  try {
+    if (EESTI) { kv.textContent = "Laen andmeid…"; await laeEesti(); }
+    else if (window.HYYF) laeAla();
+    else { kv.textContent = "Andmefail puudub: käivita skriptid/eksport.py."; return; }
+  } catch (e) {
+    kv.textContent = `Andmeid ei saanud laadida (${e.message}).`;
     return;
   }
-  lae();
   const kp = document.getElementById("kuupaev");
   kp.min = olek.vilj.kuupaevad[0];
   kp.max = olek.vilj.kuupaevad.at(-1);
@@ -1143,13 +1349,13 @@ map.once("style.load", () => {
   valiKuupaev(tana >= 0 ? tana : Math.max(viimaneMoot, olek.vilj.kuupaevad.length - 4));
 });
 
-map.on("moveend", () => olek.meta && uuendaKokkuvote());
+// the view decides the sheets, the summary and the best spots
+map.on("moveend", () => olek.versioon && uuendaKaart());
 map.on("mousemove", (e) => {
-  if (!olek.meta) return;
-  const i = rakk(e.lngLat.lng, e.lngLat.lat);
-  map.getCanvas().style.cursor = i >= 0 && olek.kiht.ilmapunkt[i] !== 255 ? "pointer" : "";
+  if (!olek.vilj) return;
+  map.getCanvas().style.cursor = rakkNahtav(e.lngLat.lng, e.lngLat.lat) ? "pointer" : "";
 });
-map.on("click", (e) => olek.meta && naitaSelgitust(e.lngLat));
+map.on("click", (e) => olek.vilj && naitaSelgitust(e.lngLat));
 
 document.getElementById("kuupaev").addEventListener("change", (e) => {
   if (!olek.vilj) return;
@@ -1162,7 +1368,7 @@ document.querySelectorAll("#reziim button").forEach((b) => b.onclick = () => {
   const muutus = b.dataset.reziim !== olek.reziim;
   olek.reziim = b.dataset.reziim;
   lulitaKiht(true);
-  if (muutus) { peidaSelgitus(); if (olek.meta) joonista(); }
+  if (muutus) { peidaSelgitus(); if (olek.vilj) joonista(); }
 });
 document.querySelectorAll("#aluskaart button[data-kiht]").forEach((b) => b.onclick = () => {
   document.querySelectorAll("#aluskaart button[data-kiht]").forEach((x) => x.classList.toggle("aktiivne", x === b));

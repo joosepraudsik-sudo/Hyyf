@@ -106,6 +106,7 @@ uv run python -I skriptid/viljumine.py     # valjund/viljumine_5458.csv (punkt x
 uv run python -I skriptid/graafik.py       # valjund/hooajad_5458.png
 uv run python -I skriptid/soojuskaart.py 2023-08-15 2025-09-13   # valjund/soojuskaart_5458.png
 uv run python -I skriptid/eksport.py       # leht/andmed/ (u 300 KB)
+uv run python -I skriptid/eksport_eesti.py # leht/andmed/eesti/ kogu Eesti lehtede kaupa (u 15 min; [leht ...] [--too 4])
 python -m http.server 8000 --directory leht   # leht: http://localhost:8000
 ```
 
@@ -142,7 +143,9 @@ Mudeli parameetrid (sobivuskõverad, kaalud) on `skriptid/parameetrid.py`. Sobiv
   - `ilmavork.py lae [--algus 2026-01-01]`: Open-Meteo, jätkatav, laeb ainult puuduvad päevad juurde (lõpu tühjad päevad lõigatakse ära), siis prognoos. Tempo ≤ 500 kaalu/min ja 4500/h; esimene täislaadimine u 25 000 kaalu = u 2,5 päeva (päevalimiit 10 000, skript peatub ja jätkab järgmisel käivitusel). Hiljem igapäevaselt u 1500 kaalu.
   - `ilmavork.py viljumine` → `valjund/eesti/viljumine.csv.gz` (sõlm × klass × päev).
   - Täislaadimine valmis 1.11.2026 (1.1.–26.10. ERA5 + prognoos 11.11-ni). 11 ranniku- ja saaresõlme on ERA5-Landis meri (vastus ilma väärtusteta: Hiiumaa lääs, Ruhnu, Sõrve, Kihnu, Vormsi, Naissaar/Prangli): `lae` neid uuesti ei küsi, `viljumine` võtab nende temperatuuri lähimast andmetega sõlmest (`asendused()`, nt Ruhnu → 582227), sademed ERA5-st ja prognoos omast sõlmest. 1.11 tulemus: 1,3 mln rida, 36 MB; indeks 15.8 keskm. 0,47, 1.10 0,51, 1.11 0,05.
-- Veel tegemata: eksport lehele (PMTiles), tootmisallikad (MEPS, CDS).
+- **Eksport lehele (`eksport_eesti.py`, 1.11.2026):** PMTilesi asemel 1:20 000 lehtede kaupa gzip-failid kaustas `leht/andmed/eesti/` (lehe L-EST97 ruudustik jääb alles, ümberprojekteerimist pole; failid mahuvad Cloudflare Pagesi, R2 pole vaja). `indeks.json.gz` (meta, lehed nurkade ja ilmasõlmedega, ülevaate kirjeldus, giid), `ilm.json.gz` + `ilm.bin.gz` (kõik 836 sõlme, juuni–nov), `ylevaade.bin.gz` (Web Mercatori ruudustik 500 m ≈ 260 m maastikul: hea metsa (Koht ≥ 0,50) 50 m ruutude keskmine S_c, nende arv ja parima ruudu ilmasõlm), `kaart/<leht>.bin.gz` (S_c + sõlm, 208 × 208 = leht + 4 ruutu naabritelt, et silutud kiht lehtede piiril kokku sobiks) ja `info/<leht>.json.gz` (klõpsu selgitus: tegurid, sisendid, eraldiste ja mullatabel). 100 m ümbrus arvutatakse lehe ja naabrite mosaiigil. Leht pakib failid ise lahti (`DecompressionStream`). Leht valib "Kogu Eesti" vaikimisi (`?ala=eesti`, vajab veebiserverit), üksikud alad (`?ala=testala_5458`, proovalad) töötavad endiselt.
+- Lehel: alla suumi 11 ülevaade (üks pilt), alates 11 vaates olevad lehed (laetakse vajadusel, mälus kuni 60, joonistustihedus suumi järgi 2–5×). Kokkuvõte ja "Parimad kohad" käivad nähtava vaate kohta: kaugelt ülevaate ruutudest (vahe vähemalt 1/8 vaate laiusest, ühest ilmasõlmest kuni 2), lähedalt 50 m ruutudest (500 m vahe).
+- Veel tegemata: tootmisallikad (MEPS, CDS), igapäevane uuendus (GitHub Actions: ainult ilm ja indeks muutuvad), Cloudflare'i avaldamine.
 - **Parimad kohad kogu Eestis (otsustatud 1.11.2026):** kandidaatkohad arvutatakse ette koos kasvukohaga (hea metsa tükid: asukoht, ilmasõlm, veerežiimi klasside osakaalud; mõnikümmend tuhat, u 200–400 KB, laetakse korra). Brauser järjestab need ise valitud päeva järgi (koht × viljumisindeks(sõlm, klass, päev)) ja näitab parimaid **nähtavas vaates**: kaugelt hajutatult (vahe kasvab suumiga, nt 5 km, ühest ilmasõlmest kuni 1–2), lähedalt nagu praegu 50 m ruutudest 500 m vahega. Hiljem "Minu lähedal" (asukoht, nt 30 km). Tehakse PMTiles ekspordi osana.
 
 ## Järgmised sammud

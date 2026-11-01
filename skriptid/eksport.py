@@ -163,6 +163,8 @@ def alade_nimekiri():
         if m:
             alad.append({"fail": f.stem, "nimi": m.group(1)})
     alad.sort(key=lambda a: (a["fail"] != "testala_5458", a["nimi"]))
+    if (WEB / "eesti" / "indeks.json.gz").exists():   # all of Estonia (eksport_eesti.py) comes first
+        alad.insert(0, {"fail": "eesti", "nimi": "Kogu Eesti"})
     (WEB / "alad.js").write_text("window.HYYF_ALAD = " + json.dumps(alad, ensure_ascii=False) + ";\n", "utf-8")
 
 
