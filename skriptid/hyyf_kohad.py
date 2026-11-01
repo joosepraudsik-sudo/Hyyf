@@ -1,7 +1,7 @@
 """The user's own mushroom spots for the page's "Hüüf" switch.
 
 Reads the spots table (columns Liik, Koordinaadid "lat, lon", Hinnang, Saladus) from a CSV file or
-the Google Sheets CSV export, keeps only mushrooms that are not marked secret and writes
+the Google Sheets CSV export, keeps only mushrooms (secret ones too, the user's choice) and writes
 leht/andmed/eesti/kohad.json.gz (+ .js copy for file://). The table's address stays out of git:
 it is kept in andmed/leiud/kohad_url.txt (gitignored), the last download in andmed/leiud/kohad.csv.
 
@@ -61,9 +61,6 @@ def main():
         liik = (r.get("Liik") or "").strip()
         nr = re.findall(r"-?\d+(?:\.\d+)?", r.get("Koordinaadid") or "")
         if not liik or len(nr) < 2:
-            continue
-        if (r.get("Saladus") or "").strip().lower() in ("jah", "x", "1", "true"):
-            valja["saladus"] = valja.get("saladus", 0) + 1
             continue
         if not on_seen(liik):
             valja[liik] = valja.get(liik, 0) + 1
