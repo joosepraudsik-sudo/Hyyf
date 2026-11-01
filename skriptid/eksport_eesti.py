@@ -37,7 +37,7 @@ from pyproj import Transformer
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import parameetrid as P  # noqa: E402
-from eksport import (CLASSES, MONTHS, MULLATEMP_SKAALA, TIME_COLS, WEB, alade_nimekiri, block_mean,  # noqa: E402
+from eksport import (CLASSES, MONTHS, MULLATEMP_SKAALA, TIME_COLS, WEB, block_mean,  # noqa: E402
                      block_mode, guide, soil_text, to_u8)
 from ilmavork import ILM, PUNKTID, VALJUND  # noqa: E402
 from kasvukoht import forest_share, stand_table  # noqa: E402
@@ -316,7 +316,6 @@ def main():
         "juhend": guide(site_names),
     }
     gz(OUT / "indeks.json.gz", json.dumps(indeks, ensure_ascii=False, separators=(",", ":")))
-    alade_nimekiri()
     js_koopiad()
 
     size = lambda p: sum(f.stat().st_size for f in p.glob("*.gz")) / 1e6

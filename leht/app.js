@@ -50,7 +50,7 @@ const NONE = 65535;          // no weather point: cell not shown
 const Z_LEHT = 11;           // from this zoom on the 50 m sheets are drawn (all of Estonia), below it the overview
 const LEHTI_MALUS = 60;
 const YLE_TUGEVUS = 1.5;     // the overview's colours are this much more opaque (seen from afar)      // sheets kept in memory
-const EESTI = window.HYYF_EESTI;   // "andmed/eesti/" when the whole country is chosen (eksport_eesti.py)
+const EESTI = "andmed/eesti/";     // data of all of Estonia (eksport_eesti.py)
 
 // A grid of cells: one small area, one 10 km sheet with `varu` cells of its neighbours around it
 // (only for the smoothed drawing), or the overview of Estonia. The inner part (Wi x Hi) is placed on
@@ -103,17 +103,6 @@ function seaIlm(v, aeg) {
   const kohalik = new Date().toLocaleDateString("sv-SE");
   if (v.kuupaevad.includes(kohalik)) v.tana = kohalik;
   Object.assign(olek, { vilj: v, aeg });
-}
-
-// one area in a script file (window.HYYF): one grid with its own weather and explanation data
-function laeAla() {
-  const S = window.HYYF, meta = S.meta;
-  const kiht = jaga(b64(S.rakud), meta.kihid, meta.laius * meta.korgus);
-  const info = { kiht, eraldised: S.eraldised, mullad: S.mullad };
-  kiht.ilmapunkt = Uint16Array.from(kiht.ilmapunkt, (p) => (p === 255 ? NONE : p));
-  olek.ala = vork({ id: "ala", laius: meta.laius, korgus: meta.korgus, ruut_m: meta.ruut_m, nurgad: meta.nurgad, kiht, info });
-  seaIlm(S.viljumine, b64(S.viljumine.andmed));
-  Object.assign(olek, { meta, klassid: Object.keys(meta.klassid).map(Number) });
 }
 
 // gzip files of andmed/eesti, unpacked here (any static host serves them as they are)
@@ -203,14 +192,13 @@ function vaateLehed(lisa = 0) {
 
 // grids whose cells are on the map now: counted in the summary and searched for best spots
 function nahtavadVorgud() {
-  if (!EESTI) return [olek.ala];
   if (map.getZoom() < Z_LEHT) return [olek.yle];
   return vaateLehed().filter((G) => G.kiht && G.kl);
 }
 
 // cell of a loaded grid at a map position (no loading), for the cursor
 function rakkNahtav(lng, lat) {
-  for (const G of EESTI ? (map.getZoom() < Z_LEHT ? [olek.yle] : olek.lehed.filter((L) => L.kiht)) : [olek.ala]) {
+  for (const G of map.getZoom() < Z_LEHT ? [olek.yle] : olek.lehed.filter((L) => L.kiht)) {
     const i = rakkG(G, lng, lat);
     if (i >= 0) return G.kiht.ilmapunkt[i] === NONE ? null : { G, i };
   }
@@ -219,9 +207,9 @@ function rakkNahtav(lng, lat) {
 
 // 50 m cell at a map position with its explanation data, loading the sheet if needed
 async function leiaRakk(lng, lat) {
-  const G = EESTI ? olek.lehed.find((L) => rakkG(L, lng, lat) >= 0) : olek.ala;
+  const G = olek.lehed.find((L) => rakkG(L, lng, lat) >= 0);
   if (!G) return null;
-  if (EESTI) await Promise.all([laeLeht(G), laeInfo(G)]);
+  await Promise.all([laeLeht(G), laeInfo(G)]);
   const i = rakkG(G, lng, lat);
   return i < 0 || G.kiht.ilmapunkt[i] === NONE ? null : { G, i };
 }
@@ -292,22 +280,19 @@ function joonista() {
 // draw what the view needs and is not yet drawn for this day and mode, then the panel and best spots
 async function uuendaKaart() {
   const voti = `${olek.reziim}|${olek.paev}|${olek.versioon}`;
-  if (!EESTI) joonistaVork(olek.ala, SILE, voti);
+  // the overview only while it is on the map (zooming out draws it then)
+  if (map.getZoom() < Z_LEHT) joonistaVork(olek.yle, 2, voti);
   else {
-    // the overview only while it is on the map (zooming out draws it then)
-    if (map.getZoom() < Z_LEHT) joonistaVork(olek.yle, 2, voti);
-    else {
-      const lehed = vaateLehed();
-      if (lehed.some((G) => !G.kiht)) document.getElementById("kokkuvote").textContent = "Laen selle vaate metsi…";
-      await Promise.allSettled(lehed.map(laeLeht));
-      if (voti !== `${olek.reziim}|${olek.paev}|${olek.versioon}`) return;   // a newer call took over
-      const sile = sileSuum();
-      for (const G of vaateLehed()) if (G.kiht) joonistaVork(G, sile, voti);
-    }
-    // sheets far from the view leave the map (their data stays in memory for a while)
-    const lahedal = new Set(vaateLehed(1));
-    olek.lehed.forEach((G) => { if (G.pilt && !lahedal.has(G)) eemaldaPilt(G); });
+    const lehed = vaateLehed();
+    if (lehed.some((G) => !G.kiht)) document.getElementById("kokkuvote").textContent = "Laen selle vaate metsi…";
+    await Promise.allSettled(lehed.map(laeLeht));
+    if (voti !== `${olek.reziim}|${olek.paev}|${olek.versioon}`) return;   // a newer call took over
+    const sile = sileSuum();
+    for (const G of vaateLehed()) if (G.kiht) joonistaVork(G, sile, voti);
   }
+  // sheets far from the view leave the map (their data stays in memory for a while)
+  const lahedal = new Set(vaateLehed(1));
+  olek.lehed.forEach((G) => { if (G.pilt && !lahedal.has(G)) eemaldaPilt(G); });
   const kohad = parimadKohad(nahtavadVorgud());
   uuendaPaneel(kohad);
   uuendaMarkerid(kohad);
@@ -438,7 +423,7 @@ function naitaPilt(G, url) {
   if (!map.getSource(id)) {
     G.pilt = { laeb: true, ootel: null };
     map.addSource(id, { type: "image", url, coordinates: G.pildiNurgad || G.nurgad });
-    map.addLayer({ id, type: "raster", source: id, ...(EESTI ? (G.yle ? { maxzoom: Z_LEHT } : { minzoom: Z_LEHT }) : {}),
+    map.addLayer({ id, type: "raster", source: id, ...(G.yle ? { maxzoom: Z_LEHT } : { minzoom: Z_LEHT }),
                    layout: { visibility: olek.kihtNahtav ? "visible" : "none" },
                    paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "linear", "raster-fade-duration": 0 } },
                  olek.siltideAlt);
@@ -635,13 +620,8 @@ function uuendaKokkuvote() {
   const j = klassiS.indexOf(Math.max(...klassiS));
   const pohjus = () => aegPohjus(paev, p, j);
   const head = ha.slice(0, -1).reduce((s, x) => s + x, 0), voimalik = ha.at(-1);
-  if (p === null && EESTI) kv.innerHTML = vaateLehed().some((G) => !G.kiht) && map.getZoom() >= Z_LEHT
+  if (p === null) kv.innerHTML = vaateLehed().some((G) => !G.kiht) && map.getZoom() >= Z_LEHT
     ? "Laen selle vaate metsi…" : "Siin pole hinnatud metsa.";
-  else if (p === null) {
-    // the page holds one area (test sheet, or ?ala=...): say which, and offer to go there
-    kv.innerHTML = `Siin pole hinnatud metsa. Andmed on alal <b>${meta.nimi}</b>. <button class="tekstinupp">Näita ala</button>`;
-    kv.querySelector("button").onclick = () => map.fitBounds([meta.nurgad[3], meta.nurgad[1]], { padding: vaba() });
-  }
   else if (!tana) {
     const mets = ha.reduce((s, x) => s + x, 0);
     kv.innerHTML = head < 5
@@ -1270,17 +1250,8 @@ function giidHtml() {
 function laved() {
   const A = olek.meta.astmed, v = olek.vilj;
   let mets = A.koht.map(() => 0), rakke = 0;
-  if (EESTI) {   // counted at export for every sheet
-    for (const G of olek.lehed) { rakke += G.rakke; mets = mets.map((m, j) => m + G.koht_astmed[j]); }
-  } else {
-    const G = olek.ala;
-    for (let i = 0; i < G.n; i++) {
-      if (G.kiht.ilmapunkt[i] === NONE) continue;
-      rakke++;
-      const x = kohaSobivus(G, i);
-      A.koht.forEach((b, j) => { if (x >= b) mets[j]++; });
-    }
-  }
+  // counted at export for every sheet
+  for (const G of olek.lehed) { rakke += G.rakke; mets = mets.map((m, j) => m + G.koht_astmed[j]); }
   // mushroom time: fresh forest at the middle weather point, July-September
   const p = Math.floor(v.ilmapunktid.length / 2), j2 = olek.klassid.indexOf(2), fi = F("indeks");
   const aeg = A.aeg.map(() => 0), aastad = new Set();
@@ -1297,7 +1268,7 @@ function laved() {
   const ay = [...aastad].sort();
   return `<p><b>Läved ei ole mõõdetud tõenäosused.</b> Mudelit pole veel piisavalt leidudega kontrollitud, et öelda „tippkoht = nii mitu protsenti tõenäosusega seeni“. Läved on valitud nii, et kaart saadaks inimesed vähestesse, tõeliselt headesse kohtadesse.</p>
     ${tabel(ASTE_KOHT.map((n, j) => [`Mets ${n} (Koht ${Math.round(A.koht[j] * 100)}+)`, `parim ${pr(mets[j], rakke)}`]), ["metsa aste", "osa kaardi metsast"])}
-    <p class="vaike">Metsa astmed on seatud testala metsa jaotuse järgi${EESTI ? ", siin kogu Eesti metsa kohta" : ""}: „${ASTE_KOHT[0]}“ on ainult parim ${pr(mets[0], rakke)}, „${ASTE_KOHT[1]}“ parim ${pr(mets[1], rakke)}.</p>
+    <p class="vaike">Metsa astmed on seatud testala metsa jaotuse järgi, siin kogu Eesti metsa kohta: „${ASTE_KOHT[0]}“ on ainult parim ${pr(mets[0], rakke)}, „${ASTE_KOHT[1]}“ parim ${pr(mets[1], rakke)}.</p>
     ${tabel(ASTE_AEG.map((n, jj) => [`Seeneaeg ${n} (Aeg ${Math.round(A.aeg[jj] * 100)}%+)`, pr(aeg[jj], paevi)]), ["seeneaja aste", `osa juuli–septembri päevadest ${ay[0]}–${ay.at(-1)}`])}
     <p class="vaike">Seeneaja indeks on skaleeritud nii, et tavalise hea hooaja tipp on umbes 75%. „Väga hea“ (70%+) on hea hooaja tipp, „hea“ (50%+) umbes kaks kolmandikku sellest.</p>
     <p class="vaike">Päris tõenäosuseks saab hinde muuta alles siis, kui leide ja tühje käike on palju – siis saab kontrollida, kui tihti tumedal alal tegelikult seeni leitakse.</p>`;
@@ -1435,15 +1406,14 @@ function vaba() {
   return telefon ? { top: 70, right: 20, bottom: 220, left: 20 } : { top: 80, right: 300, bottom: 200, left: 40 };
 }
 
-// data: one area from a script file (window.HYYF, so file:// works too), or all of Estonia from
-// andmed/eesti (needs a web server); only wait for the style, not for all basemap tiles ("load")
+// data of all of Estonia from andmed/eesti (from disk as their .js copies); only wait for the
+// style, not for all basemap tiles ("load")
 map.once("style.load", async () => {
   lisaAluskaardid();
   const kv = document.getElementById("kokkuvote");
   try {
-    if (EESTI) { kv.textContent = "Laen andmeid…"; await laeEesti(); }
-    else if (window.HYYF) laeAla();
-    else { kv.textContent = "Andmefail puudub: käivita skriptid/eksport.py."; return; }
+    kv.textContent = "Laen andmeid…";
+    await laeEesti();
   } catch (e) {
     kv.textContent = `Andmeid ei saanud laadida (${e.message}).`;
     return;
@@ -1484,22 +1454,6 @@ document.querySelectorAll("#aluskaart button[data-kiht]").forEach((b) => b.oncli
   document.querySelectorAll("#aluskaart button[data-kiht]").forEach((x) => x.classList.toggle("aktiivne", x === b));
   valiAluskaart(b.dataset.kiht);
 });
-// area choice (andmed/alad.js, more than one exported area): reload the page with that area
-const alad = window.HYYF_ALAD || [];
-if (alad.length > 1) {
-  const osa = document.getElementById("alad");
-  osa.hidden = false;
-  for (const a of alad) {
-    const b = document.createElement("button");
-    b.textContent = a.nimi;
-    b.classList.toggle("aktiivne", a.fail === window.HYYF_VALIK);
-    b.onclick = () => {
-      try { localStorage.setItem("hyyf-ala-valik", a.fail); } catch (e) { /* private mode: the URL is enough */ }
-      location.search = "?ala=" + a.fail;
-    };
-    osa.append(b);
-  }
-}
 // basemap menu: opens under its round button, closes on choice or outside click
 const aluskaartNupp = document.getElementById("aluskaart-nupp"), aluskaartMenyy = document.getElementById("aluskaart");
 aluskaartNupp.onclick = (e) => {

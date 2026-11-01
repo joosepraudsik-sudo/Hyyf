@@ -37,7 +37,6 @@
         <svg viewBox="0 0 24 24"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/></svg>
       </button>
       <div id="aluskaart" class="menyy klaas" role="group" aria-label="Aluskaart" hidden>
-        <div id="alad" class="menyy-osa" hidden><span class="menyy-pealkiri">Ala</span></div>
         <span class="menyy-pealkiri">Aluskaart</span>
         <button data-kiht="loodus" class="aktiivne">Looduskaart</button>
         <button data-kiht="topo">Topo</button>
@@ -113,24 +112,6 @@
   </dialog>
 
   <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
-  <script src="andmed/alad.js"></script>
-  <script>
-    // data file: ?ala=<name>, else the area chosen last time, else the first in andmed/alad.js
-    // (written by eksport.py); a plain script tag, so the page also works from file://
-    (() => {
-      const alad = window.HYYF_ALAD || [];
-      let ala = new URLSearchParams(location.search).get("ala");
-      // only a choice made in the menu is remembered (hyyf-ala-valik); the old key was written on
-      // every load and would keep people on the test sheet
-      try { ala = ala || localStorage.getItem("hyyf-ala-valik"); } catch (e) {}
-      if (alad.length && !alad.some((a) => a.fail === ala)) ala = alad[0].fail;
-      ala = (ala || "testala_5458").replace(/[^a-z0-9_]/gi, "");
-      window.HYYF_VALIK = ala;
-      // all of Estonia: files loaded on demand by app.js (from disk as their .js copies)
-      if (ala === "eesti") window.HYYF_EESTI = "andmed/eesti/";
-      else document.write(`<script src="andmed/${ala}.js"><\/script>`);
-    })();
-  </script>
   <script src="app.js"></script>
 </body>
 </html>
