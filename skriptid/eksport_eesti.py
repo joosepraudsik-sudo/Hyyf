@@ -14,7 +14,8 @@ leht/andmed/eesti/
 
 The neighbourhood (100 m) is computed on a mosaic of the sheet and its neighbours, so the values
 match a computation over the whole country. Files are gzip, the page unpacks them itself
-(DecompressionStream), so any static host works.
+(DecompressionStream), so any static host works. Each also has a .js copy for opening index.html
+straight from disk (js_koopiad, --js).
 
 Run: uv run python -I skriptid/eksport_eesti.py [leht ...] [--too 4]
 """
@@ -229,11 +230,31 @@ def ilm(nodes):
     return len(days)
 
 
+def js_koopiad():
+    """Each .gz file also as a script (<name>.js: HYYF_FAIL("<path>", "<base64>")), so the page works
+    when index.html is opened straight from disk (file:// allows script tags, not fetch). Only for
+    local use: the web host gets the .gz files."""
+    n = 0
+    for f in OUT.rglob("*.gz"):
+        js = f.with_suffix(".js")
+        if js.exists() and js.stat().st_mtime >= f.stat().st_mtime:
+            continue
+        rel = f.relative_to(OUT).as_posix()
+        data = base64.b64encode(f.read_bytes()).decode("ascii")
+        js.write_text(f'HYYF_FAIL("{rel}","{data}");\n', "ascii")
+        n += 1
+    print(f"  .js koopiaid uuendatud {n}")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("lehed", nargs="*", help="only these sheets (index and overview then cover only them)")
     ap.add_argument("--too", type=int, default=4, help="parallel processes")
+    ap.add_argument("--js", action="store_true", help="only write the .js copies of existing files")
     a = ap.parse_args()
+    if a.js:
+        js_koopiad()
+        return
     t0 = time.time()
     nodes = sorted(json.loads(PUNKTID.read_text("utf-8")), key=int)
     counts = json.loads(LEHED_JSON.read_text())
@@ -296,6 +317,7 @@ def main():
     }
     gz(OUT / "indeks.json.gz", json.dumps(indeks, ensure_ascii=False, separators=(",", ":")))
     alade_nimekiri()
+    js_koopiad()
 
     size = lambda p: sum(f.stat().st_size for f in p.glob("*.gz")) / 1e6
     print(f"Valmis {time.time() - t0:.0f} s: lehti {len(entries)}, ülevaade {W} x {H} (hea metsaga {int((count > 0).sum())})")

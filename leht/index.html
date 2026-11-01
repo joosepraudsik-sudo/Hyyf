@@ -126,9 +126,9 @@
       if (alad.length && !alad.some((a) => a.fail === ala)) ala = alad[0].fail;
       ala = (ala || "testala_5458").replace(/[^a-z0-9_]/gi, "");
       window.HYYF_VALIK = ala;
-      // all of Estonia: files loaded on demand by app.js (needs a web server, not file://)
-      if (ala === "eesti" && location.protocol !== "file:") window.HYYF_EESTI = "andmed/eesti/";
-      else document.write(`<script src="andmed/${ala === "eesti" ? "testala_5458" : ala}.js"><\/script>`);
+      // all of Estonia: files loaded on demand by app.js (from disk as their .js copies)
+      if (ala === "eesti") window.HYYF_EESTI = "andmed/eesti/";
+      else document.write(`<script src="andmed/${ala}.js"><\/script>`);
     })();
   </script>
   <script src="app.js"></script>

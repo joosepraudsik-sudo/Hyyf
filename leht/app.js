@@ -118,13 +118,31 @@ function laeAla() {
 
 // gzip files of andmed/eesti, unpacked here (any static host serves them as they are)
 async function laeGz(url, json = false) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error(`${url}: ${r.status}`);
-  let b = new Uint8Array(await r.arrayBuffer());
+  let b;
+  if (location.protocol === "file:") b = await laeSkript(url);
+  else {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`${url}: ${r.status}`);
+    b = new Uint8Array(await r.arrayBuffer());
+  }
   if (b[0] === 0x1f && b[1] === 0x8b) {
     b = new Uint8Array(await new Response(new Blob([b]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer());
   }
   return json ? JSON.parse(new TextDecoder().decode(b)) : b;
+}
+
+// index.html opened straight from disk: file:// blocks fetch but not script tags, so every .gz file
+// has a .js copy that hands its bytes to HYYF_FAIL (eksport_eesti.py)
+const skriptid = {};
+window.HYYF_FAIL = (tee, andmed) => skriptid[tee]?.(b64(andmed));
+function laeSkript(url) {
+  return new Promise((ok, viga) => {
+    const tee = url.slice(EESTI.length), el = document.createElement("script");
+    skriptid[tee] = (b) => { delete skriptid[tee]; el.remove(); ok(b); };
+    el.onerror = () => { delete skriptid[tee]; el.remove(); viga(new Error(`${url}: puudub (käivita eksport_eesti.py --js)`)); };
+    el.src = url.replace(/\.gz$/, ".js");
+    document.head.append(el);
+  });
 }
 
 // all of Estonia: index, weather and the overview now, the 50 m sheets when the view needs them
