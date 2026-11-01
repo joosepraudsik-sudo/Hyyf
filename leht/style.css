@@ -496,3 +496,8 @@ button.brand:hover { background: var(--pind-2); }
 .si-tulp.t0 { height: 6px; } .si-tulp.t1 { height: 14px; background: #e9cf8f; }
 .si-tulp.t2 { height: 26px; background: #d9894a; } .si-tulp.t3 { height: 38px; background: #a4432a; }
 .sel-h-esimene { margin-top: 4px; padding-top: 0; }
+
+/* TEMPORARY: look variant switch */
+#variandid { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 5; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+#variandid button { white-space: nowrap; }
+@media (max-width: 760px) { #variandid { top: auto; bottom: 230px; } #variandid button { padding: 6px 9px; font-size: 12px; } }
