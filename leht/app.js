@@ -48,7 +48,8 @@ const canvas = document.createElement("canvas");
 
 const NONE = 65535;          // no weather point: cell not shown
 const Z_LEHT = 11;           // from this zoom on the 50 m sheets are drawn (all of Estonia), below it the overview
-const LEHTI_MALUS = 60;      // sheets kept in memory
+const LEHTI_MALUS = 60;
+const YLE_TUGEVUS = 1.5;     // the overview's colours are this much more opaque (seen from afar)      // sheets kept in memory
 const EESTI = window.HYYF_EESTI;   // "andmed/eesti/" when the whole country is chosen (eksport_eesti.py)
 
 // A grid of cells: one small area, one 10 km sheet with `varu` cells of its neighbours around it
@@ -288,11 +289,35 @@ function joonistaVork(G, sile, voti) {
       G.v[i] = olek.reziim === "koht" ? h[0] : h[0] * h[1];
       G.kl[i] = klassKA(h[0], h[1]);
     }
-    Object.assign(G, { voti, sile: 0 });
+    Object.assign(G, { voti, sile: 0, koond: 0 });
+  }
+  if (G.yle) {
+    // the overview zoomed far out: each picture cell is the best class of k x k cells, so small
+    // good forests stay visible when the map shrinks the picture (it has no mipmaps)
+    const z = map.getZoom(), k = z < 7.5 ? 4 : z < 8.5 ? 2 : 1;
+    if (G.koond === k && G.pilt) return;
+    G.koond = k;
+    const K = koonda(G, k);
+    G.pildiNurgad = [[0, 0], [K.laius * k, 0], [K.laius * k, K.korgus * k], [0, K.korgus * k]].map(([x, y]) => G.lngLat(x, y));
+    naitaPilt(G, pilt(K, k === 1 ? 2 : 1));
+    return;
   }
   if (G.sile >= sile && G.pilt) return;
   G.sile = sile;
   naitaPilt(G, pilt(G, sile));
+}
+
+// grid of the best (lowest, -1 = none) class of each k x k block of G's cells; the lowest class
+// is left out, as blocks with some of it would wash over almost the whole country
+function koonda(G, k) {
+  if (k === 1) return G;
+  const W = Math.ceil(G.laius / k), H = Math.ceil(G.korgus / k), kl = new Int8Array(W * H).fill(-1);
+  const madalaim = KLASSID[olek.reziim].length - 1;
+  for (let y = 0; y < G.korgus; y++) for (let x = 0; x < G.laius; x++) {
+    const c = G.kl[y * G.laius + x], j = Math.floor(y / k) * W + Math.floor(x / k);
+    if (c >= 0 && c < madalaim && (kl[j] < 0 || c < kl[j])) kl[j] = c;
+  }
+  return { laius: W, korgus: H, Wi: W, Hi: H, varu: 0, kl, yle: true };
 }
 
 // picture of grid G: like contour lines, for each class a field "this class or better" (0/1 per
@@ -328,6 +353,7 @@ function pilt(G, sile) {
     }
     return s;
   };
+  const tugevus = G.yle ? YLE_TUGEVUS : 1;
   const SERV = 0.07;   // edge softness in field units (about one fine pixel)
   const kate = (f) => Math.max(0, Math.min(1, (f - 0.5) / SERV + 0.5));
   // rows of cells with nothing drawn are skipped quickly
@@ -348,7 +374,7 @@ function pilt(G, sile) {
         eel = a;
       }
       const o = (py * canvas.width + px) * 4;
-      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = bl; img.data[o + 3] = Math.round(al * valine * 255);
+      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = bl; img.data[o + 3] = Math.round(Math.min(1, al * tugevus) * valine * 255);
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -376,7 +402,7 @@ function naitaPilt(G, url) {
   const id = "hinnang-" + G.id;
   if (!map.getSource(id)) {
     G.pilt = { laeb: true, ootel: null };
-    map.addSource(id, { type: "image", url, coordinates: G.nurgad });
+    map.addSource(id, { type: "image", url, coordinates: G.pildiNurgad || G.nurgad });
     map.addLayer({ id, type: "raster", source: id, ...(EESTI ? (G.yle ? { maxzoom: Z_LEHT } : { minzoom: Z_LEHT }) : {}),
                    layout: { visibility: olek.kihtNahtav ? "visible" : "none" },
                    paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "linear", "raster-fade-duration": 0 } },
@@ -401,7 +427,7 @@ function uuendaPilt(G, url) {
   const P = G.pilt;
   if (P.laeb) { P.ootel = url; return; }
   P.laeb = true;
-  map.getSource("hinnang-" + G.id).updateImage({ url, coordinates: G.nurgad });
+  map.getSource("hinnang-" + G.id).updateImage({ url, coordinates: G.pildiNurgad || G.nurgad });
   ootaPilt(G);
 }
 function ootaPilt(G) {
