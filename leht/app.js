@@ -1303,10 +1303,59 @@ function laved() {
     <p class="vaike">Päris tõenäosuseks saab hinde muuta alles siis, kui leide ja tühje käike on palju – siis saab kontrollida, kui tihti tumedal alal tegelikult seeni leitakse.</p>`;
 }
 
-function avaGiid() {
+// the data the map is made of: one row per dataset, what is taken from it and what it is used for
+const ANDMED = [
+  { nimi: "Metsaregister", allikas: "Keskkonnaagentuur", link: "https://www.keskkonnaagentuur.ee/metsaregister", litsents: "CC BY 4.0", seis: "seis 10.2026",
+    andmed: "Metsaeraldiste piirid; puuliigid ja nende osakaal rinde kaupa; puistu vanus; kasvukohatüüp; kuivendatus",
+    milleks: "Puuliigid (peremeespuu), puistu vanus, metsatüüp, metsa veerežiim (kuiv … märg) ja soode asukoht (soo serv). Mets, mille kohta registris andmeid pole, jääb kaardilt välja." },
+  { nimi: "Mullakaart 1 : 10 000", allikas: "Maa- ja Ruumiamet", link: "https://geoportaal.maaruum.ee", litsents: "avaandmed",
+    andmed: "Mullaliik ja selle osakaal mullakompleksis; lõimis (liiv … savi, turvas); karbonaatsus ja kivisus",
+    milleks: "Muld: kui hästi vesi ära voolab ja kui happeline muld on. Turvasmullad annavad soo serva." },
+  { nimi: "Maapinna kõrgusmudel", allikas: "Maa- ja Ruumiamet", link: "https://geoportaal.maaruum.ee", litsents: "avaandmed", seis: "5 m (testalal 1 m)",
+    andmed: "Maapinna kõrgus",
+    milleks: "Maastiku niiskus: kas koht on seljak, nõlv või lohk, kuhu vesi koguneb." },
+  { nimi: "Võrastiku kõrgusmudel (lidar)", allikas: "Maa- ja Ruumiamet", link: "https://geoportaal.maaruum.ee", litsents: "avaandmed", seis: "lennud 2020–2023",
+    andmed: "Puude ja põõsaste kõrgus maapinnast",
+    milleks: "Valgus (kas võrastik on olemas), võra tihedus ja metsamassiiv (kui suur osa 300 m ümbrusest on mets)." },
+  { nimi: "ERA5-Land", allikas: "Copernicus / ECMWF (Open-Meteo kaudu)", link: "https://open-meteo.com", litsents: "CC BY 4.0", seis: "u 11 × 6 km, ~5 p viivitusega",
+    andmed: "Õhu keskmine ja miinimumtemperatuur; pinnase temperatuur",
+    milleks: "Seeneaeg: suve soojus (kraadipäevad), uute seente tekkeks piisav õhu- ja mullasoojus, küpsemise kiirus, öökülm ja jahedusega kiirem vananemine." },
+  { nimi: "ERA5", allikas: "Copernicus / ECMWF (Open-Meteo kaudu)", link: "https://open-meteo.com", litsents: "CC BY 4.0", seis: "u 28 × 15 km",
+    andmed: "Sademed; potentsiaalne aurumine (ET0); suvede 2016–2025 keskmised",
+    milleks: "Iga metsatüübi mullavee varu ja kevad-suve niiskus. Kümne suve keskmise järgi viiakse iga koha ilm testala kliimasse – kuivema kliimaga paik ei jää kaardilt välja." },
+  { nimi: "Ilmaprognoos", allikas: "Open-Meteo (riiklike ilmateenistuste mudelid)", link: "https://open-meteo.com", litsents: "CC BY 4.0", seis: "viimased 14 p ja 10 p ette",
+    andmed: "Sama mis ERA5 ja ERA5-Land: temperatuur, sademed, aurumine, mulla temperatuur",
+    milleks: "Viimaste päevade ilm (ERA5 jõuab kohale ~5 päevaga) ja prognoos ajateljel." },
+  { nimi: "Aluskaardid", allikas: "OpenStreetMap / OpenFreeMap, OpenTopoMap, Maa- ja Ruumiamet", link: "https://www.openstreetmap.org/copyright", litsents: "ODbL, CC BY-SA, avaandmed",
+    andmed: "Teed, rajad, asulad, kõrgusjooned, ortofoto",
+    milleks: "Ainult taust orienteerumiseks – hinnet ei mõjuta." },
+];
+
+function andmedHtml() {
+  const v = olek.vilj, kp = (d) => d ? `${+d.slice(8)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : "–";
+  const moot = v.kuupaevad[v.paeva_allikas.lastIndexOf("era5")], lopp = v.kuupaevad.at(-1);
+  return `<p>Kaart on arvutatud avalikest andmetest. Iga andmestiku kohta: mida sealt võtame ja milleks.</p>
+    <table class="andmed-tabel"><thead><tr><th>Andmestik</th><th>Mida võtame</th><th>Milleks</th></tr></thead><tbody>
+    ${ANDMED.map((a) => `<tr><td><b>${a.nimi}</b><small><a href="${a.link}" target="_blank" rel="noopener">${a.allikas}</a> · ${a.litsents}${a.seis ? ` · ${a.seis}` : ""}</small></td><td>${a.andmed}</td><td>${a.milleks}</td></tr>`).join("")}
+    </tbody></table>
+    <p class="vaike">Ilm: mõõdetud (ERA5) kuni <b>${kp(moot)}</b>, edasi mudelianalüüs ja prognoos kuni <b>${kp(lopp)}</b>. Metsa andmed uuenevad 1–2 korda aastas.</p>
+    <p class="vaike">Hinne on mudeli hinnang, mitte lubadus: kaart ei tea raietest pärast registri viimast uuendust ega seda, kas mets on era- või kaitseala. Metsas liikudes kehtivad igaüheõigus ja kaitsealade reeglid.</p>
+    <p class="vaike">Sisaldab muudetud Copernicuse kliimamuutuste teenistuse teavet (ERA5, ERA5-Land). Ilm: <a href="https://open-meteo.com" target="_blank" rel="noopener">Open-Meteo.com</a> (CC BY 4.0). Metsaregister © Keskkonnaagentuur (CC BY 4.0). Mullakaart ja kõrgusandmed © Maa- ja Ruumiamet.</p>`;
+}
+
+// the guide has two pages: how the score is made, and the data it is made of
+const GIID_LEHED = { hinne: "Kuidas hinne tekib", andmed: "Andmed ja allikad" };
+function avaGiid(leht = olek.giidLeht || "hinne") {
+  olek.giidLeht = GIID_LEHED[leht] ? leht : "hinne";
   const sisu = document.getElementById("giid-sisu");
-  if (!sisu.innerHTML && window.HYYF) sisu.innerHTML = giidHtml();
-  document.getElementById("giid").showModal();
+  document.getElementById("giid-pealkiri").textContent = GIID_LEHED[olek.giidLeht];
+  if (window.HYYF) {
+    const valik = `<div class="segment vaade-valik giid-valik" role="group" aria-label="Juhendi leht">${Object.entries(GIID_LEHED)
+      .map(([k, nimi]) => `<button data-leht="${k}"${k === olek.giidLeht ? ' class="aktiivne"' : ""}>${k === "andmed" ? "Andmed" : nimi}</button>`).join("")}</div>`;
+    sisu.innerHTML = valik + (olek.giidLeht === "andmed" ? andmedHtml() : giidHtml());
+    sisu.querySelectorAll(".giid-valik button").forEach((b) => b.onclick = () => { avaGiid(b.dataset.leht); document.getElementById("giid").scrollTop = 0; });
+  }
+  if (!document.getElementById("giid").open) document.getElementById("giid").showModal();
 }
 
 // ---------- what a chanterelle needs (logo click) ----------
@@ -1462,7 +1511,7 @@ aluskaartMenyy.addEventListener("click", () => { aluskaartMenyy.hidden = true; a
 document.addEventListener("click", (e) => {
   if (!aluskaartMenyy.hidden && !e.target.closest(".menyy-hoidja")) { aluskaartMenyy.hidden = true; aluskaartNupp.setAttribute("aria-expanded", "false"); }
 });
-document.getElementById("giid-nupp").onclick = avaGiid;
+document.getElementById("giid-nupp").onclick = () => avaGiid();
 document.getElementById("brand").onclick = () => avaSeeninfo();
 document.getElementById("seeninfo-sulge").onclick = () => document.getElementById("seeninfo").close();
 document.getElementById("seeninfo").addEventListener("click", (e) => {
