@@ -14,7 +14,7 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 // 2 väga hea, 3 hea, more not drawn ("Head metsad": the forest step alone, 0-2).
 const VARV = ["#3fbd8c", "#f4c84a", "#f4a26a"];
 const JOON_VARV = ["#1d8a5f", "#cfa21f", "#e0733a"];
-const ALFA = [0.7, 0.7, 0.7];
+const ALFA = [0.45, 0.45, 0.45];
 const SUMMA_KLASS = [0, 0, 1, 2];
 const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 1, 16, 0.9];
 const KLASSID = {
