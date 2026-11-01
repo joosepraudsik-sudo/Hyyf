@@ -1076,6 +1076,31 @@ function avaGiid() {
   document.getElementById("giid").showModal();
 }
 
+// ---------- what a chanterelle needs (logo click) ----------
+const SEEN_IKOON = {
+  puu: '<svg viewBox="0 0 24 24"><path d="M12 3l-5 7h3l-4 6h12l-4-6h3z"/><path d="M12 16v5"/></svg>',
+  muld: '<svg viewBox="0 0 24 24"><path d="M3 14h18M3 18h18"/><path d="M7 14c0-3 2-5 5-5s5 2 5 5"/><path d="M12 9V5"/></svg>',
+  vihm: '<svg viewBox="0 0 24 24"><path d="M7 15a4 4 0 0 1-.5-8 5.5 5.5 0 0 1 10.6 1.5A3.5 3.5 0 0 1 17 15z"/><path d="M9 19l-1 2M13 19l-1 2M17 19l-1 2"/></svg>',
+  paike: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5L19 19M5 19l1.5-1.5M17.5 6.5L19 5"/></svg>',
+  kalender: '<svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>',
+};
+const KUUD_HOOAEG = [["mai", 0], ["juuni", 1], ["juuli", 2], ["aug", 3], ["sept", 3], ["okt", 2], ["nov", 0]];
+
+// short text, one paragraph per need; the season as bars by month
+function avaSeeninfo() {
+  const kuud = `<div class="si-kuud">${KUUD_HOOAEG.map(([k, t]) => `<div><span class="si-tulp t${t}"></span><small>${k}</small></div>`).join("")}</div>`;
+  document.getElementById("seeninfo-sisu").innerHTML = `
+    <p class="si-sissejuhatus">Kukeseen ei kasva üksi: tema seeneniidistik elab koos puu juurtega ja vahetab puuga toitaineid. Seen saab puult suhkrut, puu seenelt vett ja mineraale. Seepärast leiab kukeseeni ainult elavate puude alt.</p>
+    <ul class="si-read">
+      <li>${SEEN_IKOON.puu}<div><b>Puu</b><span>Kõige sagedamini mänd, ka kuusk ja kask. Parim on keskealine või vanem mets – noorel metsal pole seeneniidistik veel välja kujunenud.</span></div></li>
+      <li>${SEEN_IKOON.muld}<div><b>Muld</b><span>Vaene, happeline ja hästi kuivendatud: liiv või saviliiv, sammal maas. Lopsakas rohi, väetatud või lubjarikas maa ja seisev vesi ei sobi.</span></div></li>
+      <li>${SEEN_IKOON.paike}<div><b>Valgus</b><span>Hõre või keskmine mets, kus päike paistab laiguti maani. Kottpimedas kuusikus ja lagedal raiesmikul on seeni vähe.</span></div></li>
+      <li>${SEEN_IKOON.vihm}<div><b>Soe suvi ja vihm</b><span>Seeneniidistik vajab sooja suve ja niisket mulda. Pärast korralikku vihma tulevad seened 1–3 nädalaga – jahedaga kauem.</span></div></li>
+      <li>${SEEN_IKOON.kalender}<div><b>Hooaeg</b><span>Juulist oktoobrini, kõige rohkem augustis ja septembris. Seened kasvavad aeglaselt ja püsivad metsas nädalaid.</span>${kuud}</div></li>
+    </ul>`;
+  document.getElementById("seeninfo").showModal();
+}
+
 // ---------- map ----------
 
 // Basemaps: OpenFreeMap "Liberty" (natural vector map, OpenStreetMap data) by default; OpenTopoMap
@@ -1201,6 +1226,11 @@ document.addEventListener("click", (e) => {
   if (!aluskaartMenyy.hidden && !e.target.closest(".menyy-hoidja")) { aluskaartMenyy.hidden = true; aluskaartNupp.setAttribute("aria-expanded", "false"); }
 });
 document.getElementById("giid-nupp").onclick = avaGiid;
+document.getElementById("brand").onclick = () => avaSeeninfo();
+document.getElementById("seeninfo-sulge").onclick = () => document.getElementById("seeninfo").close();
+document.getElementById("seeninfo").addEventListener("click", (e) => {
+  if (e.target.id === "seeninfo") e.target.close();   // click on the backdrop
+});
 document.getElementById("giid-sulge").onclick = () => document.getElementById("giid").close();
 document.getElementById("giid").addEventListener("click", (e) => {
   if (e.target.id === "giid") e.target.close();   // click on the backdrop

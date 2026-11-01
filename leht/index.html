@@ -14,7 +14,7 @@
 <body>
   <div id="kaart" aria-label="Kaart"></div>
 
-  <div class="brand klaas">
+  <button type="button" id="brand" class="brand klaas" title="Mida kukeseen vajab" aria-haspopup="dialog">
     <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
       <!-- harilik kukeseen: wavy funnel cap, ridges running down the stem -->
       <path class="logo-seen" d="M3.5 11.5C4.5 8.2 8 7.2 11 8.8c3-1.9 6.2-1.2 9 .4 2.8-1.6 6-2.3 9-.4 3-1.6 6.5-.6 7.5 2.7-1 3.6-7.6 7-11.6 10.6l-.5 11.4c0 1.8-1.7 3-4.4 3s-4.4-1.2-4.4-3l-.5-11.4C11.1 18.5 4.5 15.1 3.5 11.5z"/>
@@ -29,7 +29,7 @@
       <span>Harilik kukeseen</span>
       <span class="ladina">Cantharellus cibarius</span>
     </div>
-  </div>
+  </button>
 
   <div class="nurganupud">
     <div class="menyy-hoidja">
@@ -91,6 +91,16 @@
     </header>
     <div id="selgitus" class="sahtel-sisu"></div>
   </aside>
+
+  <dialog id="seeninfo" aria-labelledby="seeninfo-pealkiri">
+    <header class="giid-pea">
+      <h2 id="seeninfo-pealkiri">Harilik kukeseen</h2>
+      <button class="ring-vaike" id="seeninfo-sulge" title="Sulge" aria-label="Sulge">
+        <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </header>
+    <div id="seeninfo-sisu"></div>
+  </dialog>
 
   <dialog id="giid" aria-labelledby="giid-pealkiri">
     <header class="giid-pea">

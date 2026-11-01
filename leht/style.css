@@ -475,3 +475,23 @@ body { font-family: Figtree, system-ui, -apple-system, "Segoe UI", Roboto, sans-
 .n-rida { gap: 6px; }
 .n-rida .n-sona { white-space: nowrap; font-size: 19px; }
 .segment button { white-space: nowrap; }
+
+/* logo button and "what a chanterelle needs" dialog */
+button.brand { font: inherit; color: inherit; text-align: left; cursor: pointer; background: var(--pind); border: 1px solid var(--klaas-serv); box-shadow: var(--vari); }
+button.brand:hover { background: var(--pind-2); }
+#seeninfo { width: min(520px, calc(100% - 32px)); max-height: calc(100% - 48px); padding: 0; border: 1px solid var(--klaas-serv);
+            border-radius: 16px; background: #fff; color: var(--tint); box-shadow: var(--vari); }
+#seeninfo::backdrop { background: rgba(10, 20, 26, .28); }
+#seeninfo-sisu { padding: 4px 22px 22px; font-size: 14px; line-height: 1.45; }
+.si-sissejuhatus { margin: 0 0 12px; }
+.si-read { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.si-read li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; align-items: start; }
+.si-read svg { margin-top: 2px; padding: 4px; width: 30px; height: 30px; border-radius: 9px; background: var(--aktsent-pehme);
+               fill: none; stroke: var(--aktsent); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.si-read b, .si-read span { display: block; }
+.si-read span { color: var(--tint-2); font-size: 13.5px; }
+.si-kuud { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; align-items: end; text-align: center; margin-top: 10px; }
+.si-kuud small { display: block; font-size: 11.5px; color: var(--tint-2); margin-top: 3px; }
+.si-tulp { display: block; border-radius: 4px; background: var(--pind-3); }
+.si-tulp.t0 { height: 6px; } .si-tulp.t1 { height: 14px; background: #e9cf8f; }
+.si-tulp.t2 { height: 26px; background: #d9894a; } .si-tulp.t3 { height: 38px; background: #a4432a; }
