@@ -241,17 +241,7 @@ svg.g { width: 100%; height: auto; display: block; overflow: visible; }
 .g-legend i.g-l-joon { height: 3px; background: var(--roheline); vertical-align: 2px; }
 /* card overview: Koht x Aeg plane and forest waterfall */
 .vaade-valik { margin: 2px 0 12px; width: max-content; }
-.t-vali { stroke: var(--pind); stroke-width: 1; }
-.t-taust circle { fill: var(--tint); opacity: .22; }
-.t-tee { fill: none; stroke: var(--tint); stroke-width: 2.5; stroke-linecap: round; }
-.t-tee-prog { stroke-dasharray: 3 4; opacity: .7; }
-.t-moot { fill: var(--tint); stroke: var(--pind); stroke-width: 1; }
-.t-prog { fill: var(--pind); stroke: var(--tint); stroke-width: 1.2; }
-.t-tana { fill: #1f4d3a; stroke: #fff; stroke-width: 2.5; }
-.g-legend i.t-l-tana { border-radius: 50%; background: #1f4d3a; }
-.g-legend i.t-l-tee { height: 3px; background: var(--tint); vertical-align: 2px; }
-.g-legend i.t-l-taust { width: 4px; height: 4px; border-radius: 50%; background: var(--tint); opacity: .4; vertical-align: 1px; }
-.k-kosk rect, .k-kosk text, .t-tasand text, .t-taust circle { stroke: none; }
+.k-kosk rect, .k-kosk text { stroke: none; }
 .k-nimi, .k-arv { font-size: 11.5px; fill: var(--tint-2); }
 .k-arv { font-variant-numeric: tabular-nums; }
 .k-pluss { fill: #2f7a4f; }
@@ -495,3 +485,4 @@ button.brand:hover { background: var(--pind-2); }
 .si-tulp { display: block; border-radius: 4px; background: var(--pind-3); }
 .si-tulp.t0 { height: 6px; } .si-tulp.t1 { height: 14px; background: #e9cf8f; }
 .si-tulp.t2 { height: 26px; background: #d9894a; } .si-tulp.t3 { height: 38px; background: #a4432a; }
+.sel-h-esimene { margin-top: 4px; padding-top: 0; }
