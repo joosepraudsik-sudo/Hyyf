@@ -140,7 +140,8 @@ async function laeEesti() {
                     merc: { x0: Y.x0, y1: Y.y1, ruut_m: Y.ruut_m }, kiht });
   const m = ix.meta, L = m.laius + 2 * m.varu;
   olek.lehed = ix.lehed.map((e) => vork({ ...e, laius: L, korgus: L, varu: m.varu, ruut_m: m.ruut_m }));
-  Object.assign(olek, { meta: { ...m, nimi: ix.nimi, nurgad: Y.nurgad }, klassid: Object.keys(m.klassid).map(Number) });
+  Object.assign(olek, { meta: { ...m, nimi: ix.nimi, nurgad: Y.nurgad }, klassid: Object.keys(m.klassid).map(Number),
+                        solmed: new Map(v.ilmapunktid.map((id, k) => [id, k])) });
 }
 
 function laeLeht(G) {
@@ -225,9 +226,25 @@ function hinnangG(G, i, d = olek.paev) {
   if (p === NONE) return null;
   const koht = kohaSobivus(G, i);
   if (koht <= 0) return [0, 0];
-  const fi = F("indeks");
-  const kaal = olek.klassid.reduce((s, c, j) => s + T(d, p, j, fi) * G.kiht["S" + c][i] / 255, 0);
+  const fi = F("indeks"), ilm = ilmaKaalud(G, i) || [[p, 1]];
+  const kaal = olek.klassid.reduce((s, c, j) => s + ilm.reduce((t, [q, w]) => t + w * T(d, q, j, fi), 0) * G.kiht["S" + c][i] / 255, 0);
   return [koht, kaal / koht];
+}
+
+// all of Estonia: the fruiting index of a cell is blended bilinearly from the four ERA5-Land nodes
+// (0.1 deg grid, node id = round(lat*10)*1000 + round(lon*10)) around it, so the coarse weather grid
+// does not cut straight edges into the map. Nodes without forest are left out. [[node, weight], ...]
+function ilmaKaalud(G, i) {
+  if (!olek.solmed) return null;
+  const [x, y] = xy(G, i), [lng, lat] = G.lngLat(x + 0.5, y + 0.5);
+  const a = lat * 10, b = lng * 10, i0 = Math.floor(a), j0 = Math.floor(b), fa = a - i0, fb = b - j0;
+  const out = [];
+  let s = 0;
+  for (const [di, dj, w] of [[0, 0, (1 - fa) * (1 - fb)], [0, 1, (1 - fa) * fb], [1, 0, fa * (1 - fb)], [1, 1, fa * fb]]) {
+    const q = olek.solmed.get((i0 + di) * 1000 + j0 + dj);
+    if (q !== undefined && w > 0) { out.push([q, w]); s += w; }
+  }
+  return s ? out.map(([q, w]) => [q, w / s]) : null;
 }
 // the same for a cell {G, i}
 const hinnang = (r, d) => hinnangG(r.G, r.i, d);
@@ -1410,7 +1427,7 @@ if (alad.length > 1) {
     b.textContent = a.nimi;
     b.classList.toggle("aktiivne", a.fail === window.HYYF_VALIK);
     b.onclick = () => {
-      try { localStorage.setItem("hyyf-ala", a.fail); } catch (e) { /* private mode: the URL is enough */ }
+      try { localStorage.setItem("hyyf-ala-valik", a.fail); } catch (e) { /* private mode: the URL is enough */ }
       location.search = "?ala=" + a.fail;
     };
     osa.append(b);

@@ -120,10 +120,11 @@
     (() => {
       const alad = window.HYYF_ALAD || [];
       let ala = new URLSearchParams(location.search).get("ala");
-      try { ala = ala || localStorage.getItem("hyyf-ala") || localStorage.getItem("siil-ala"); } catch (e) {}
+      // only a choice made in the menu is remembered (hyyf-ala-valik); the old key was written on
+      // every load and would keep people on the test sheet
+      try { ala = ala || localStorage.getItem("hyyf-ala-valik"); } catch (e) {}
       if (alad.length && !alad.some((a) => a.fail === ala)) ala = alad[0].fail;
       ala = (ala || "testala_5458").replace(/[^a-z0-9_]/gi, "");
-      try { localStorage.setItem("hyyf-ala", ala); } catch (e) {}
       window.HYYF_VALIK = ala;
       // all of Estonia: files loaded on demand by app.js (needs a web server, not file://)
       if (ala === "eesti" && location.protocol !== "file:") window.HYYF_EESTI = "andmed/eesti/";
