@@ -65,12 +65,29 @@ def load_weather(point, wx_dir=WX, era5_point=None, land_point=None):
     return wx
 
 
+def kohanda(wx, k):
+    """Weather of a place mapped into the reference climate (parameetrid.KLIIMA_*): rain and ET0
+    scaled, temperatures for the season and initiation shifted by the monthly difference of the
+    normals (mid-month values, linear in between, constant before May / after September).
+    k: one node of kliima.json. The real values stay in p, et0, t, tmuld."""
+    wx = wx.copy()
+    wx["p_m"] = wx["p"] * k["kP"]
+    wx["et0_m"] = wx["et0"] * k["kE"]
+    months = sorted(int(m) for m in k["dT"])
+    mid = pd.to_datetime([f"2001-{m:02d}-15" for m in months]).dayofyear
+    shift = np.interp(wx.index.dayofyear, mid, [k["dT"][str(m)] if str(m) in k["dT"] else k["dT"][m] for m in months])
+    wx["t_m"] = wx["t"] + shift
+    wx["tmuld_m"] = wx["tmuld"] + shift
+    return wx
+
+
 def water_balance(wx, regime):
     r = P.VEEREZIIM[regime]
     kp, floor = r["kp"], r["pohi"] * r["kp"]
     s, snow = 0.8 * kp, 0.0
     w = np.empty(len(wx))
-    for i, (t, p, et0) in enumerate(zip(wx["t"].to_numpy(), wx["p"].to_numpy(), wx["et0"].to_numpy())):
+    rain, et0s = wx.get("p_m", wx["p"]), wx.get("et0_m", wx["et0"])   # local climate mapped (kohanda)
+    for i, (t, p, et0) in enumerate(zip(wx["t"].to_numpy(), rain.to_numpy(), et0s.to_numpy())):
         p_net = p - min(P.VAHETUS * p, P.VAHETUS_MAX)
         if t < 0:
             snow += p_net
@@ -91,11 +108,14 @@ def water_balance(wx, regime):
 def simulate(wx, regime):
     r = P.VEEREZIIM[regime]
     t, tmin = wx["t"].to_numpy(), wx["tmin"].to_numpy()
+    # season and initiation on the temperature mapped into the reference climate (kohanda);
+    # ripening, survival, frost and ageing on the real one
+    t_m = wx.get("t_m", wx["t"]).to_numpy()
     w = water_balance(wx, regime)
     moist = interp(w, P.NIISKUS + [(1.0, r["marg"])])
 
     # season: degree days since 1 Jan and earlier moisture
-    gdd = pd.Series(np.maximum(t - P.KRAADIPAEV_ALUS, 0), index=wx.index)
+    gdd = pd.Series(np.maximum(t_m - P.KRAADIPAEV_ALUS, 0), index=wx.index)
     gdd = gdd.groupby(wx.index.year).cumsum().to_numpy()
     back_from, back_to = P.HOOAEG_NIISKUS_AKEN
     # at least the regional (fresh forest) memory; wet sites keep their own groundwater-fed one
@@ -108,8 +128,8 @@ def simulate(wx, regime):
     pulse = np.clip(dw / P.TOUKE_DW, 0, 1)
     # warmth over the last days, not one day; the topsoil of this forest type warms and cools
     # faster (dry sand) or slower (wet, peat) than the regional model soil
-    air_t = pd.Series(t).rolling(P.ALGUS_TEMP_AKEN, min_periods=1).mean().to_numpy()
-    soil_t = wx["tmuld"].rolling(r["mulla_aken"], min_periods=1).mean().to_numpy()
+    air_t = pd.Series(t_m).rolling(P.ALGUS_TEMP_AKEN, min_periods=1).mean().to_numpy()
+    soil_t = wx.get("tmuld_m", wx["tmuld"]).rolling(r["mulla_aken"], min_periods=1).mean().to_numpy()
     soil_t = soil_t + r["soojus"] * np.maximum(air_t - P.SOOJUS_ALUS, 0)
     temp = interp(air_t, P.ALGUS_TEMP) * interp(soil_t, P.MULLA_TEMP)
     init = np.maximum(pulse, P.TOUKE_PUSIV) * moist * temp * season

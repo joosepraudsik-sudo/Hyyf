@@ -170,3 +170,17 @@ KLASS_AEG = [0.70, 0.50, 0.30, 0.15]    # mushroom time: väga hea (top of a goo
 # class = forest step + time step (0-based): 0 tippkoht, 1 suurepärane, 2 väga hea, 3 hea,
 # 4 võimalik, more = not drawn. The two top classes need the top step of one and at least the
 # second step of the other, so the very best spots stand out on the map.
+
+# ---------- local climate (all of Estonia) ----------
+# Mycelium is adapted to the climate of its place: the moisture and warmth thresholds above were set
+# for the test sheet (Põlvamaa), so the weather of every other place is first mapped into the test
+# sheet's climate. Rain and ET0 are scaled by the ratio of their May-September normals (reference /
+# local); air and soil temperature for the season (degree days) and fruiting initiation are shifted
+# by the difference of the monthly normal temperature. A normal year anywhere then looks like a normal
+# year on the test sheet, a dry one dry. Ripening, frost, cool-day ageing and survival stay on the
+# real temperature (physics, not adaptation).
+KLIIMA_VIIDE = "5825_2725"          # ERA5 node of the test sheet: its climate is the reference
+KLIIMA_VIIDE_MAA = "582271"         # ERA5-Land node of the test sheet (temperature reference)
+KLIIMA_AASTAD = (2016, 2025)        # normals from these summers
+KLIIMA_KUUD = (5, 9)                # May..September
+KLIIMA_PIIRID = (0.6, 1.6)          # scaling factors kept within this range

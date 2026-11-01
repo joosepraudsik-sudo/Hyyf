@@ -10,9 +10,12 @@ Open-Meteo has none for era5_land), so each node also has the nearest ERA5 node.
              only the missing days are fetched again; then the forecast for every node.
              Paced under the free limit (10 000 calls a day): the first full download takes ~2 days,
              later runs only add the latest days. Stops at the daily limit, run again tomorrow.
+  kliima     climate normals of every ERA5 node (rain, ET0, temperature, May-September of
+             parameetrid.KLIIMA_AASTAD; resumable, ~18 000 calls = ~2 days of the free limit) and
+             the mapping into the test sheet's climate: andmed/eesti/ilm/kliima.json
   viljumine  fruiting model for every node x water regime class -> valjund/eesti/viljumine.csv.gz
 
-Run: uv run python -I skriptid/ilmavork.py [ruudud|lae|viljumine|koik] [--algus 2026-01-01]
+Run: uv run python -I skriptid/ilmavork.py [ruudud|lae|kliima|viljumine|koik] [--algus 2026-01-01]
 """
 import argparse
 import json
@@ -222,6 +225,107 @@ def lae(algus):
         sys.exit(1)
 
 
+# ---------- kliima ----------
+
+KLIIMA = ILM / "kliima"
+KLIIMA_JSON = ILM / "kliima.json"
+KLIIMA_VARS = "precipitation_sum,et0_fao_evapotranspiration,temperature_2m_mean"
+
+
+def lae_kliima(nodes, batch=10):
+    """ERA5 summers per node and year, newest year first (normals usable before all years are in)."""
+    import parameetrid as P
+    url = "https://archive-api.open-meteo.com/v1/archive"
+    m0, m1 = P.KLIIMA_KUUD
+    KLIIMA.mkdir(parents=True, exist_ok=True)
+    for year in range(P.KLIIMA_AASTAD[1], P.KLIIMA_AASTAD[0] - 1, -1):
+        start, end = date(year, m0, 1), date(year, m1 + 1, 1) - timedelta(days=1)
+        todo = [n for n in nodes if not (KLIIMA / f"era5_{n}_{year}.json").exists()]
+        for i in range(0, len(todo), batch):
+            part = todo[i:i + batch]
+            res = _paring(url, {
+                "latitude": ",".join(str(nodes[n][0]) for n in part),
+                "longitude": ",".join(str(nodes[n][1]) for n in part),
+                "start_date": start.isoformat(), "end_date": end.isoformat(),
+                "daily": KLIIMA_VARS, "models": "era5", "timezone": "Europe/Tallinn",
+            }, _kaal(len(part), 3, (end - start).days + 1))
+            for name, r in zip(part, res):
+                (KLIIMA / f"era5_{name}_{year}.json").write_text(json.dumps(r["daily"]), encoding="utf-8")
+        print(f"  kliima {year}: valmis ({len(todo)} laaditud)")
+
+
+def kliima_normid():
+    """Per ERA5 node: rain and ET0 factors (reference / local May-September normal, from the summers
+    downloaded so far); per ERA5-Land node: the monthly temperature shift (reference - local)."""
+    import pandas as pd
+    import parameetrid as P
+    norm = {}
+    for f in sorted(KLIIMA.glob("era5_*_*.json")):
+        _, a, b, year = f.stem.split("_")
+        d = pd.DataFrame(json.loads(f.read_text("utf-8")))
+        d["kuu"] = pd.to_datetime(d["time"]).dt.month
+        norm.setdefault(f"{a}_{b}", []).append(d)
+    years = {k: len(v) for k, v in norm.items()}
+    ref = P.KLIIMA_VIIDE
+    if ref not in norm:
+        raise SystemExit(f"Viitesõlme {ref} kliimat pole veel laaditud")
+    stats = {}
+    for k, parts in norm.items():
+        d = pd.concat(parts)
+        n = len(parts)
+        stats[k] = {"P": d["precipitation_sum"].sum() / n, "E": d["et0_fao_evapotranspiration"].sum() / n,
+                    "T": d.groupby("kuu")["temperature_2m_mean"].mean()}
+    lo, hi = P.KLIIMA_PIIRID
+    r = stats[ref]
+    out = {"viide": ref, "aastaid": years, "solmed": {}}
+    for k, s in stats.items():
+        out["solmed"][k] = {
+            "kP": round(float(np.clip(r["P"] / s["P"], lo, hi)), 3),
+            "kE": round(float(np.clip(r["E"] / s["E"], lo, hi)), 3),
+            "dT": {int(m): round(float(r["T"][m] - s["T"][m]), 2) for m in s["T"].index},
+            "P": round(float(s["P"])), "E": round(float(s["E"])),
+        }
+    # temperature: from the same data the model runs on (ERA5-Land 0.1 deg, the 2026 summer), as the
+    # coastal ERA5 cells are partly sea and too maritime for the land temperature. Differences between
+    # places are steady from year to year, so one summer is enough for them.
+    pts = json.loads(PUNKTID.read_text("utf-8"))
+    sea = asendused(pts)
+    def kuud(node):
+        d = json.loads((ILM / f"era5land_{sea.get(node, node)}.json").read_text("utf-8"))["daily"]
+        t = pd.Series(d["temperature_2m_mean"], index=pd.to_datetime(d["time"]), dtype=float)
+        t = t[t.index.month.isin(range(P.KLIIMA_KUUD[0], P.KLIIMA_KUUD[1] + 1))]
+        return t.groupby(t.index.month).mean()
+    ref_t = kuud(P.KLIIMA_VIIDE_MAA)
+    out["maa_viide"] = P.KLIIMA_VIIDE_MAA
+    out["maa"] = {}
+    for node in pts:
+        if (ILM / f"era5land_{sea.get(node, node)}.json").exists():
+            t = kuud(node)
+            out["maa"][node] = {int(m): round(float(ref_t[m] - t[m]), 2) for m in t.index}
+    for v in out["solmed"].values():
+        v.pop("dT")
+    KLIIMA_JSON.write_text(json.dumps(out, indent=1), encoding="utf-8")
+    kp = [v["kP"] for v in out["solmed"].values()]
+    print(f"kliima.json: {len(stats)} sõlme, aastaid {min(years.values())}-{max(years.values())}, "
+          f"vihma tegur {min(kp):.2f}-{max(kp):.2f}")
+
+
+def kliima():
+    pts = json.loads(PUNKTID.read_text("utf-8"))
+    era5 = {}
+    for v in pts.values():
+        a, b = v["era5"].split("_")
+        era5[v["era5"]] = (int(a) / 100, int(b) / 100)
+    import parameetrid as P
+    # the reference node first, so normals can be computed as soon as possible
+    order = dict(sorted(era5.items(), key=lambda kv: kv[0] != P.KLIIMA_VIIDE))
+    try:
+        lae_kliima(order)
+    except Paevalimiit as e:
+        print(f"\nPäevane limiit täis ({e}). Käivita homme uuesti, laadimine jätkub samast kohast.")
+    kliima_normid()
+
+
 # ---------- viljumine ----------
 
 def asendused(pts):
@@ -242,9 +346,12 @@ def asendused(pts):
 def viljumine():
     import pandas as pd
     import parameetrid as P
-    from viljumine import load_weather, simulate
+    from viljumine import kohanda, load_weather, simulate
 
     pts = json.loads(PUNKTID.read_text("utf-8"))
+    klim = json.loads(KLIIMA_JSON.read_text("utf-8")) if KLIIMA_JSON.exists() else {"solmed": {}, "maa": {}}
+    print(f"  kohalik kliima: vihm {len(klim['solmed'])} ERA5 sõlme ({klim.get('aastaid') and min(klim['aastaid'].values())}+ aastat), "
+          f"temperatuur {len(klim['maa'])} sõlme")
     sea = asendused(pts)
     if sea:
         print(f"  ERA5-Landis meri, ajalugu lähimast punktist: {sea}")
@@ -255,6 +362,8 @@ def viljumine():
             puudu.append(node)
             continue
         wx = load_weather(node, ILM, era5_point=v["era5"], land_point=sea.get(node))
+        if v["era5"] in klim["solmed"] and node in klim["maa"]:
+            wx = kohanda(wx, {**klim["solmed"][v["era5"]], "dT": klim["maa"][node]})
         for regime in P.VEEREZIIM:
             d = simulate(wx, regime)
             d["allikas"] = wx["allikas"]
@@ -272,7 +381,7 @@ def viljumine():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mis", nargs="?", default="koik", choices=["ruudud", "lae", "viljumine", "koik"])
+    ap.add_argument("mis", nargs="?", default="koik", choices=["ruudud", "lae", "kliima", "viljumine", "koik"])
     ap.add_argument("--algus", default="2026-01-01", help="first day of the weather history")
     a = ap.parse_args()
     if a.mis in ("ruudud", "koik"):
@@ -281,6 +390,9 @@ def main():
     if a.mis in ("lae", "koik"):
         print("Ilm (Open-Meteo, ainult arenduseks)")
         lae(date.fromisoformat(a.algus))
+    if a.mis == "kliima":
+        print("Kliimanormid (Open-Meteo ERA5)")
+        kliima()
     if a.mis in ("viljumine", "koik"):
         print("Viljumine")
         viljumine()
