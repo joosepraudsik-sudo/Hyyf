@@ -498,6 +498,7 @@ button.brand:hover { background: var(--pind-2); }
 .sel-h-esimene { margin-top: 4px; padding-top: 0; }
 
 /* TEMPORARY: look variant switch */
-#variandid { position: fixed; top: 14px; left: 50%; transform: translateX(-50%); z-index: 5; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+#variandid { position: fixed; top: 12px; left: 50%; transform: translateX(-50%); z-index: 5; display: grid; gap: 4px; padding: 6px; border-radius: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+#variandid .segment { justify-content: center; }
 #variandid button { white-space: nowrap; }
 @media (max-width: 760px) { #variandid { top: auto; bottom: 230px; } #variandid button { padding: 6px 9px; font-size: 12px; } }
