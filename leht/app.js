@@ -43,7 +43,7 @@ const TEGUR_NIMI = { puuliik: "Puuliigid", vanus: "Puistu vanus", valgus: "Valgu
   kasvukoht: "Metsatüüp", muld: "Muld", mikroniiskus: "Maastiku niiskus", okotoon: "Soo serv (ökotoon)",
   sidusus: "Metsamassiiv", tihedus: "Võra tihedus" };
 
-const olek = { reziim: "tana", parimadNahtav: true, paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "ylevaade" };
+const olek = { reziim: "tana", parimadNahtav: true, hyyfNahtav: false, paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "ylevaade" };
 try { olek.parimadNahtav = localStorage.getItem("hyyf-parimad") !== "ei"; } catch (e) { /* private mode */ }
 try { olek.kaardiVaade = { graafikud: "seened" }[localStorage.getItem("hyyf-kaardivaade")] || localStorage.getItem("hyyf-kaardivaade") || "ylevaade"; } catch (e) { /* private mode */ }
 const canvas = document.createElement("canvas");
@@ -642,6 +642,33 @@ function lulitaKiht(nahtav) {
     if (l.id.startsWith("hinnang-") || l.id.startsWith("piirid")) map.setLayoutProperty(l.id, "visibility", nahtav ? "visible" : "none");
   }
   naitaReziim();
+}
+
+// "Hüüf": the user's own mushroom spots (hyyf_kohad.py) as pins; always off when the page opens,
+// the file is loaded on the first switch-on
+async function lulitaHyyf(nahtav) {
+  olek.hyyfNahtav = nahtav;
+  document.getElementById("hyyf-nupp").setAttribute("aria-pressed", String(nahtav));
+  if (nahtav && !olek.hyyfPinnid) {
+    olek.hyyfPinnid = [];
+    let kohad = [];
+    try { kohad = await laeGz(EESTI + "kohad.json.gz", true); }
+    catch (e) { console.warn(e); }
+    olek.hyyfPinnid = kohad.map((k) => {
+      const el = document.createElement("div");
+      el.className = "pinn";
+      el.title = `${k.liik}${k.hinnang ? ` – ${k.hinnang.toLowerCase()}` : ""}`;
+      el.innerHTML = `<svg viewBox="0 0 24 32"><path d="M12 31s-10-10.6-10-18.5a10 10 0 0 1 20 0C22 20.4 12 31 12 31z"/><circle cx="12" cy="12.5" r="4"/></svg>`;
+      const popup = new maplibregl.Popup({ offset: 30, closeButton: false })
+        .setHTML(`<b>${k.liik}</b>${k.hinnang ? `<br>${k.hinnang}` : ""}<br><small>${k.lat.toFixed(5)}, ${k.lon.toFixed(5)}</small>`);
+      const m = new maplibregl.Marker({ element: el, anchor: "bottom" }).setLngLat([k.lon, k.lat]);
+      // the label opens here, not through the map's click (that would open the forest explanation)
+      el.onclick = (e) => { e.stopPropagation(); popup.isOpen() ? popup.remove() : popup.setLngLat([k.lon, k.lat]).addTo(map); };
+      m.popup = popup;
+      return m;
+    });
+  }
+  olek.hyyfPinnid.forEach((m) => { if (olek.hyyfNahtav) m.addTo(map); else { m.remove(); m.popup.remove(); } });
 }
 
 function lulitaParimad(nahtav) {
@@ -1579,6 +1606,7 @@ document.querySelectorAll("#reziim button").forEach((b) => b.onclick = () => {
 });
 document.getElementById("kiht-nupp").onclick = () => lulitaKiht(!olek.kihtNahtav);
 document.getElementById("parimad-nupp").onclick = () => lulitaParimad(!olek.parimadNahtav);
+document.getElementById("hyyf-nupp").onclick = () => lulitaHyyf(!olek.hyyfNahtav);
 // calendar menu: opens above its button (the panel is at the bottom), closes on outside click
 const kalenderMenyy = document.getElementById("kalender-menyy");
 document.getElementById("kalender-nupp").onclick = (e) => {
