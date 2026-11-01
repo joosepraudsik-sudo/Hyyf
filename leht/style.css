@@ -97,7 +97,6 @@ button:focus-visible, label:focus-within { outline: 2px solid var(--aktsent); ou
 .ring { display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border-radius: 50%; color: var(--tint); }
 .ring svg { width: 20px; height: 20px; }
 .ring:hover { background: var(--klaas-tugev); }
-#kiht-nupp[aria-pressed="true"] { color: var(--aktsent-tekst); background: var(--aktsent); border-color: transparent; }
 .menyy-hoidja { position: relative; }
 .menyy { position: absolute; top: 52px; right: 0; min-width: 150px; padding: 6px; border-radius: 16px; display: grid; gap: 2px; }
 .menyy[hidden] { display: none; }
@@ -394,14 +393,12 @@ body { font-family: Figtree, system-ui, -apple-system, "Segoe UI", Roboto, sans-
 .brand-tekst .ladina { font-style: italic; font-size: 11px; color: var(--tint-3); }
 .brand-tekst strong { font-size: 18px; }
 /* mode switch: the eye button hides the layer; the day strip and calendar only where the day matters */
-.segment .peida { display: grid; place-items: center; padding: 6px 9px; }
-.segment .peida svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
-#ajatelg[data-reziim="koht"] #paeva-osa, #ajatelg[data-reziim="koht"] #kalender,
-#ajatelg[data-reziim="peidus"] > :not(.ajatelg-pea), #ajatelg[data-reziim="peidus"] #kalender { display: none; }
+#ajatelg[data-reziim="koht"] #paeva-osa, #ajatelg[data-parimad="ei"] .parimad-osa,
+#ajatelg[data-reziim="peidus"] > :not(.ajatelg-pea), #ajatelg[data-reziim="peidus"] #parimad-nupp,
+#ajatelg[data-reziim="peidus"] .kalender-hoidja { display: none; }
 #ajatelg[data-reziim="peidus"] { width: auto; }
 .ring { border-radius: 12px; width: 44px; height: 44px; }
 .ring:hover { background: var(--pind-2); }
-#kiht-nupp[aria-pressed="true"] { background: var(--aktsent); color: #fff; border-color: var(--aktsent); }
 .menyy { border-radius: 12px; top: 50px; }
 .menyy button { border-radius: 8px; }
 .menyy button.aktiivne { background: var(--aktsent-pehme); color: var(--aktsent); }
@@ -496,3 +493,21 @@ button.brand:hover { background: var(--pind-2); }
 .sel-h-esimene { margin-top: 4px; padding-top: 0; }
 
 
+
+/* panel head: two switches and the calendar button with its menu (day and "Head metsad") */
+.pea-nupud { display: flex; gap: 6px; min-width: 0; }
+.luliti, .kalender-nupp { display: flex; align-items: center; gap: 6px; padding: 6px 11px 6px 9px; border-radius: 10px;
+  border: 1px solid var(--joon); background: var(--pind-2); color: var(--tint-2); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.luliti svg, .kalender-nupp svg { width: 17px; height: 17px; flex: none; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.luliti[aria-pressed="true"] { background: var(--aktsent); border-color: var(--aktsent); color: #fff; }
+.luliti:hover, .kalender-nupp:hover { border-color: var(--tint-3); }
+.kalender-nupp { color: var(--tint); }
+.kalender-hoidja { flex: none; }
+.kalender-menyy { top: auto; bottom: 44px; right: 0; min-width: 220px; padding: 10px; gap: 8px; }
+.kalender-menyy input[type="date"] { font: inherit; font-size: 14px; padding: 7px 10px; border: 1px solid var(--joon); border-radius: 10px; background: var(--pind); color: var(--tint); }
+.kalender-menyy .segment { justify-content: stretch; }
+.kalender-menyy .segment button { flex: 1; }
+@media (max-width: 760px) {
+  .luliti span { display: none; }
+  .luliti { padding: 6px 9px; }
+}

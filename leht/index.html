@@ -51,17 +51,26 @@
 
   <section id="ajatelg" class="ajatelg klaas" aria-live="polite">
     <div class="ajatelg-pea">
-      <div id="reziim" class="segment" role="group" aria-label="Mida kaart näitab">
-        <button data-reziim="tana" class="aktiivne">Kus otsida</button>
-        <button data-reziim="koht">Head metsad</button>
-        <button data-reziim="peidus" class="peida" title="Peida seenekaart" aria-label="Peida seenekaart">
-          <svg viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.6"/><path d="M4 20L20 4"/></svg>
+      <div class="pea-nupud">
+        <button id="kiht-nupp" class="luliti" aria-pressed="true" title="Seenekaart sisse või välja">
+          <svg viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.6"/></svg><span>Seenekaart</span>
+        </button>
+        <button id="parimad-nupp" class="luliti" aria-pressed="true" title="Parimad kohad sisse või välja">
+          <svg viewBox="0 0 24 24"><path d="M12 21s-6.5-5.6-6.5-11a6.5 6.5 0 0 1 13 0c0 5.4-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg><span>Parimad kohad</span>
         </button>
       </div>
-      <label id="kalender" class="ring-vaike kalender" title="Vali muu kuupäev">
-        <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
-        <input type="date" id="kuupaev" aria-label="Vali kuupäev">
-      </label>
+      <div class="menyy-hoidja kalender-hoidja">
+        <button id="kalender-nupp" class="kalender-nupp" aria-expanded="false" aria-controls="kalender-menyy" title="Kuupäev või head metsad">
+          <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg><span id="kalender-silt"></span>
+        </button>
+        <div id="kalender-menyy" class="menyy klaas kalender-menyy" hidden>
+          <input type="date" id="kuupaev" aria-label="Kuupäev">
+          <div id="reziim" class="segment" role="group" aria-label="Mida kaart näitab">
+            <button data-reziim="tana" class="aktiivne">Seeneaeg</button>
+            <button data-reziim="koht">Head metsad</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div id="paeva-osa" class="paevarida">

@@ -43,7 +43,8 @@ const TEGUR_NIMI = { puuliik: "Puuliigid", vanus: "Puistu vanus", valgus: "Valgu
   kasvukoht: "Metsatüüp", muld: "Muld", mikroniiskus: "Maastiku niiskus", okotoon: "Soo serv (ökotoon)",
   sidusus: "Metsamassiiv", tihedus: "Võra tihedus" };
 
-const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "ylevaade" };
+const olek = { reziim: "tana", parimadNahtav: true, paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "ylevaade" };
+try { olek.parimadNahtav = localStorage.getItem("hyyf-parimad") !== "ei"; } catch (e) { /* private mode */ }
 try { olek.kaardiVaade = { graafikud: "seened" }[localStorage.getItem("hyyf-kaardivaade")] || localStorage.getItem("hyyf-kaardivaade") || "ylevaade"; } catch (e) { /* private mode */ }
 const canvas = document.createElement("canvas");
 
@@ -529,7 +530,7 @@ function uuendaMarkerid(kohad) {
     el.textContent = i + 1;
     el.title = `${i + 1}. ${KLASSID[olek.reziim][k.kl][0].toLowerCase()}`;
     el.onclick = (e) => { e.stopPropagation(); naitaSelgitust(k.lnglat); };
-    el.hidden = !olek.kihtNahtav;
+    el.hidden = !olek.kihtNahtav || !olek.parimadNahtav;
     return new maplibregl.Marker({ element: el }).setLngLat(k.lnglat).addTo(map);
   });
 }
@@ -539,19 +540,34 @@ function lulitaKiht(nahtav) {
   for (const l of map.getStyle().layers) {
     if (l.id.startsWith("hinnang-")) map.setLayoutProperty(l.id, "visibility", nahtav ? "visible" : "none");
   }
-  olek.markerid.forEach((m) => (m.getElement().hidden = !nahtav));
   naitaReziim();
 }
 
-// one switch for the layer: "Kus otsida" / "Head metsad" / hidden. The panel follows: the day
-// strip and calendar only where the day matters, nothing but the switch when the layer is hidden
+function lulitaParimad(nahtav) {
+  olek.parimadNahtav = nahtav;
+  try { localStorage.setItem("hyyf-parimad", nahtav ? "jah" : "ei"); } catch (e) { /* private mode */ }
+  naitaReziim();
+}
+
+// The panel head: two switches (mushroom layer, best spots) and the calendar button, which also
+// holds the "Head metsad" choice (forest only, no day) and shows the day or that choice. The panel
+// follows: the day strip only where the day matters, the best spots row only when they are on,
+// nothing but the head when the layer is hidden.
 function naitaReziim() {
   const valik = olek.kihtNahtav ? olek.reziim : "peidus";
   document.querySelectorAll("#reziim button").forEach((x) => {
-    x.classList.toggle("aktiivne", x.dataset.reziim === valik);
-    x.setAttribute("aria-pressed", String(x.dataset.reziim === valik));
+    x.classList.toggle("aktiivne", x.dataset.reziim === olek.reziim);
+    x.setAttribute("aria-pressed", String(x.dataset.reziim === olek.reziim));
   });
-  document.getElementById("ajatelg").dataset.reziim = valik;
+  const aj = document.getElementById("ajatelg");
+  aj.dataset.reziim = valik;
+  aj.dataset.parimad = olek.parimadNahtav ? "jah" : "ei";
+  document.getElementById("kiht-nupp").setAttribute("aria-pressed", String(olek.kihtNahtav));
+  document.getElementById("parimad-nupp").setAttribute("aria-pressed", String(olek.parimadNahtav));
+  olek.markerid.forEach((m) => (m.getElement().hidden = !olek.kihtNahtav || !olek.parimadNahtav));
+  const d = olek.vilj?.kuupaevad[olek.paev];
+  document.getElementById("kalender-silt").textContent = olek.reziim === "koht" ? "Head metsad"
+    : d ? `${+d.slice(8)}. ${KUU[+d.slice(5, 7) - 1]}` : "";
 }
 
 // ---------- panel ----------
@@ -632,7 +648,7 @@ function uuendaKokkuvote() {
     const mets = ha.reduce((s, x) => s + x, 0);
     kv.innerHTML = head < 5
       ? `<b>Siin häid metsi pole.</b> Kukeseenele sobivat metsa ${Math.round(mets)} ha, aga ükski pole hea.`
-      : `<b>Häid ja paremaid metsi ${Math.round(head)} ha</b>${ha[0] >= 1 ? `, neist suurepäraseid ${Math.round(ha[0])} ha` : ""}. Värv näitab ainult metsa, ilmast sõltumata – seeneaega vaata „Kus otsida“ alt.`;
+      : `<b>Häid ja paremaid metsi ${Math.round(head)} ha</b>${ha[0] >= 1 ? `, neist suurepäraseid ${Math.round(ha[0])} ha` : ""}. Värv näitab ainult metsa, ilmast sõltumata.`;
   }
   else if (head < 5 && voimalik >= 50) kv.innerHTML = `<b>Tagasihoidlik aeg.</b> Kõrge hindega kohti pole, võimalikke ${Math.round(voimalik)} ha. ${pohjus()}`;
   else if (head < 5) kv.innerHTML = `<b>Kehv aeg.</b> ${pohjus()}`;
@@ -1444,15 +1460,36 @@ map.on("click", (e) => olek.vilj && naitaSelgitust(e.lngLat));
 document.getElementById("kuupaev").addEventListener("change", (e) => {
   if (!olek.vilj) return;
   const i = olek.vilj.kuupaevad.indexOf(e.target.value);
-  if (i >= 0) valiKuupaev(i);
+  if (i >= 0) {
+    kalenderMenyy.hidden = true;
+    document.getElementById("kalender-nupp").setAttribute("aria-expanded", "false");
+    if (olek.reziim !== "tana") { olek.reziim = "tana"; peidaSelgitus(); }
+    valiKuupaev(i);
+  }
   else e.target.value = olek.vilj.kuupaevad[olek.paev];  // outside the season: snap back
 });
 document.querySelectorAll("#reziim button").forEach((b) => b.onclick = () => {
-  if (b.dataset.reziim === "peidus") { lulitaKiht(false); return; }
   const muutus = b.dataset.reziim !== olek.reziim;
   olek.reziim = b.dataset.reziim;
   lulitaKiht(true);
+  kalenderMenyy.hidden = true;
+  document.getElementById("kalender-nupp").setAttribute("aria-expanded", "false");
   if (muutus) { peidaSelgitus(); if (olek.vilj) joonista(); }
+});
+document.getElementById("kiht-nupp").onclick = () => lulitaKiht(!olek.kihtNahtav);
+document.getElementById("parimad-nupp").onclick = () => lulitaParimad(!olek.parimadNahtav);
+// calendar menu: opens above its button (the panel is at the bottom), closes on outside click
+const kalenderMenyy = document.getElementById("kalender-menyy");
+document.getElementById("kalender-nupp").onclick = (e) => {
+  e.stopPropagation();
+  kalenderMenyy.hidden = !kalenderMenyy.hidden;
+  e.currentTarget.setAttribute("aria-expanded", String(!kalenderMenyy.hidden));
+};
+document.addEventListener("click", (e) => {
+  if (!kalenderMenyy.hidden && !e.target.closest(".kalender-hoidja")) {
+    kalenderMenyy.hidden = true;
+    document.getElementById("kalender-nupp").setAttribute("aria-expanded", "false");
+  }
 });
 document.querySelectorAll("#aluskaart button[data-kiht]").forEach((b) => b.onclick = () => {
   document.querySelectorAll("#aluskaart button[data-kiht]").forEach((x) => x.classList.toggle("aktiivne", x === b));
