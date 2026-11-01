@@ -17,7 +17,7 @@ const VALIK = {
   varv: { pruun: "Pruun (algne)", spekter: "Spekter", magma: "Magma", soekulm: "Soe–külm" },
   tugevus: { kerge: "Kerge", keskmine: "Keskmine", tugev: "Tugev" },
   // TEMPORARY: basemap under the layer (the "Looduskaart" choice of the basemap menu)
-  alus: { algne: "Looduskaart (algne)", vaikne: "Vaikne looduskaart", hele: "Hele looduskaart" },
+  alus: { algne: "Looduskaart (algne)", bright: "OSM Bright", esritopo: "Esri Topo" },
 };
 const PALETID = {
   pruun: ["#4b1810", "#7a2a1c", "#a4432a", "#d9894a", "#e9cf8f"],
@@ -441,6 +441,7 @@ function silu(f, W, H) {
 
 // one image source per grid. With all of Estonia the overview shows only zoomed out, the sheets up close.
 function naitaPilt(G, url) {
+  if (olek.stiilVahetus) return;
   const id = "hinnang-" + G.id;
   if (!map.getSource(id)) {
     G.pilt = { laeb: true, ootel: null };
@@ -480,7 +481,7 @@ function ootaPilt(G) {
     P.laeb = false;
     if (P.ootel && G.pilt === P) { const u = P.ootel; P.ootel = null; uuendaPilt(G, u); }
   };
-  const kuula = (e) => { if (e.sourceId === id && map.isSourceLoaded(id)) valmis(); };
+  const kuula = (e) => { if (e.sourceId === id && (!map.getSource(id) || map.isSourceLoaded(id))) valmis(); };
   map.on("sourcedata", kuula);
   P.taimer = setTimeout(valmis, 1500);   // safety net if the event never comes
 }
@@ -1389,6 +1390,9 @@ const RASTRID = {
           attribution: '© <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>', omad_sildid: false },
   kaart: { tiles: [`${MAA}/kaart@GMC/{z}/{x}/{y}.png`], scheme: "tms", maxzoom: 18,
            attribution: '© <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>', omad_sildid: true },
+  // TEMPORARY basemap variant: Esri World Topo (relief shading, its own labels)
+  esritopo: { tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"], maxzoom: 19,
+              attribution: 'Kaart © <a href="https://www.esri.com">Esri</a> ja andmete pakkujad', omad_sildid: true },
 };
 
 function lisaAluskaardid() {
@@ -1409,27 +1413,29 @@ function valiVaade(k, v) {
   else if (olek.vilj) joonista();
 }
 
-// TEMPORARY basemap variants of the natural map: as it is; its greens and land use toned down (the
-// mushroom layer the only strong colour); or recoloured light and warm (pale sage forest, cream
-// ground, soft water). [layer, paint property, value]
-const ALUSED = {
-  vaikne: [["park", "fill-opacity", 0.25], ["landcover_wood", "fill-opacity", 0.12], ["landcover_grass", "fill-opacity", 0.1],
-           ["landuse_residential", "fill-opacity", 0.4]],
-  hele: [["background", "background-color", "#f8f6f0"], ["park", "fill-color", "#e3ead3"], ["park", "fill-opacity", 0.6],
-         ["landcover_wood", "fill-color", "#d9e3c6"], ["landcover_wood", "fill-opacity", 0.55],
-         ["landcover_grass", "fill-color", "#e6ecd8"], ["landcover_grass", "fill-opacity", 0.4],
-         ["landuse_residential", "fill-opacity", 0.35], ["water", "fill-color", "#c8d8e6"]],
-};
+// TEMPORARY basemap variants: the natural map (OpenFreeMap Liberty), OpenFreeMap Bright (classic
+// OpenStreetMap look, a vector style of its own) or Esri World Topo (raster with relief shading).
+// A new vector style replaces every source, so the basemaps and the mushroom pictures are added again.
+const BRIGHT = "https://tiles.openfreemap.org/styles/bright";
 function rakendaAlus() {
-  olek.algne ??= {};
-  const muudetud = Object.values(ALUSED).flat();
-  for (const [id, omadus] of muudetud) {   // first everything back as it was
-    if (!map.getLayer(id)) continue;
-    const v = `${id}|${omadus}`;
-    if (!(v in olek.algne)) olek.algne[v] = map.getPaintProperty(id, omadus);
-    map.setPaintProperty(id, omadus, olek.algne[v]);
+  const url = olek.alus === "bright" ? BRIGHT : ALUS_STIIL;
+  if ((olek.stiiliUrl || ALUS_STIIL) !== url) {
+    olek.stiiliUrl = url;
+    olek.stiilVahetus = true;   // no drawing into the old style meanwhile
+    for (const G of [olek.yle, ...(olek.lehed || [])]) if (G?.pilt) clearTimeout(G.pilt.taimer);
+    map.once("style.load", () => {
+      olek.stiilVahetus = false;
+      lisaAluskaardid();
+      for (const G of [olek.yle, ...(olek.lehed || [])]) if (G) Object.assign(G, { pilt: null, sile: 0, koond: 0 });
+      valiAluskaart("loodus");
+      if (olek.vilj) joonista();
+    });
+    map.setStyle(url, { diff: false });
+    return;
   }
-  for (const [id, omadus, x] of ALUSED[olek.alus] || []) if (map.getLayer(id)) map.setPaintProperty(id, omadus, x);
+  olek.stiiliUrl = url;
+  valiAluskaart(olek.alus === "esritopo" ? "esritopo" : "loodus");
+  document.querySelectorAll("#aluskaart button[data-kiht]").forEach((x) => x.classList.toggle("aktiivne", x.dataset.kiht === "loodus"));
 }
 
 function valiAluskaart(id) {
