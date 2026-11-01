@@ -17,7 +17,7 @@ const VALIK = {
   varv: { pruun: "Pruun (algne)", spekter: "Spekter", magma: "Magma", soekulm: "Soe–külm" },
   tugevus: { kerge: "Kerge", keskmine: "Keskmine", tugev: "Tugev" },
   // TEMPORARY: basemap under the layer (the "Looduskaart" choice of the basemap menu)
-  alus: { algne: "Looduskaart (algne)", bright: "OSM Bright", esritopo: "Esri Topo" },
+  alus: { algne: "Looduskaart (algne)", bright: "OSM Bright", esritopo: "Esri Topo", pohikaart: "Põhikaart" },
 };
 const PALETID = {
   pruun: ["#4b1810", "#7a2a1c", "#a4432a", "#d9894a", "#e9cf8f"],
@@ -1390,6 +1390,10 @@ const RASTRID = {
           attribution: '© <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>', omad_sildid: false },
   kaart: { tiles: [`${MAA}/kaart@GMC/{z}/{x}/{y}.png`], scheme: "tms", maxzoom: 18,
            attribution: '© <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>', omad_sildid: true },
+  // TEMPORARY basemap variant: Maa- ja Ruumiamet põhikaart 1:10 000 with relief shading (lest97 and
+  // the "pohikaart" protocol below); zoomed out, where it is too detailed and slow, the Estonian map stands in
+  pohikaart: { tiles: ["pohikaart://{z}/{x}/{y}"], minzoom: 10.5, maxzoom: 18, bounds: [21.5, 57.4, 28.3, 59.85],
+               attribution: 'Põhikaart © <a href="https://maaruum.ee">Maa- ja Ruumiamet</a>', omad_sildid: true },
   // TEMPORARY basemap variant: Esri World Topo (relief shading, its own labels)
   esritopo: { tiles: ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}"], maxzoom: 19,
               attribution: 'Kaart © <a href="https://www.esri.com">Esri</a> ja andmete pakkujad', omad_sildid: true },
@@ -1399,8 +1403,8 @@ function lisaAluskaardid() {
   olek.siltideAlt = map.getStyle().layers.find((l) => l.type === "symbol")?.id;
   for (const [id, r] of Object.entries(RASTRID)) {
     map.addSource(id, { type: "raster", tileSize: 256, tiles: r.tiles, maxzoom: r.maxzoom, attribution: r.attribution,
-                        ...(r.scheme ? { scheme: r.scheme } : {}) });
-    map.addLayer({ id, type: "raster", source: id, layout: { visibility: "none" } }, olek.siltideAlt);
+                        ...(r.scheme ? { scheme: r.scheme } : {}), ...(r.bounds ? { bounds: r.bounds } : {}) });
+    map.addLayer({ id, type: "raster", source: id, layout: { visibility: "none" }, ...(r.minzoom ? { minzoom: r.minzoom } : {}) }, olek.siltideAlt);
   }
 }
 
@@ -1434,12 +1438,14 @@ function rakendaAlus() {
     return;
   }
   olek.stiiliUrl = url;
-  valiAluskaart(olek.alus === "esritopo" ? "esritopo" : "loodus");
+  valiAluskaart(RASTRID[olek.alus] ? olek.alus : "loodus");
   document.querySelectorAll("#aluskaart button[data-kiht]").forEach((x) => x.classList.toggle("aktiivne", x.dataset.kiht === "loodus"));
 }
 
 function valiAluskaart(id) {
-  for (const r of Object.keys(RASTRID)) map.setLayoutProperty(r, "visibility", r === id ? "visible" : "none");
+  // the põhikaart starts at zoom 10.5: below that the Estonian map is shown in its place
+  for (const r of Object.keys(RASTRID)) map.setLayoutProperty(r, "visibility", r === id || (id === "pohikaart" && r === "kaart") ? "visible" : "none");
+  map.setLayerZoomRange("kaart", 0, id === "pohikaart" ? 10.5 : 24);
   // rasters with their own labels (topo, Estonian map): hide the vector ones to avoid doubles
   const peida = RASTRID[id]?.omad_sildid;
   for (const l of map.getStyle().layers) {
@@ -1451,6 +1457,43 @@ function valiKuupaev(i) {
   olek.paev = olek.p0 = Math.max(0, Math.min(olek.vilj.kuupaevad.length - 1, i));
   joonista();
 }
+
+// TEMPORARY basemap variant: the Maa- ja Ruumiamet põhikaart exists only in L-EST97 (EPSG:3301), so
+// each web tile is asked from the WMS in L-EST97 and turned into Web Mercator here. Over one tile the
+// two projections differ by an affine map (a slight turn and scale), so three corners fix it. The
+// image is asked a bit larger to the left and below, where the WMS writes its watermark, and that
+// part falls outside the tile.
+const lest97 = (() => {   // Lambert conformal conic of L-EST97 on GRS80 (checked against pyproj)
+  const a = 6378137, f = 1 / 298.257222101, e = Math.sqrt(2 * f - f * f), r = (d) => d * Math.PI / 180;
+  const m = (p) => Math.cos(p) / Math.sqrt(1 - (e * Math.sin(p)) ** 2);
+  const t = (p) => Math.tan(Math.PI / 4 - p / 2) / ((1 - e * Math.sin(p)) / (1 + e * Math.sin(p))) ** (e / 2);
+  const p1 = r(58), p2 = r(59 + 20 / 60), p0 = r(57 + 31 / 60 + 3.19415 / 3600), l0 = r(24);
+  const n = (Math.log(m(p1)) - Math.log(m(p2))) / (Math.log(t(p1)) - Math.log(t(p2))), F = m(p1) / (n * t(p1) ** n);
+  const R = (p) => a * F * t(p) ** n, r0 = R(p0);
+  return (lon, lat) => { const rr = R(r(lat)), th = n * (r(lon) - l0); return [500000 + rr * Math.sin(th), 6375000 + r0 - rr * Math.cos(th)]; };
+})();
+maplibregl.addProtocol("pohikaart", async (params, abort) => {
+  const [z, x, y] = params.url.split("://")[1].split("/").map(Number);
+  const T = devicePixelRatio > 1 ? 512 : 256, N2 = 2 ** z;   // 2x on high-density screens for sharp lines
+  const ll = (u, v) => [(x + u) / N2 * 360 - 180, Math.atan(Math.sinh(Math.PI * (1 - 2 * (y + v) / N2))) * 180 / Math.PI];
+  const nurgad = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([u, v]) => lest97(...ll(u, v)));
+  let x0 = Math.min(...nurgad.map((c) => c[0])), x1 = Math.max(...nurgad.map((c) => c[0]));
+  let y0 = Math.min(...nurgad.map((c) => c[1])), y1 = Math.max(...nurgad.map((c) => c[1]));
+  const res = (x1 - x0) / T;
+  x0 -= 180 * res; y0 -= 40 * res;   // room for the watermark, left out of the tile
+  const W = Math.round((x1 - x0) / res), H = Math.round((y1 - y0) / res);
+  const r = await fetch(`https://kaart.maaamet.ee/wms/alus?service=WMS&version=1.1.1&request=GetMap&layers=pohi_vv&styles=&format=image/png&srs=EPSG:3301&bbox=${x0},${y0},${x1},${y1}&width=${W}&height=${H}`,
+                        { signal: abort.signal });
+  const img = await createImageBitmap(await r.blob());
+  // affine map image pixel -> tile pixel from the NW, NE and SW corners
+  const q = nurgad.slice(0, 3).map(([E, N]) => [(E - x0) / res, (y1 - N) / res]);
+  const ax = q[1][0] - q[0][0], ay = q[1][1] - q[0][1], bx = q[2][0] - q[0][0], by = q[2][1] - q[0][1], det = ax * by - ay * bx;
+  const m11 = T * by / det, m12 = -T * bx / det, m21 = -T * ay / det, m22 = T * ax / det;
+  const c = new OffscreenCanvas(T, T), ctx = c.getContext("2d");
+  ctx.setTransform(m11, m21, m12, m22, -(m11 * q[0][0] + m12 * q[0][1]), -(m21 * q[0][0] + m22 * q[0][1]));
+  ctx.drawImage(img, 0, 0);
+  return { data: await (await c.convertToBlob()).arrayBuffer() };
+});
 
 const map = new maplibregl.Map({ container: "kaart", style: ALUS_STIIL, center: [27.147, 58.197], zoom: 11.5, maxZoom: 17,
                                   attributionControl: { compact: true } });
