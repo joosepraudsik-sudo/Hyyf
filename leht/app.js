@@ -16,6 +16,8 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 const VALIK = {
   varv: { pruun: "Pruun (algne)", spekter: "Spekter", magma: "Magma", soekulm: "Soe–külm" },
   tugevus: { kerge: "Kerge", keskmine: "Keskmine", tugev: "Tugev" },
+  // TEMPORARY: basemap under the layer (the "Looduskaart" choice of the basemap menu)
+  alus: { algne: "Looduskaart (algne)", vaikne: "Vaikne looduskaart", hele: "Hele looduskaart" },
 };
 const PALETID = {
   pruun: ["#4b1810", "#7a2a1c", "#a4432a", "#d9894a", "#e9cf8f"],
@@ -1400,10 +1402,34 @@ function lisaAluskaardid() {
 
 // TEMPORARY: colour or strength changed
 function valiVaade(k, v) {
-  seaVaade({ varv: olek.varv, tugevus: olek.tugevus, [k]: v });
-  try { localStorage.setItem("hyyf-vaade", JSON.stringify({ varv: olek.varv, tugevus: olek.tugevus })); } catch (e) { /* private mode */ }
+  seaVaade({ varv: olek.varv, tugevus: olek.tugevus, alus: olek.alus, [k]: v });
+  try { localStorage.setItem("hyyf-vaade", JSON.stringify({ varv: olek.varv, tugevus: olek.tugevus, alus: olek.alus })); } catch (e) { /* private mode */ }
   document.querySelectorAll("#variandid button").forEach((b) => b.classList.toggle("aktiivne", olek[b.dataset.k] === b.dataset.v));
-  if (olek.vilj) joonista();
+  if (k === "alus") rakendaAlus();
+  else if (olek.vilj) joonista();
+}
+
+// TEMPORARY basemap variants of the natural map: as it is; its greens and land use toned down (the
+// mushroom layer the only strong colour); or recoloured light and warm (pale sage forest, cream
+// ground, soft water). [layer, paint property, value]
+const ALUSED = {
+  vaikne: [["park", "fill-opacity", 0.25], ["landcover_wood", "fill-opacity", 0.12], ["landcover_grass", "fill-opacity", 0.1],
+           ["landuse_residential", "fill-opacity", 0.4]],
+  hele: [["background", "background-color", "#f8f6f0"], ["park", "fill-color", "#e3ead3"], ["park", "fill-opacity", 0.6],
+         ["landcover_wood", "fill-color", "#d9e3c6"], ["landcover_wood", "fill-opacity", 0.55],
+         ["landcover_grass", "fill-color", "#e6ecd8"], ["landcover_grass", "fill-opacity", 0.4],
+         ["landuse_residential", "fill-opacity", 0.35], ["water", "fill-color", "#c8d8e6"]],
+};
+function rakendaAlus() {
+  olek.algne ??= {};
+  const muudetud = Object.values(ALUSED).flat();
+  for (const [id, omadus] of muudetud) {   // first everything back as it was
+    if (!map.getLayer(id)) continue;
+    const v = `${id}|${omadus}`;
+    if (!(v in olek.algne)) olek.algne[v] = map.getPaintProperty(id, omadus);
+    map.setPaintProperty(id, omadus, olek.algne[v]);
+  }
+  for (const [id, omadus, x] of ALUSED[olek.alus] || []) if (map.getLayer(id)) map.setPaintProperty(id, omadus, x);
 }
 
 function valiAluskaart(id) {
@@ -1438,6 +1464,7 @@ function vaba() {
 // style, not for all basemap tiles ("load")
 map.once("style.load", async () => {
   lisaAluskaardid();
+  rakendaAlus();
   const kv = document.getElementById("kokkuvote");
   try {
     kv.textContent = "Laen andmeid…";
