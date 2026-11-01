@@ -498,22 +498,3 @@ button.brand:hover { background: var(--pind-2); }
 .sel-h-esimene { margin-top: 4px; padding-top: 0; }
 
 
-/* TEMPORARY: chanterelle info variants */
-.si-valik { margin: 4px 0 14px; }
-.si-sammud { list-style: none; margin: 0; padding: 0; position: relative; }
-.si-sammud::before { content: ""; position: absolute; left: 13px; top: 14px; bottom: 14px; width: 2px; background: var(--joon); }
-.si-sammud li { position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 12px; padding-bottom: 12px; }
-.si-sammud li:last-child { padding-bottom: 0; }
-.si-nr { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 13px;
-  background: #eaa91c; color: #3a2406; box-shadow: 0 0 0 4px var(--pind, #fff); position: relative; }
-.si-sammud b, .si-sammud span:not(.si-nr), .si-ajad b, .si-ajad span:not(.si-aeg) { display: block; }
-.si-sammud div span, .si-ajad .si-kaart span { color: var(--tint-2); font-size: 13.5px; }
-.si-lopp { margin: 14px 0 0; font-weight: 600; }
-.si-ajad { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
-.si-ajad li { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: stretch; }
-.si-aeg { display: grid; place-items: center; border-radius: 10px; background: var(--aktsent); color: #fff; font-size: 12px; font-weight: 700; padding: 6px 4px; text-align: center; }
-.si-ajad li:nth-child(2) .si-aeg { opacity: .88; } .si-ajad li:nth-child(3) .si-aeg { opacity: .76; }
-.si-ajad li:nth-child(4) .si-aeg { opacity: .64; } .si-ajad li:nth-child(5) .si-aeg { opacity: .52; }
-.si-kaart { display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 8px 10px; border: 1px solid var(--joon); border-radius: 12px; background: var(--pind-2); }
-.si-kaart svg { padding: 4px; width: 30px; height: 30px; border-radius: 9px; background: var(--aktsent-pehme); stroke: var(--aktsent); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-@media (max-width: 560px) { .si-ajad li { grid-template-columns: 1fr; } .si-aeg { justify-self: start; padding: 3px 10px; } }

@@ -1344,43 +1344,10 @@ const SEEN_IKOON = {
 };
 const KUUD_HOOAEG = [["mai", 0], ["juuni", 1], ["juuli", 2], ["aug", 3], ["sept", 3], ["okt", 2], ["nov", 0]];
 
-// TEMPORARY: two more ways to tell the story, to compare with the current one: the life cycle step
-// by step, and the same by time scale (decades to days). The user picks one, the switch goes away.
-const SEENINFO_VAATED = { praegune: "Praegune", elutsykkel: "Elutsükkel", ajaskaalad: "Ajaskaalad" };
-const ELUTSYKKEL = [
-  ["Eos idaneb", "Kukeseene eosed valmivad kübara all voltidel ja kanduvad tuule, vee ja loomadega. Sobivas mullas idaneb eos peeneks seeneniidiks (hüüfiks) – ainult mõne mikromeetri jämeduseks."],
-  ["Seeneniit leiab puujuure", "Üksi seeneniit kaua ei ela. Ta peab leidma männi, kuuse või kase peenjuure ja mähkima selle tihedalt enda sisse. Nii tekib mükoriisa – juure ja seene ühine organ."],
-  ["Puu ja seen vahetavad", "Puu annab seenele fotosünteesist suhkrut. Seeneniidid ulatuvad mullas kaugemale kui juured ja toovad puule vastu vett, lämmastikku ja fosforit. Mõlemad võidavad – seepärast kasvab kukeseen ainult elavate puude all."],
-  ["Seeneniidistik kasvab aastaid", "Mulla pealmises kihis, samblavaiba ja kõdu all, laieneb seeneniidistik aasta-aastalt. Viljakehi hakkab see kandma alles siis, kui on piisavalt suur ja puult küllalt suhkrut saab – noores metsas läheb selleks aastaid."],
-  ["Soe suvi kogub jõudu", "Suve soojus ja niiske muld annavad puule ja seenele energiavaru. Kuival või jahedal suvel jääb seeneniidistik nõrgaks ja seeni on vähe, ükskõik kui hea on mets."],
-  ["Vihm annab märguande", "Pärast korralikku vihma, kui muld on soe, koonduvad seeneniidid samblas pisikesteks sõlmedeks – seenealgmeteks. Vihmast korjatava seeneni kulub soojaga 1–2, jahedaga kuni 3 nädalat."],
-  ["Viljakeha kasvab aeglaselt", "Kukeseen kasvab teiste seentega võrreldes aeglaselt ja püsib metsas nädalaid. Ta talub mõõdukat põuda, aga öökülm ja sügisene jahedus lõpetavad hooaja. Küpsed viljakehad puistavad eosed – ring algab otsast."],
-];
-const AJASKAALAD = [
-  ["Aastakümned", SEEN_IKOON.puu, "Mets", "Peremeespuu (mänd, kuusk, kask) peab olema elus ja vähemalt keskealine. Vaene, happeline, hästi kuivendatud muld, sammal maas, laiguti valgust."],
-  ["Aastad", SEEN_IKOON.muld, "Seeneniidistik ja mükoriisa", "Seeneniidid on puu peenjuurtega kokku kasvanud ja laienevad mulla pealmises kihis. Puu toidab seent suhkruga, seen puud vee ja toitainetega."],
-  ["Kuud", SEEN_IKOON.paike, "Soe ja niiske kevad-suvi", "Mai–juuli soojus ja niiskus annavad energiavaru. Kuiv alguskuu nõrgendab kogu hooaega."],
-  ["Nädalad", SEEN_IKOON.vihm, "Vihm ja soe muld", "Korralik vihm soojas mullas paneb seeneniidid algmeid tegema. Korjatava seeneni kulub 1–3 nädalat."],
-  ["Päevad", SEEN_IKOON.kalender, "Viljakeha", "Seen kasvab aeglaselt ja püsib nädalaid. Põud aeglustab, öökülm ja sügisjahedus lõpetavad."],
-];
-
 // short text, one paragraph per need; the season as bars by month
-function avaSeeninfo(vaade) {
-  try { vaade ??= localStorage.getItem("hyyf-seeninfo"); } catch (e) { /* private mode */ }
-  if (!SEENINFO_VAATED[vaade]) vaade = "praegune";
-  try { localStorage.setItem("hyyf-seeninfo", vaade); } catch (e) { /* private mode */ }
-  const valik = `<div class="segment vaade-valik si-valik" role="group" aria-label="Teksti variant">${Object.entries(SEENINFO_VAATED)
-    .map(([k, n]) => `<button data-v="${k}"${k === vaade ? ' class="aktiivne"' : ""}>${n}</button>`).join("")}</div>`;
+function avaSeeninfo() {
   const kuud = `<div class="si-kuud">${KUUD_HOOAEG.map(([k, t]) => `<div><span class="si-tulp t${t}"></span><small>${k}</small></div>`).join("")}</div>`;
-  const elutsykkel = `
-    <p class="si-sissejuhatus">Kukeseen, mida korjame, on ainult seene viljakeha. Seen ise on mullas peidus olev seeneniidistik, mis elab koos puuga. Nii sünnib kukeseen:</p>
-    <ol class="si-sammud">${ELUTSYKKEL.map(([pea, tekst], i) => `<li><span class="si-nr">${i + 1}</span><div><b>${pea}</b><span>${tekst}</span></div></li>`).join("")}</ol>
-    <p class="si-lopp">Hooaeg: juulist oktoobrini, kõige rohkem augustis ja septembris.</p>${kuud}`;
-  const ajaskaalad = `
-    <p class="si-sissejuhatus">Kukeseen vajab korraga tingimusi väga erinevas ajaskaalas. Iga järgmine samm saab toimuda ainult siis, kui eelmised on olemas.</p>
-    <ol class="si-ajad">${AJASKAALAD.map(([aeg, ikoon, pea, tekst]) => `<li><span class="si-aeg">${aeg}</span><div class="si-kaart">${ikoon}<div><b>${pea}</b><span>${tekst}</span></div></div></li>`).join("")}</ol>
-    ${kuud}`;
-  const praegune = `
+  document.getElementById("seeninfo-sisu").innerHTML = `
     <p class="si-sissejuhatus">Kukeseen ei kasva üksi: tema seeneniidistik elab koos puu juurtega ja vahetab puuga toitaineid. Seen saab puult suhkrut, puu seenelt vett ja mineraale. Seepärast leiab kukeseeni ainult elavate puude alt.</p>
     <ul class="si-read">
       <li>${SEEN_IKOON.puu}<div><b>Puu</b><span>Kõige sagedamini mänd, ka kuusk ja kask. Parim on keskealine või vanem mets – noorel metsal pole seeneniidistik veel välja kujunenud.</span></div></li>
@@ -1389,11 +1356,7 @@ function avaSeeninfo(vaade) {
       <li>${SEEN_IKOON.vihm}<div><b>Soe suvi ja vihm</b><span>Seeneniidistik vajab sooja suve ja niisket mulda. Pärast korralikku vihma tulevad seened 1–3 nädalaga – jahedaga kauem.</span></div></li>
       <li>${SEEN_IKOON.kalender}<div><b>Hooaeg</b><span>Juulist oktoobrini, kõige rohkem augustis ja septembris. Seened kasvavad aeglaselt ja püsivad metsas nädalaid.</span>${kuud}</div></li>
     </ul>`;
-  const sisu = document.getElementById("seeninfo-sisu");
-  sisu.innerHTML = valik + { praegune, elutsykkel, ajaskaalad }[vaade];
-  sisu.querySelectorAll(".si-valik button").forEach((b) => b.onclick = () => avaSeeninfo(b.dataset.v));
-  const d = document.getElementById("seeninfo");
-  if (!d.open) d.showModal();
+  document.getElementById("seeninfo").showModal();
 }
 
 // ---------- map ----------
