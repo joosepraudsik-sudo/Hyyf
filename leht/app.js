@@ -552,7 +552,6 @@ function naitaReziim() {
     x.setAttribute("aria-pressed", String(x.dataset.reziim === valik));
   });
   document.getElementById("ajatelg").dataset.reziim = valik;
-  document.getElementById("parimad-kaart").style.display = olek.kihtNahtav ? "" : "none";
 }
 
 // ---------- panel ----------
@@ -588,11 +587,13 @@ function uuendaPaneel(kohad) {
   uuendaKokkuvote();
 
   const ol = document.getElementById("parimad");
-  ol.innerHTML = kohad.length ? "" : `<li class="tuhi">Häid kohti selle päeva kohta ei ole.</li>`;
+  // one row of small buttons under the legend, the same numbers as on the map; details in the tooltip
+  ol.innerHTML = kohad.length ? "" : `<li class="tuhi">Selles vaates häid kohti pole.</li>`;
   kohad.forEach((k, i) => {
     const li = document.createElement("li");
     const A = olek.meta.astmed, ms = ASTE_KOHT[aste(k.h[0], A.koht)] || "nõrk", as = ASTE_AEG[aste(k.h[1], A.aeg)] || "seeni pole";
-    li.innerHTML = `<button><span class="nr" style="background:${KLASSID[olek.reziim][k.kl][1]};color:${tekstVarv(KLASSID[olek.reziim][k.kl][1])}">${i + 1}</span><span>${KLASSID[olek.reziim][k.kl][0]}<small>mets ${ms}${olek.reziim === "tana" ? ` · seeneaeg ${as}` : ""} · head metsa ümber ${Math.round(k.ha)} ha</small></span><span class="arv">›</span></button>`;
+    const [nimi, varv] = KLASSID[olek.reziim][k.kl];
+    li.innerHTML = `<button title="${nimi}: mets ${ms}${olek.reziim === "tana" ? `, seeneaeg ${as}` : ""}, head metsa ümber ${Math.round(k.ha)} ha"><span class="nr" style="background:${varv};color:${tekstVarv(varv)}">${i + 1}</span><span>${nimi}</span><small>${Math.round(k.ha)} ha</small></button>`;
     li.querySelector("button").onclick = () => {
       // keep the spot visible beside the drawer (right) or above the bottom sheet (phones)
       const nihe = innerWidth <= 760 ? [0, -innerHeight * 0.3] : [-200, 0];
@@ -1098,7 +1099,6 @@ async function naitaSelgitust(lnglat) {
     naitaSelgitust(lnglat);
   });
   document.getElementById("sahtel").hidden = false;
-  document.getElementById("parimad-kaart").style.visibility = "hidden";
   const tapp = document.createElement("div");
   tapp.className = "tapp";
   olek.tapp = new maplibregl.Marker({ element: tapp }).setLngLat(lnglat).addTo(map);
@@ -1129,7 +1129,6 @@ function peidaSelgitus() {
   if (olek.tapp) olek.tapp.remove();
   olek.tapp = null;
   document.getElementById("sahtel").hidden = true;
-  document.getElementById("parimad-kaart").style.visibility = "";
 }
 
 // ---------- guide (built from the model's own parameters in window.HYYF.juhend) ----------
@@ -1484,10 +1483,3 @@ document.getElementById("sahtel-sulge").onclick = peidaSelgitus;
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape" && !document.getElementById("giid").open) peidaSelgitus();
 });
-document.getElementById("parimad-pea").onclick = (e) => {
-  const kaart = document.getElementById("parimad-kaart");
-  const kinni = kaart.classList.toggle("kinni");
-  e.currentTarget.setAttribute("aria-expanded", String(!kinni));
-};
-// phones: best spots start collapsed so the map stays visible
-if (innerWidth <= 760) document.getElementById("parimad-pea").click();

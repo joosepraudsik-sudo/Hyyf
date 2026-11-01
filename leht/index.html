@@ -49,14 +49,6 @@
     </button>
   </div>
 
-  <section id="parimad-kaart" class="parimad-kaart klaas">
-    <button id="parimad-pea" class="kaardikaart-pea" aria-expanded="true" aria-controls="parimad">
-      <span>Parimad kohad</span>
-      <svg class="nool" viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>
-    </button>
-    <ol id="parimad" class="parimad"></ol>
-  </section>
-
   <section id="ajatelg" class="ajatelg klaas" aria-live="polite">
     <div class="ajatelg-pea">
       <div id="reziim" class="segment" role="group" aria-label="Mida kaart näitab">
@@ -78,6 +70,11 @@
 
     <p id="kokkuvote" class="kokkuvote"></p>
     <ul id="legend" class="legend"></ul>
+
+    <div class="parimad-osa">
+      <span class="parimad-pealkiri">Parimad kohad</span>
+      <ol id="parimad" class="parimad" aria-label="Parimad kohad selles vaates"></ol>
+    </div>
   </section>
 
   <aside id="sahtel" class="sahtel klaas" hidden aria-labelledby="sahtel-pealkiri">
