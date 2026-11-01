@@ -157,7 +157,10 @@ def lae_arhiiv(nodes, model, variables, key, algus, lopp, batch=10):
     prefix = model.replace("_", "")
     todo = {}
     for name in nodes:
-        _, last = _viimane(ILM / f"{prefix}_{name}.json", key)
+        path = ILM / f"{prefix}_{name}.json"
+        _, last = _viimane(path, key)
+        if last is None and path.exists():
+            continue   # sea in this model: an answer without any values
         start = algus if last is None else last + timedelta(days=1)
         if start <= lopp:
             todo.setdefault(start, []).append(name)
@@ -221,19 +224,37 @@ def lae(algus):
 
 # ---------- viljumine ----------
 
+def asendused(pts):
+    """Nodes that are sea in ERA5-Land (coast, small islands) -> nearest node with data."""
+    sea, land = [], []
+    for node in pts:
+        path = ILM / f"era5land_{node}.json"
+        if path.exists():
+            (land if _viimane(path, "temperature_2m_mean")[1] else sea).append(node)
+    out = {}
+    for node in sea:
+        lat, lon = pts[node]["lat"], pts[node]["lon"]
+        k = np.cos(np.radians(lat))
+        out[node] = min(land, key=lambda n: (pts[n]["lat"] - lat) ** 2 + ((pts[n]["lon"] - lon) * k) ** 2)
+    return out
+
+
 def viljumine():
     import pandas as pd
     import parameetrid as P
     from viljumine import load_weather, simulate
 
     pts = json.loads(PUNKTID.read_text("utf-8"))
+    sea = asendused(pts)
+    if sea:
+        print(f"  ERA5-Landis meri, ajalugu lähimast punktist: {sea}")
     rows, puudu = [], []
     t0 = time.time()
     for i, (node, v) in enumerate(pts.items(), 1):
         if not (ILM / f"era5land_{node}.json").exists() or not (ILM / f"era5_{v['era5']}.json").exists():
             puudu.append(node)
             continue
-        wx = load_weather(node, ILM, era5_point=v["era5"])
+        wx = load_weather(node, ILM, era5_point=v["era5"], land_point=sea.get(node))
         for regime in P.VEEREZIIM:
             d = simulate(wx, regime)
             d["allikas"] = wx["allikas"]
