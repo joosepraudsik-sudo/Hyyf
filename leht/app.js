@@ -10,34 +10,26 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 // the map. Soft autumn tones (deep brown / rust / ochre / sand), dark to light. The better the place,
 // the darker and more opaque; "võimalik" is only a faint wash so roads, tracks and names stay
 // readable everywhere. The layer as a whole fades a bit up close.
-// TEMPORARY: look of the mushroom layer in three choices to compare (the user picks one
-// combination, the switch goes away). Sile + Pruun + Tugev is the look we started from.
-//   stiil:   sile = smooth nested shapes; esile = only the three best classes, with an edge line;
-//            tapid = one dot per 50 m cell, bigger and darker for better; viirutus = diagonal
-//            hatching, denser for better (the map shows through). Zoomed out (overview) every
-//            style is drawn smooth.
-//   varv:    palette dark (best) to light
-//   tugevus: opacity of the whole layer
+// TEMPORARY: colour and strength of the mushroom layer to compare (the user picks one, the switch
+// goes away). The smooth style is settled. Pruun + Tugev is the look we started from; the other
+// palettes give every class its own hue, best (dark) to lowest (light).
 const VALIK = {
-  stiil: { sile: "Sile", esile: "Parimad esile", tapid: "Täpid", viirutus: "Viirutus" },
-  varv: { pruun: "Pruun", kuld: "Kuld", lilla: "Lilla", punane: "Punane" },
+  varv: { pruun: "Pruun (algne)", spekter: "Spekter", magma: "Magma", soekulm: "Soe–külm" },
   tugevus: { kerge: "Kerge", keskmine: "Keskmine", tugev: "Tugev" },
 };
 const PALETID = {
   pruun: ["#4b1810", "#7a2a1c", "#a4432a", "#d9894a", "#e9cf8f"],
-  kuld: ["#8f3a07", "#c25e0c", "#e8922a", "#f2c055", "#f6e1a0"],
-  lilla: ["#3f0d4f", "#6a1b7a", "#9c3d9e", "#c97bc4", "#e8bfe3"],
-  punane: ["#5c0a14", "#99151f", "#d0342c", "#ef7a52", "#f8c4a4"],
+  spekter: ["#6a1b9a", "#d62828", "#f77f00", "#fcbf49", "#f3e9b5"],     // violet, red, orange, yellow, cream
+  magma: ["#3b0f70", "#8c2981", "#de4968", "#fe9f6d", "#fcf3bf"],       // deep purple, magenta, rose, peach, pale yellow
+  soekulm: ["#a50026", "#f46d43", "#fdb863", "#74add1", "#c6dbef"],     // dark red, orange, apricot, blue, pale blue
 };
 const TUGEVUS = { kerge: 0.45, keskmine: 0.7, tugev: 1 };
 const ALFA = [0.9, 0.82, 0.72, 0.5, 0.28];
-const TAPP = [0.95, 0.82, 0.68, 0.52, 0.36];   // dot diameter per class, share of the 50 m cell
-const VIIRG = [4, 5, 7, 10, 14];                // hatching period per class in screen pixels
 const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 1, 14, 0.85, 16, 0.7];
 let VARV;
 const KLASSID = {};
 function seaVaade(v = {}) {
-  for (const [k, valikud] of Object.entries(VALIK)) olek[k] = valikud[v[k]] ? v[k] : Object.keys(valikud)[k === "tugevus" ? 2 : 0];
+  for (const [k, valikud] of Object.entries(VALIK)) olek[k] = valikud[v[k]] ? v[k] : Object.keys(valikud).at(k === "tugevus" ? -1 : 0);
   VARV = PALETID[olek.varv];
   KLASSID.tana = ["Tippkoht", "Suurepärane", "Väga hea", "Hea", "Võimalik"].map((n, c) => [n, VARV[c], ALFA[c]]);
   // forest only: one step per class, the top step in the second colour (the darkest needs a good time too)
@@ -371,7 +363,6 @@ function koonda(G, k) {
 // a seam), sampled with a cubic B-spline on a sile x finer grid (smooth curves, no corners) and cut
 // at 0.5 with a soft one-pixel edge. Nested, rounded shapes, darkest inside, class edges blended.
 function pilt(G, sile) {
-  if (olek.stiil === "tapid" && !G.yle) return tapid(G, sile);
   const W = G.laius, H = G.korgus, kl = G.kl;
   const varvid = KLASSID[olek.reziim].map(([, c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
   canvas.width = G.Wi * sile;
@@ -402,15 +393,7 @@ function pilt(G, sile) {
   };
   const tugevus = G.yle ? YLE_TUGEVUS : 1;
   const SERV = 0.07;   // edge softness in field units (about one fine pixel)
-  const nihe = olek.reziim === "koht" ? 1 : 0, mitu = TUGEVUS[olek.tugevus];
-  // "esile": only the three best classes, the outer one edged by a line (half-width in field units:
-  // the field crosses 0.5 over about 2 cells)
-  const esile = olek.stiil === "esile", JOON = 0.4 / sile;
-  const alfa = kl0.map(([, , a], k) => (esile && k >= 3 ? 0 : a));
-  // hatching: period per class in fine pixels (constant on screen at the zoom it is drawn for)
-  const viirutus = olek.stiil === "viirutus" && !G.yle;
-  const mpp = 156543.03 * Math.cos((G.bbox[1] + G.bbox[3]) / 2 * Math.PI / 180) / 2 ** map.getZoom();
-  const ekraan = (G.ruut_m || 50) / mpp / sile;   // screen pixels per fine pixel
+  const mitu = TUGEVUS[olek.tugevus];
   const kate = (f) => Math.max(0, Math.min(1, (f - 0.5) / SERV + 0.5));
   // rows of cells with nothing drawn are skipped quickly
   const tyhi = new Uint8Array(H);
@@ -421,58 +404,20 @@ function pilt(G, sile) {
       const fo = proov(valjad[nk - 1], px, py), valine = kate(fo);
       if (valine <= 0) continue;
       // from the outermost class inwards: each darker class covers the previous by its own share
-      let [r, g, bl] = varvid[nk - 1], al = alfa[nk - 1], eel = valine, sisemine = fo > 0.5 ? nk - 1 : nk, f1 = esile ? proov(valjad[2], px, py) : 0;
-      for (let k = nk - 2; k >= 0 && eel > 0; k--) {
-        const f = proov(valjad[k], px, py), a = Math.min(eel, kate(f));
+      let [r, g, bl] = varvid[nk - 1], al = kl0[nk - 1][2], eel = valine;
+      for (let k = nk - 2; k >= 0; k--) {
+        const a = Math.min(eel, kate(proov(valjad[k], px, py)));
         if (a <= 0) break;
-        if (f > 0.5) sisemine = k;
         const t = a / eel;
-        r += (varvid[k][0] - r) * t; g += (varvid[k][1] - g) * t; bl += (varvid[k][2] - bl) * t; al += (alfa[k] - al) * t;
+        r += (varvid[k][0] - r) * t; g += (varvid[k][1] - g) * t; bl += (varvid[k][2] - bl) * t; al += (kl0[k][2] - al) * t;
         eel = a;
       }
       let A = Math.min(1, al * tugevus * mitu) * valine;
-      if (esile) {   // edge of the shown area (class 2 or better)
-        const l = Math.max(0, 1 - Math.abs(f1 - 0.5) / JOON) * 0.9 * mitu;
-        if (l > 0) {
-          const uus = l + (1 - l) * A, t = l / uus;
-          r += (varvid[0][0] - r) * t; g += (varvid[0][1] - g) * t; bl += (varvid[0][2] - bl) * t;
-          A = uus;
-        }
-      }
-      if (viirutus && sisemine < nk) {   // diagonal lines of the innermost class, a faint wash between
-        const periood = Math.max(2, VIIRG[sisemine + nihe] / ekraan);
-        const d = ((px + py) % periood) / periood;
-        const joon = Math.max(0, Math.min(1, (0.42 - Math.abs(d - 0.5)) * periood));   // ~1 px antialiased
-        A *= 0.15 + 0.85 * joon;
-      }
       const o = (py * canvas.width + px) * 4;
       img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = bl; img.data[o + 3] = Math.round(A * 255);
     }
   }
   ctx.putImageData(img, 0, 0);
-  return canvas.toDataURL();
-}
-
-// "täpid": one dot per 50 m cell of the sheet, diameter and colour by class
-function tapid(G, sile) {
-  const d = Math.min(10, Math.max(6, sile * 2)), nihe = olek.reziim === "koht" ? 1 : 0, mitu = TUGEVUS[olek.tugevus];
-  canvas.width = G.Wi * d;
-  canvas.height = G.Hi * d;
-  const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  KLASSID[olek.reziim].forEach(([, varv, a], c) => {
-    ctx.beginPath();
-    const r = TAPP[c + nihe] * d / 2;
-    for (let y = 0; y < G.Hi; y++) for (let x = 0; x < G.Wi; x++) {
-      if (G.kl[(y + G.varu) * G.laius + x + G.varu] !== c) continue;
-      ctx.moveTo(x * d + d / 2 + r, y * d + d / 2);
-      ctx.arc(x * d + d / 2, y * d + d / 2, r, 0, 2 * Math.PI);
-    }
-    ctx.globalAlpha = Math.min(1, (a + 0.1) * mitu);
-    ctx.fillStyle = varv;
-    ctx.fill();
-  });
-  ctx.globalAlpha = 1;
   return canvas.toDataURL();
 }
 
@@ -1453,10 +1398,10 @@ function lisaAluskaardid() {
   }
 }
 
-// TEMPORARY: one of the three look choices changed
+// TEMPORARY: colour or strength changed
 function valiVaade(k, v) {
-  seaVaade({ stiil: olek.stiil, varv: olek.varv, tugevus: olek.tugevus, [k]: v });
-  try { localStorage.setItem("hyyf-vaade", JSON.stringify({ stiil: olek.stiil, varv: olek.varv, tugevus: olek.tugevus })); } catch (e) { /* private mode */ }
+  seaVaade({ varv: olek.varv, tugevus: olek.tugevus, [k]: v });
+  try { localStorage.setItem("hyyf-vaade", JSON.stringify({ varv: olek.varv, tugevus: olek.tugevus })); } catch (e) { /* private mode */ }
   document.querySelectorAll("#variandid button").forEach((b) => b.classList.toggle("aktiivne", olek[b.dataset.k] === b.dataset.v));
   if (olek.vilj) joonista();
 }
