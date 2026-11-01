@@ -167,9 +167,9 @@ KAALUD = {
 # day-to-day change of the fruiting index does not repaint the map. Steps (lower bounds):
 KLASS_KOHT = [0.85, 0.80, 0.65, 0.50]   # forest: suurepärane (~3 % of forest), väga hea (~6 %), hea, keskmine
 KLASS_AEG = [0.70, 0.50, 0.30, 0.15]    # mushroom time: väga hea (top of a good season), hea, keskmine, vähe
-# class = forest step + time step (0-based): 0 tippkoht, 1 suurepärane, 2 väga hea, 3 hea,
-# 4 võimalik, more = not drawn. The two top classes need the top step of one and at least the
-# second step of the other, so the very best spots stand out on the map.
+# map class from the step sum forest + time (0-based): 0-1 hüüfiline (best), 2 väga hea, 3 hea,
+# more = not drawn. Hüüfiline needs the top step of one and at least the second step of the other.
+# "Head metsad" (forest only): forest step 0 hüüfiline, 1 väga hea, 2 hea mets.
 
 # ---------- local climate (all of Estonia) ----------
 # Mycelium is adapted to the climate of its place: the moisture and warmth thresholds above were set

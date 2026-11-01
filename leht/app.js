@@ -5,27 +5,27 @@
 
 const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 
-// Display classes per mode: [label, colour, opacity]. A class comes from two steps, forest and
-// mushroom time (bounds in meta.astmed, from parameetrid.py), so small daily changes do not repaint
-// the map. Soft autumn tones (deep brown / rust / ochre / sand), dark to light. The better the place,
-// the darker and more opaque; "võimalik" is only a faint wash so roads, tracks and names stay
-// readable everywhere. The layer as a whole fades a bit up close.
-// Decided 1.11.2026 after comparing styles, palettes and basemaps: smooth shapes, these brown tones,
-// the natural basemap and the whole layer at medium strength (KIHI_MITU).
-const VARV = ["#4b1810", "#7a2a1c", "#a4432a", "#d9894a", "#e9cf8f"];
-const ALFA = [0.9, 0.82, 0.72, 0.5, 0.28];
-const KIHI_MITU = 0.7;
-const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 1, 14, 0.85, 16, 0.7];
+// Display classes per mode: [label, fill colour, fill opacity, outline colour]. Three classes
+// (1.11.2026, the user's choice after a map of protected areas): hüüfiline (best, green), väga hea
+// (yellow), hea (reddish). Every area is a clear shape: a see-through fill and a crisp outline of
+// its own colour, so the basemap shows through and the edges are easy to follow.
+// A class comes from two steps, forest and mushroom time (bounds in meta.astmed, from
+// parameetrid.py), so small daily changes do not repaint the map: step sum 0-1 hüüfiline,
+// 2 väga hea, 3 hea, more not drawn ("Head metsad": the forest step alone, 0-2).
+const VARV = ["#3fbd8c", "#f4c84a", "#f4a26a"];
+const JOON_VARV = ["#1d8a5f", "#cfa21f", "#e0733a"];
+const ALFA = [0.7, 0.7, 0.7];
+const SUMMA_KLASS = [0, 0, 1, 2];
+const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 1, 16, 0.9];
 const KLASSID = {
-  tana: ["Tippkoht", "Suurepärane", "Väga hea", "Hea", "Võimalik"].map((n, c) => [n, VARV[c], ALFA[c]]),
-  // forest only: one step per class, the top step in the second colour (the darkest needs a good time too)
-  koht: ["Suurepärane mets", "Väga hea mets", "Hea mets", "Keskmine mets"].map((n, c) => [n, VARV[c + 1], ALFA[c + 1]]),
+  tana: ["Hüüfiline", "Väga hea", "Hea"].map((n, c) => [n, VARV[c], ALFA[c], JOON_VARV[c]]),
+  koht: ["Hüüfiline mets", "Väga hea mets", "Hea mets"].map((n, c) => [n, VARV[c], ALFA[c], JOON_VARV[c]]),
 };
 const ASTE_KOHT = ["suurepärane", "väga hea", "hea", "keskmine"];
 const ASTE_AEG = ["väga hea", "hea", "keskmine", "vähe"];
 // text colour on a class colour
 const tekstVarv = (hex) => ([1, 3, 5].reduce((s, k, i) => s + parseInt(hex.slice(k, k + 2), 16) * [0.3, 0.59, 0.11][i], 0) < 150 ? "#fff" : "#2a1606");
-const SILE = 5;        // drawing resolution per 50 m cell (smooth edges)
+const SILE = 10;       // finest drawing resolution per 50 m cell (smooth edges up close)
 const SILU_KORDI = 2;  // smoothing passes for the class fields (more = rounder, small spots fade)
 const NADALAPAEV = ["P", "E", "T", "K", "N", "R", "L"];
 const NADALAPAEV_PIKK = ["pühapäev", "esmaspäev", "teisipäev", "kolmapäev", "neljapäev", "reede", "laupäev"];
@@ -53,7 +53,7 @@ const canvas = document.createElement("canvas");
 const NONE = 65535;          // no weather point: cell not shown
 const Z_LEHT = 11;           // from this zoom on the 50 m sheets are drawn (all of Estonia), below it the overview
 const LEHTI_MALUS = 60;
-const YLE_TUGEVUS = 1.5;     // the overview's colours are this much more opaque (seen from afar)      // sheets kept in memory
+const YLE_TUGEVUS = 1.2;     // the overview's colours are this much more opaque (seen from afar)
 const EESTI = "andmed/eesti/";     // data of all of Estonia (eksport_eesti.py)
 
 // A grid of cells: one small area, one 10 km sheet with `varu` cells of its neighbours around it
@@ -261,19 +261,20 @@ const hinnang = (r, d) => hinnangG(r.G, r.i, d);
 
 const aste = (x, piirid) => piirid.findIndex((piir) => x >= piir);
 
-// class index 0 green, 1 orange, 2 yellow, -1 none
+// class index 0 hüüfiline, 1 väga hea, 2 hea, -1 not drawn
 function klassKA(koht, aeg) {
   const A = olek.meta.astmed;
   const k = aste(koht, A.koht);
-  if (olek.reziim === "koht") return k;
+  if (olek.reziim === "koht") return k < KLASSID.koht.length ? k : -1;
   const a = aste(aeg, A.aeg);
-  return k < 0 || a < 0 || k + a >= KLASSID.tana.length ? -1 : k + a;
+  return k < 0 || a < 0 ? -1 : SUMMA_KLASS[k + a] ?? -1;
 }
 
 // ---------- map drawing ----------
 
-// drawing resolution per cell: finer up close
-const sileSuum = () => (map.getZoom() >= 14 ? SILE : map.getZoom() >= 13 ? 4 : map.getZoom() >= 12 ? 3 : 2);
+// drawing resolution per cell: finer up close, so the outlines stay smooth lines (about 2.5 screen
+// pixels per drawn pixel at most)
+const sileSuum = () => { const z = map.getZoom(); return z >= 15 ? SILE : z >= 14 ? 8 : z >= 13 ? 5 : z >= 12 ? 3 : 2; };
 
 // a new day or mode: everything is drawn again
 function joonista() {
@@ -331,15 +332,13 @@ function joonistaVork(G, sile, voti) {
   naitaPilt(G, pilt(G, sile));
 }
 
-// grid of the best (lowest, -1 = none) class of each k x k block of G's cells; the lowest class
-// is left out, as blocks with some of it would wash over almost the whole country
+// grid of the best (lowest, -1 = none) class of each k x k block of G's cells
 function koonda(G, k) {
   if (k === 1) return G;
   const W = Math.ceil(G.laius / k), H = Math.ceil(G.korgus / k), kl = new Int8Array(W * H).fill(-1);
-  const madalaim = KLASSID[olek.reziim].length - 1;
   for (let y = 0; y < G.korgus; y++) for (let x = 0; x < G.laius; x++) {
     const c = G.kl[y * G.laius + x], j = Math.floor(y / k) * W + Math.floor(x / k);
-    if (c >= 0 && c < madalaim && (kl[j] < 0 || c < kl[j])) kl[j] = c;
+    if (c >= 0 && (kl[j] < 0 || c < kl[j])) kl[j] = c;
   }
   return { laius: W, korgus: H, Wi: W, Hi: H, varu: 0, kl, yle: true };
 }
@@ -378,8 +377,11 @@ function pilt(G, sile) {
     return s;
   };
   const tugevus = G.yle ? YLE_TUGEVUS : 1;
-  const SERV = 0.07;   // edge softness in field units (about one fine pixel)
-  const mitu = KIHI_MITU;
+  // outlines: half-width in field units (the field crosses 0.5 over about 2 cells), about 1 px wide
+  const JOON = 0.25 / sile;
+  // the fill edge as soft as the line is wide: no faint half-drawn spots without an outline
+  const SERV = JOON;
+  const joonVarvid = kl0.map(([, , , c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
   const kate = (f) => Math.max(0, Math.min(1, (f - 0.5) / SERV + 0.5));
   // rows of cells with nothing drawn are skipped quickly
   const tyhi = new Uint8Array(H);
@@ -388,7 +390,7 @@ function pilt(G, sile) {
     if (tyhi[ry[py * 4]] && tyhi[ry[py * 4 + 1]] && tyhi[ry[py * 4 + 2]] && tyhi[ry[py * 4 + 3]]) continue;
     for (let px = 0; px < canvas.width; px++) {
       const fo = proov(valjad[nk - 1], px, py), valine = kate(fo);
-      if (valine <= 0) continue;
+      if (valine <= 0 && fo <= 0.5 - JOON) continue;
       // from the outermost class inwards: each darker class covers the previous by its own share
       let [r, g, bl] = varvid[nk - 1], al = kl0[nk - 1][2], eel = valine;
       for (let k = nk - 2; k >= 0; k--) {
@@ -398,7 +400,16 @@ function pilt(G, sile) {
         r += (varvid[k][0] - r) * t; g += (varvid[k][1] - g) * t; bl += (varvid[k][2] - bl) * t; al += (kl0[k][2] - al) * t;
         eel = a;
       }
-      let A = Math.min(1, al * tugevus * mitu) * valine;
+      let A = Math.min(1, al * tugevus) * valine;
+      // each class edge drawn as a line in its own darker colour, over the fill
+      for (let k = nk - 1; k >= 0; k--) {
+        const f = k === nk - 1 ? fo : proov(valjad[k], px, py);
+        const l = Math.max(0, 1 - Math.abs(f - 0.5) / JOON);
+        if (l <= 0) continue;
+        const uus = l + (1 - l) * A, t = l / uus;
+        r += (joonVarvid[k][0] - r) * t; g += (joonVarvid[k][1] - g) * t; bl += (joonVarvid[k][2] - bl) * t;
+        A = uus;
+      }
       const o = (py * canvas.width + px) * 4;
       img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = bl; img.data[o + 3] = Math.round(A * 255);
     }
@@ -489,7 +500,7 @@ function vaatesRakud(G) {
 // spread over the country. Each with the good forest around it (a point to walk to, not one blob).
 function parimadKohad(vorgud) {
   const b = map.getBounds();
-  const hea = KLASSID[olek.reziim].length - 2;   // every class but the lowest
+  const hea = KLASSID[olek.reziim].length - 1;   // every drawn class
   const kaugelt = vorgud.some((G) => G.yle);
   const vahe = Math.max(PARIM_VAHE_M, kaugus(b.getNorthWest().toArray(), b.getNorthEast().toArray()) / 8);
   const kandidaadid = [];
@@ -634,26 +645,25 @@ function uuendaKokkuvote() {
     olek.klassid.forEach((c, j) => (klassiS[j] += G.kiht["S" + c][i]));
   }
   const legend = document.getElementById("legend");
-  legend.innerHTML = KLASSID[olek.reziim].map(([nimi, c, alfa], j) =>
-    `<li><span class="lapp" style="background:${c};opacity:${Math.min(1, alfa + 0.25)}"></span><span>${nimi}</span><span class="arv">${Math.round(ha[j])} ha</span></li>`).join("");
+  legend.innerHTML = KLASSID[olek.reziim].map(([nimi, c, , joon], j) =>
+    `<li><span class="lapp" style="background:${c};border:1.5px solid ${joon}"></span><span>${nimi}</span><span class="arv">${Math.round(ha[j])} ha</span></li>`).join("");
 
   const kv = document.getElementById("kokkuvote");
   const p = Object.keys(punktid).length ? +Object.entries(punktid).reduce((a, b) => (b[1] > a[1] ? b : a))[0] : null;
   const j = klassiS.indexOf(Math.max(...klassiS));
   const pohjus = () => aegPohjus(paev, p, j);
-  const head = ha.slice(0, -1).reduce((s, x) => s + x, 0), voimalik = ha.at(-1);
+  const head = ha.reduce((s, x) => s + x, 0), paremad = ha[0] + ha[1];
   if (p === null) kv.innerHTML = vaateLehed().some((G) => !G.kiht) && map.getZoom() >= Z_LEHT
     ? "Laen selle vaate metsi…" : "Siin pole hinnatud metsa.";
   else if (!tana) {
-    const mets = ha.reduce((s, x) => s + x, 0);
     kv.innerHTML = head < 5
-      ? `<b>Siin häid metsi pole.</b> Kukeseenele sobivat metsa ${Math.round(mets)} ha, aga ükski pole hea.`
-      : `<b>Häid ja paremaid metsi ${Math.round(head)} ha</b>${ha[0] >= 1 ? `, neist suurepäraseid ${Math.round(ha[0])} ha` : ""}. Värv näitab ainult metsa, ilmast sõltumata.`;
+      ? "<b>Siin häid metsi pole.</b>"
+      : `<b>Häid metsi ${Math.round(head)} ha</b>${ha[0] >= 1 ? `, neist hüüfilisi ${Math.round(ha[0])} ha` : ""}. Värv näitab ainult metsa, ilmast sõltumata.`;
   }
-  else if (head < 5 && voimalik >= 50) kv.innerHTML = `<b>Tagasihoidlik aeg.</b> Kõrge hindega kohti pole, võimalikke ${Math.round(voimalik)} ha. ${pohjus()}`;
+  else if (paremad < 5 && head >= 50) kv.innerHTML = `<b>Tagasihoidlik aeg.</b> Häid kohti ${Math.round(head)} ha, paremaid pole. ${pohjus()}`;
   else if (head < 5) kv.innerHTML = `<b>Kehv aeg.</b> ${pohjus()}`;
   else if (head < 100) kv.innerHTML = `<b>Leidub üksikuid häid kohti</b> – kokku ${Math.round(head)} ha. ${pohjus()}`;
-  else kv.innerHTML = `<b>Hea aeg – tasub minna.</b> Häid ja paremaid kohti kokku ${Math.round(head)} ha${ha[0] >= 1 ? `, neist tippkohti ${Math.round(ha[0])} ha` : ""}.`;
+  else kv.innerHTML = `<b>Hea aeg – tasub minna.</b> Häid kohti kokku ${Math.round(head)} ha${ha[0] >= 1 ? `, neist hüüfilisi ${Math.round(ha[0])} ha` : ""}.`;
 }
 
 // why is the day poor: the weakest weather effect of the last weeks (not today's weather) at
@@ -1181,8 +1191,8 @@ const osa = (pealkiri, sisu, lahti = false) => `<details${lahti ? " open" : ""}>
 function giidHtml() {
   const J = window.HYYF.juhend, A = J.aeg, AST = olek.meta.astmed;
   const lahter = (ki, ai) => {
-    const c = ki + ai;
-    return c < KLASSID.tana.length ? `<td style="background:${KLASSID.tana[c][1]};color:${tekstVarv(KLASSID.tana[c][1])}">${KLASSID.tana[c][0]}</td>` : `<td class="tyhi">–</td>`;
+    const c = SUMMA_KLASS[ki + ai] ?? -1;
+    return c >= 0 ? `<td style="background:${KLASSID.tana[c][1]};box-shadow:inset 0 0 0 1.5px ${KLASSID.tana[c][3]};color:${tekstVarv(KLASSID.tana[c][1])}">${KLASSID.tana[c][0]}</td>` : `<td class="tyhi">–</td>`;
   };
   const maatriks = `<table class="maatriks"><thead><tr><th>Mets ↓ · Seeneaeg →</th>${ASTE_AEG.map((n, ai) => `<th>${n}<br><small>Aeg ${Math.round(AST.aeg[ai] * 100)}%+</small></th>`).join("")}</tr></thead>
     <tbody>${ASTE_KOHT.map((n, ki) => `<tr><th>${n}<br><small>Koht ${Math.round(AST.koht[ki] * 100)}+</small></th>${ASTE_AEG.map((_, ai) => lahter(ki, ai)).join("")}</tr>`).join("")}</tbody></table>`;
@@ -1214,9 +1224,9 @@ function giidHtml() {
     <div><span class="vk">Metsa punktid</span> <small>0–100</small> × <span class="vk">Kordajad</span> <small>0–1</small> = <span class="vk">Koht</span></div>
     <div><span class="vk">Koht</span> × <span class="vk">Aeg</span> <small>0–100%</small> = <span class="vk hinne">Hinne</span></div>
   </div>
-  <p><b>Kaardi värv</b> tuleb kahest astmest: kui hea on mets ja kui hea on seeneaeg. Nii ei muuda väike päevane kõikumine värvi – värv jääb samaks, kuni seeneaeg päriselt muutub. Kaks tumedaimat klassi (tippkoht ja suurepärane) vajavad ühes neist ülimat ja teises vähemalt järgmist astet.</p>
+  <p><b>Kaardi värv</b> tuleb kahest astmest: kui hea on mets ja kui hea on seeneaeg. Nii ei muuda väike päevane kõikumine värvi – värv jääb samaks, kuni seeneaeg päriselt muutub. Klasse on kolm: <b>hea</b> (punakas), <b>väga hea</b> (kollane) ja parim, <b>hüüfiline</b> (roheline) – see vajab ühes neist ülimat ja teises vähemalt järgmist astet.</p>
   ${maatriks}
-  <p class="vaike">„Head metsad“ režiimis on värv ainult metsa järgi: suurepärane / väga hea / hea / keskmine.</p>
+  <p class="vaike">„Head metsad“ režiimis on värv ainult metsa järgi: hüüfiline / väga hea / hea mets (metsa astmed suurepärane / väga hea / hea).</p>
   ${osa("Mille järgi läved on valitud", laved())}
 
   <h3>1. Metsa punktid – kokku 100</h3>
@@ -1286,7 +1296,7 @@ function laved() {
   });
   const pr = (a, b) => `${Math.round(a / b * 100)}%`;
   const ay = [...aastad].sort();
-  return `<p><b>Läved ei ole mõõdetud tõenäosused.</b> Mudelit pole veel piisavalt leidudega kontrollitud, et öelda „tippkoht = nii mitu protsenti tõenäosusega seeni“. Läved on valitud nii, et kaart saadaks inimesed vähestesse, tõeliselt headesse kohtadesse.</p>
+  return `<p><b>Läved ei ole mõõdetud tõenäosused.</b> Mudelit pole veel piisavalt leidudega kontrollitud, et öelda „hüüfiline = nii mitu protsenti tõenäosusega seeni“. Läved on valitud nii, et kaart saadaks inimesed vähestesse, tõeliselt headesse kohtadesse.</p>
     ${tabel(ASTE_KOHT.map((n, j) => [`Mets ${n} (Koht ${Math.round(A.koht[j] * 100)}+)`, `parim ${pr(mets[j], rakke)}`]), ["metsa aste", "osa kaardi metsast"])}
     <p class="vaike">Metsa astmed on seatud testala metsa jaotuse järgi, siin kogu Eesti metsa kohta: „${ASTE_KOHT[0]}“ on ainult parim ${pr(mets[0], rakke)}, „${ASTE_KOHT[1]}“ parim ${pr(mets[1], rakke)}.</p>
     ${tabel(ASTE_AEG.map((n, jj) => [`Seeneaeg ${n} (Aeg ${Math.round(A.aeg[jj] * 100)}%+)`, pr(aeg[jj], paevi)]), ["seeneaja aste", `osa juuli–septembri päevadest ${ay[0]}–${ay.at(-1)}`])}
