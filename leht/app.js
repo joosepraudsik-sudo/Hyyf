@@ -363,13 +363,23 @@ function lisaPiirjooneKihid() {
   }
 }
 
-// grid of the best (lowest, -1 = none) class of each k x k block of G's cells
+// grid of k x k blocks of G's cells: a block gets the best class that enough of its cells have
+// (that class or better). Any one hüüfiline cell is enough, so the best spots stay visible from
+// afar; the commoner classes need a share of the block, or "hea" would cover most of the country.
+const KOOND_OSA = [0, 0.1, 0.3];
 function koonda(G, k) {
   if (k === 1) return G;
-  const W = Math.ceil(G.laius / k), H = Math.ceil(G.korgus / k), kl = new Int8Array(W * H).fill(-1);
+  const W = Math.ceil(G.laius / k), H = Math.ceil(G.korgus / k), nk = KOOND_OSA.length;
+  const arv = new Uint16Array(W * H * nk), kl = new Int8Array(W * H).fill(-1);
   for (let y = 0; y < G.korgus; y++) for (let x = 0; x < G.laius; x++) {
     const c = G.kl[y * G.laius + x], j = Math.floor(y / k) * W + Math.floor(x / k);
-    if (c >= 0 && (kl[j] < 0 || c < kl[j])) kl[j] = c;
+    if (c >= 0) for (let q = c; q < nk; q++) arv[j * nk + q]++;
+  }
+  for (let j = 0; j < W * H; j++) {
+    for (let q = 0; q < nk; q++) {
+      const a = arv[j * nk + q];
+      if (a > 0 && a >= KOOND_OSA[q] * k * k) { kl[j] = q; break; }
+    }
   }
   return { laius: W, korgus: H, Wi: W, Hi: H, varu: 0, kl, yle: true };
 }
