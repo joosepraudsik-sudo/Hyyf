@@ -1,4 +1,4 @@
-// Siil – browser side.
+// Hüüf – browser side.
 // "Kus täna otsida": value = sum_c fruiting_index(point, class, day) * S_c(cell)
 // "Head metsad":     value = sum_c S_c(cell)  (site suitability in the 100 m neighbourhood)
 "use strict";
@@ -41,13 +41,13 @@ const TEGUR_NIMI = { puuliik: "Puuliigid", vanus: "Puistu vanus", valgus: "Valgu
   sidusus: "Metsamassiiv", tihedus: "Võra tihedus" };
 
 const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "read" };
-try { olek.kaardiVaade = localStorage.getItem("siil-kaardivaade") || "read"; } catch (e) { /* private mode */ }
+try { olek.kaardiVaade = localStorage.getItem("hyyf-kaardivaade") || localStorage.getItem("siil-kaardivaade") || "read"; } catch (e) { /* private mode */ }
 const canvas = document.createElement("canvas");
 
 // ---------- data ----------
 
 function lae() {
-  const S = window.SIIL;
+  const S = window.HYYF;
   const meta = S.meta;
   const rakud = Uint8Array.from(atob(S.rakud), (c) => c.charCodeAt(0));
   const n = meta.laius * meta.korgus;
@@ -401,7 +401,7 @@ function tegurid(i) {
     tihedus: katvus > 80 ? `väga tihe (${katvus}%), maapinnale jõuab vähe valgust` : "parajalt valgust",
   };
   // multipliers (0..1, limiting) and forest points (each worth at most its weight x 100)
-  const astmed = window.SIIL.juhend.piiravad;
+  const astmed = window.HYYF.juhend.piiravad;
   const kordajad = Object.keys(astmed).map((nimi) => ({ nimi, x: t(nimi) ** astmed[nimi], pohjus: pohjus[nimi] }));
   const punktid = Object.entries(olek.meta.kaalud).map(([nimi, w]) => ({ nimi, p: t(nimi) * w * 100, max: w * 100, pohjus: pohjus[nimi] }));
   return { kordajad, punktid };
@@ -451,7 +451,7 @@ function vihm(d, p, paevi) {
 // (season), did moisture and warmth let new mushrooms start over the last 4 weeks, and how well
 // did the mushrooms last (cold, frost, drought). Moisture and soil warmth are this forest type's own.
 function seeneajaTegurid(d, p, j) {
-  const A = window.SIIL.juhend.aeg, v = olek.vilj, aasta = v.kuupaevad[d].slice(0, 4);
+  const A = window.HYYF.juhend.aeg, v = olek.vilj, aasta = v.kuupaevad[d].slice(0, 4);
   const g = (nimi, k = d) => T(k, p, j, F(nimi));
   const paevad = (n) => { const r = []; for (let k = d; k > d - n && k >= 0 && v.kuupaevad[k].slice(0, 4) === aasta; k--) r.push(k); return r; };
   const kaal = (k) => 0.5 ** ((d - k) / POOLESTUS);
@@ -504,7 +504,7 @@ function seeneajaTegurid(d, p, j) {
 // time axis (different units, so not one y axis): soil water of its own bucket with daily rain under it, and topsoil
 // temperature of this forest type with the 5-day mean air temperature, each with its optimum band
 function ilmaGraafik(d, p, j) {
-  const v = olek.vilj, J = window.SIIL.juhend.aeg, aasta = v.kuupaevad[d].slice(0, 4);
+  const v = olek.vilj, J = window.HYYF.juhend.aeg, aasta = v.kuupaevad[d].slice(0, 4);
   let a = d, b = d;
   while (a > 0 && d - a < 27 && v.kuupaevad[a - 1].slice(0, 4) === aasta) a--;
   while (b < v.kuupaevad.length - 1 && b - d < 10 && v.kuupaevad[b + 1].slice(0, 4) === aasta) b++;
@@ -830,7 +830,7 @@ function naitaSelgitust(lnglat) {
   sisu.scrollTop = 0;
   sisu.querySelectorAll(".vaade-valik button").forEach((nupp) => nupp.onclick = () => {
     olek.kaardiVaade = nupp.dataset.vaade;
-    try { localStorage.setItem("siil-kaardivaade", olek.kaardiVaade); } catch (e) { /* private mode */ }
+    try { localStorage.setItem("hyyf-kaardivaade", olek.kaardiVaade); } catch (e) { /* private mode */ }
     naitaSelgitust(lnglat);
   });
   document.getElementById("sahtel").hidden = false;
@@ -847,7 +847,7 @@ function peidaSelgitus() {
   document.getElementById("parimad-kaart").style.visibility = "";
 }
 
-// ---------- guide (built from the model's own parameters in window.SIIL.juhend) ----------
+// ---------- guide (built from the model's own parameters in window.HYYF.juhend) ----------
 
 const nr = (x) => String(x).replace(".", ",");
 
@@ -879,7 +879,7 @@ const tabel = (read, pais = ["", "punkte"]) =>
 const osa = (pealkiri, sisu, lahti = false) => `<details${lahti ? " open" : ""}><summary>${pealkiri}</summary>${sisu}</details>`;
 
 function giidHtml() {
-  const J = window.SIIL.juhend, A = J.aeg, AST = olek.meta.astmed;
+  const J = window.HYYF.juhend, A = J.aeg, AST = olek.meta.astmed;
   const lahter = (ki, ai) => {
     const c = ki + ai;
     return c < KLASSID.tana.length ? `<td style="background:${KLASSID.tana[c][1]};color:${tekstVarv(KLASSID.tana[c][1])}">${KLASSID.tana[c][0]}</td>` : `<td class="tyhi">–</td>`;
@@ -1001,7 +1001,7 @@ function laved() {
 
 function avaGiid() {
   const sisu = document.getElementById("giid-sisu");
-  if (!sisu.innerHTML && window.SIIL) sisu.innerHTML = giidHtml();
+  if (!sisu.innerHTML && window.HYYF) sisu.innerHTML = giidHtml();
   document.getElementById("giid").showModal();
 }
 
@@ -1057,11 +1057,11 @@ function vaba() {
   return telefon ? { top: 70, right: 20, bottom: 220, left: 20 } : { top: 80, right: 300, bottom: 200, left: 40 };
 }
 
-// data comes from andmed/testala_5458.js (window.SIIL), a plain script so file:// works too;
+// data comes from andmed/testala_5458.js (window.HYYF), a plain script so file:// works too;
 // only wait for the style, not for all basemap tiles ("load")
 map.once("style.load", () => {
   lisaAluskaardid();
-  if (!window.SIIL) {
+  if (!window.HYYF) {
     document.getElementById("kokkuvote").textContent = "Andmefail puudub: käivita skriptid/eksport.py.";
     return;
   }
@@ -1103,16 +1103,16 @@ document.querySelectorAll("#aluskaart button[data-kiht]").forEach((b) => b.oncli
 });
 document.getElementById("kiht-nupp").onclick = () => lulitaKiht(!olek.kihtNahtav);
 // area choice (andmed/alad.js, more than one exported area): reload the page with that area
-const alad = window.SIIL_ALAD || [];
+const alad = window.HYYF_ALAD || [];
 if (alad.length > 1) {
   const osa = document.getElementById("alad");
   osa.hidden = false;
   for (const a of alad) {
     const b = document.createElement("button");
     b.textContent = a.nimi;
-    b.classList.toggle("aktiivne", a.fail === window.SIIL_VALIK);
+    b.classList.toggle("aktiivne", a.fail === window.HYYF_VALIK);
     b.onclick = () => {
-      try { localStorage.setItem("siil-ala", a.fail); } catch (e) { /* private mode: the URL is enough */ }
+      try { localStorage.setItem("hyyf-ala", a.fail); } catch (e) { /* private mode: the URL is enough */ }
       location.search = "?ala=" + a.fail;
     };
     osa.append(b);

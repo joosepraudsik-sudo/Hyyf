@@ -6,7 +6,7 @@ regime class c, the neighbourhood mean of suitability * [class == c]. The browse
 which equals soojuskaart.py exactly, without one map per day. For the click explanation each
 cell also carries its own (unsmoothed) factor scores, raw inputs and the dominant stand and soil.
 
-Everything goes into one script file (window.SIIL = {...}) so the page also works when
+Everything goes into one script file (window.HYYF = {...}) so the page also works when
 index.html is opened straight from disk (file:// blocks fetch):
   meta       grid size, corners (lon, lat), band names, class names
   rakud      base64 uint8, bands x rows x cols (see meta.kihid)
@@ -163,7 +163,7 @@ def alade_nimekiri():
         if m:
             alad.append({"fail": f.stem, "nimi": m.group(1)})
     alad.sort(key=lambda a: (a["fail"] != "testala_5458", a["nimi"]))
-    (WEB / "alad.js").write_text("window.SIIL_ALAD = " + json.dumps(alad, ensure_ascii=False) + ";\n", "utf-8")
+    (WEB / "alad.js").write_text("window.HYYF_ALAD = " + json.dumps(alad, ensure_ascii=False) + ";\n", "utf-8")
 
 
 def to_u8(a, scale=255):
@@ -286,7 +286,7 @@ def main(ala=TESTALA, punktid=ILMAPUNKTID, nimi="Testala 5458 (Põlvamaa)", fail
                "eraldised": stands, "mullad": soils, "viljumine": fruiting,
                "juhend": guide(site_names)}
     (WEB / f"{fail}.js").write_text(
-        "window.SIIL = " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n", "utf-8")
+        "window.HYYF = " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n", "utf-8")
     alade_nimekiri()
 
     for f in sorted(WEB.iterdir()):

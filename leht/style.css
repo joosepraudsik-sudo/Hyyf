@@ -1,4 +1,4 @@
-/* Siil – light, airy "liquid glass": translucent surfaces, strong blur, a soft top highlight */
+/* Hüüf – light, airy "liquid glass": translucent surfaces, strong blur, a soft top highlight */
 /* Apple-style glass: dense white glass (72-86 %), strong blur, black text, black accent */
 :root {
   --pind: #ffffff;
@@ -387,6 +387,11 @@ body { font-family: Figtree, system-ui, -apple-system, "Segoe UI", Roboto, sans-
 .brand { border-radius: 12px; padding: 7px 14px 7px 9px; }
 .brand-tekst strong { font-size: 17px; font-weight: 700; color: var(--aktsent); }
 .logo { color: #e3a019; }
+/* hyphae under the stem: the name, hüüf, is a fungal thread */
+.logo-hyyfid { fill: none; stroke: #b9862a; stroke-width: .9; stroke-linecap: round; opacity: .7; }
+/* section dividers in the place card: a thin, slightly branching thread instead of a ruler line */
+.sel-h { border-top: 0;
+         background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='10'%3E%3Cg fill='none' stroke='%23cfd6cc' stroke-width='1.1' stroke-linecap='round'%3E%3Cpath d='M0 3C26 1.6 44 4.4 70 3S118 1.4 160 3'/%3E%3Cpath d='M58 3.4c4 .6 8 2.6 10 5'/%3E%3Cpath d='M118 2.2c3 .8 5.5 2.4 6.5 4.6'/%3E%3C/g%3E%3C/svg%3E") repeat-x left top / 160px 10px; }
 .ring { border-radius: 12px; width: 44px; height: 44px; }
 .ring:hover { background: var(--pind-2); }
 #kiht-nupp[aria-pressed="true"] { background: var(--aktsent); color: #fff; border-color: var(--aktsent); }

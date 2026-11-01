@@ -37,7 +37,7 @@ FORECAST = ("daily=temperature_2m_mean,temperature_2m_min,temperature_2m_max,pre
 TESTALA_CHM = [r".*kevad_2023\.tif", r".*suvi_2021\.tif"]
 
 session = requests.Session()
-session.headers["User-Agent"] = "siil-korilase-kompass/0.1"
+session.headers["User-Agent"] = "hyyf-korilase-kompass/0.1"
 
 
 def fetch(url, path: Path, refresh=False, **kw):

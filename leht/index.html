@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Siil – korilase kompass</title>
+  <title>Hüüf – korilase kompass</title>
   <meta name="description" content="Kus on täna ja lähipäevil kõige tõenäolisem leida kukeseeni.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,10 +16,17 @@
 
   <div class="brand klaas">
     <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M5 9c0-2 5-4 11-4s11 2 11 4c0 3-6 6-8 9v8c0 1-1 2-3 2s-3-1-3-2v-8C11 15 5 12 5 9z" fill="currentColor"/>
+      <path d="M5 7.5c0-2 5-3.8 11-3.8s11 1.8 11 3.8c0 2.8-6 5.4-8 8.2v5.5c0 .9-1.3 1.5-3 1.5s-3-.6-3-1.5v-5.5C11 12.9 5 10.3 5 7.5z" fill="currentColor"/>
+      <g class="logo-hyyfid">
+        <path d="M14.6 22.4C13 25 10.5 26.3 6.5 27.2"/>
+        <path d="M17.4 22.4c1.5 2.4 4 3.7 8 4.4"/>
+        <path d="M16 22.9c0 2.4.3 4.4-.6 6.6"/>
+        <path d="M10.4 25.9c-.4 1.3-1.4 2.4-3.2 3.4"/>
+        <path d="M21.6 25.6c.6 1.4 1.8 2.3 3.9 3.1"/>
+      </g>
     </svg>
     <div class="brand-tekst">
-      <strong>Siil</strong>
+      <strong>Hüüf</strong>
       <span>Harilik kukeseen</span>
     </div>
   </div>
@@ -100,13 +107,13 @@
     // data file: ?ala=<name>, else the area chosen last time, else the first in andmed/alad.js
     // (written by eksport.py); a plain script tag, so the page also works from file://
     (() => {
-      const alad = window.SIIL_ALAD || [];
+      const alad = window.HYYF_ALAD || [];
       let ala = new URLSearchParams(location.search).get("ala");
-      try { ala = ala || localStorage.getItem("siil-ala"); } catch (e) {}
+      try { ala = ala || localStorage.getItem("hyyf-ala") || localStorage.getItem("siil-ala"); } catch (e) {}
       if (alad.length && !alad.some((a) => a.fail === ala)) ala = alad[0].fail;
       ala = (ala || "testala_5458").replace(/[^a-z0-9_]/gi, "");
-      try { localStorage.setItem("siil-ala", ala); } catch (e) {}
-      window.SIIL_VALIK = ala;
+      try { localStorage.setItem("hyyf-ala", ala); } catch (e) {}
+      window.HYYF_VALIK = ala;
       document.write(`<script src="andmed/${ala}.js"><\/script>`);
     })();
   </script>

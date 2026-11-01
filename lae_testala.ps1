@@ -1,4 +1,4 @@
-# SIIL - testala andmete allalaadimine
+# HÜÜF - testala andmete allalaadimine
 # Testala: 1:20 000 kaardileht 5458 (L-EST97: E 680-690 km, N 6450-6460 km), Polvamaa
 # Kaivitamine: parem klikk -> "Run with PowerShell", voi PowerShellis:
 #   powershell -ExecutionPolicy Bypass -File .\lae_testala.ps1
