@@ -10,26 +10,17 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 // the map. Soft autumn tones (deep brown / rust / ochre / sand), dark to light. The better the place,
 // the darker and more opaque; "võimalik" is only a faint wash so roads, tracks and names stay
 // readable everywhere. The layer as a whole fades a bit up close.
-// Decided 1.11.2026: natural basemap, brown palette, medium strength (the layer at 70 %).
-// TEMPORARY: one more palette to compare, every class the same lightness and opacity in its own hue
-// (red best, then orange, mustard, teal, blue; OKLCH L 0.6) - good and poor places equally strong,
-// told apart by colour only. The user picks one, the switch goes away.
-const VALIK = { varv: { pruun: "Pruun (algne)", sama: "Sama tumedus" } };
-const PALETID = {
-  pruun: { varv: ["#4b1810", "#7a2a1c", "#a4432a", "#d9894a", "#e9cf8f"], alfa: [0.9, 0.82, 0.72, 0.5, 0.28] },
-  sama: { varv: ["#c25e53", "#ba6826", "#9e7b00", "#00969f", "#547ecd"], alfa: [0.75, 0.75, 0.75, 0.75, 0.75] },
-};
-const KIHI_MITU = 0.7;   // the whole layer's opacity ("keskmine")
+// Decided 1.11.2026 after comparing styles, palettes and basemaps: smooth shapes, these brown tones,
+// the natural basemap and the whole layer at medium strength (KIHI_MITU).
+const VARV = ["#4b1810", "#7a2a1c", "#a4432a", "#d9894a", "#e9cf8f"];
+const ALFA = [0.9, 0.82, 0.72, 0.5, 0.28];
+const KIHI_MITU = 0.7;
 const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 1, 14, 0.85, 16, 0.7];
-let VARV, ALFA;
-const KLASSID = {};
-function seaVaade(v = {}) {
-  olek.varv = VALIK.varv[v.varv] ? v.varv : "pruun";
-  ({ varv: VARV, alfa: ALFA } = PALETID[olek.varv]);
-  KLASSID.tana = ["Tippkoht", "Suurepärane", "Väga hea", "Hea", "Võimalik"].map((n, c) => [n, VARV[c], ALFA[c]]);
+const KLASSID = {
+  tana: ["Tippkoht", "Suurepärane", "Väga hea", "Hea", "Võimalik"].map((n, c) => [n, VARV[c], ALFA[c]]),
   // forest only: one step per class, the top step in the second colour (the darkest needs a good time too)
-  KLASSID.koht = ["Suurepärane mets", "Väga hea mets", "Hea mets", "Keskmine mets"].map((n, c) => [n, VARV[c + 1], ALFA[c + 1]]);
-}
+  koht: ["Suurepärane mets", "Väga hea mets", "Hea mets", "Keskmine mets"].map((n, c) => [n, VARV[c + 1], ALFA[c + 1]]),
+};
 const ASTE_KOHT = ["suurepärane", "väga hea", "hea", "keskmine"];
 const ASTE_AEG = ["väga hea", "hea", "keskmine", "vähe"];
 // text colour on a class colour
@@ -54,7 +45,6 @@ const TEGUR_NIMI = { puuliik: "Puuliigid", vanus: "Puistu vanus", valgus: "Valgu
 
 const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "ylevaade" };
 try { olek.kaardiVaade = { graafikud: "seened" }[localStorage.getItem("hyyf-kaardivaade")] || localStorage.getItem("hyyf-kaardivaade") || "ylevaade"; } catch (e) { /* private mode */ }
-{ let v0; try { v0 = JSON.parse(localStorage.getItem("hyyf-vaade")); } catch (e) { /* private mode */ } seaVaade(v0 || {}); }
 const canvas = document.createElement("canvas");
 
 // ---------- data ----------
@@ -1354,10 +1344,43 @@ const SEEN_IKOON = {
 };
 const KUUD_HOOAEG = [["mai", 0], ["juuni", 1], ["juuli", 2], ["aug", 3], ["sept", 3], ["okt", 2], ["nov", 0]];
 
+// TEMPORARY: two more ways to tell the story, to compare with the current one: the life cycle step
+// by step, and the same by time scale (decades to days). The user picks one, the switch goes away.
+const SEENINFO_VAATED = { praegune: "Praegune", elutsykkel: "Elutsükkel", ajaskaalad: "Ajaskaalad" };
+const ELUTSYKKEL = [
+  ["Eos idaneb", "Kukeseene eosed valmivad kübara all voltidel ja kanduvad tuule, vee ja loomadega. Sobivas mullas idaneb eos peeneks seeneniidiks (hüüfiks) – ainult mõne mikromeetri jämeduseks."],
+  ["Seeneniit leiab puujuure", "Üksi seeneniit kaua ei ela. Ta peab leidma männi, kuuse või kase peenjuure ja mähkima selle tihedalt enda sisse. Nii tekib mükoriisa – juure ja seene ühine organ."],
+  ["Puu ja seen vahetavad", "Puu annab seenele fotosünteesist suhkrut. Seeneniidid ulatuvad mullas kaugemale kui juured ja toovad puule vastu vett, lämmastikku ja fosforit. Mõlemad võidavad – seepärast kasvab kukeseen ainult elavate puude all."],
+  ["Seeneniidistik kasvab aastaid", "Mulla pealmises kihis, samblavaiba ja kõdu all, laieneb seeneniidistik aasta-aastalt. Viljakehi hakkab see kandma alles siis, kui on piisavalt suur ja puult küllalt suhkrut saab – noores metsas läheb selleks aastaid."],
+  ["Soe suvi kogub jõudu", "Suve soojus ja niiske muld annavad puule ja seenele energiavaru. Kuival või jahedal suvel jääb seeneniidistik nõrgaks ja seeni on vähe, ükskõik kui hea on mets."],
+  ["Vihm annab märguande", "Pärast korralikku vihma, kui muld on soe, koonduvad seeneniidid samblas pisikesteks sõlmedeks – seenealgmeteks. Vihmast korjatava seeneni kulub soojaga 1–2, jahedaga kuni 3 nädalat."],
+  ["Viljakeha kasvab aeglaselt", "Kukeseen kasvab teiste seentega võrreldes aeglaselt ja püsib metsas nädalaid. Ta talub mõõdukat põuda, aga öökülm ja sügisene jahedus lõpetavad hooaja. Küpsed viljakehad puistavad eosed – ring algab otsast."],
+];
+const AJASKAALAD = [
+  ["Aastakümned", SEEN_IKOON.puu, "Mets", "Peremeespuu (mänd, kuusk, kask) peab olema elus ja vähemalt keskealine. Vaene, happeline, hästi kuivendatud muld, sammal maas, laiguti valgust."],
+  ["Aastad", SEEN_IKOON.muld, "Seeneniidistik ja mükoriisa", "Seeneniidid on puu peenjuurtega kokku kasvanud ja laienevad mulla pealmises kihis. Puu toidab seent suhkruga, seen puud vee ja toitainetega."],
+  ["Kuud", SEEN_IKOON.paike, "Soe ja niiske kevad-suvi", "Mai–juuli soojus ja niiskus annavad energiavaru. Kuiv alguskuu nõrgendab kogu hooaega."],
+  ["Nädalad", SEEN_IKOON.vihm, "Vihm ja soe muld", "Korralik vihm soojas mullas paneb seeneniidid algmeid tegema. Korjatava seeneni kulub 1–3 nädalat."],
+  ["Päevad", SEEN_IKOON.kalender, "Viljakeha", "Seen kasvab aeglaselt ja püsib nädalaid. Põud aeglustab, öökülm ja sügisjahedus lõpetavad."],
+];
+
 // short text, one paragraph per need; the season as bars by month
-function avaSeeninfo() {
+function avaSeeninfo(vaade) {
+  try { vaade ??= localStorage.getItem("hyyf-seeninfo"); } catch (e) { /* private mode */ }
+  if (!SEENINFO_VAATED[vaade]) vaade = "praegune";
+  try { localStorage.setItem("hyyf-seeninfo", vaade); } catch (e) { /* private mode */ }
+  const valik = `<div class="segment vaade-valik si-valik" role="group" aria-label="Teksti variant">${Object.entries(SEENINFO_VAATED)
+    .map(([k, n]) => `<button data-v="${k}"${k === vaade ? ' class="aktiivne"' : ""}>${n}</button>`).join("")}</div>`;
   const kuud = `<div class="si-kuud">${KUUD_HOOAEG.map(([k, t]) => `<div><span class="si-tulp t${t}"></span><small>${k}</small></div>`).join("")}</div>`;
-  document.getElementById("seeninfo-sisu").innerHTML = `
+  const elutsykkel = `
+    <p class="si-sissejuhatus">Kukeseen, mida korjame, on ainult seene viljakeha. Seen ise on mullas peidus olev seeneniidistik, mis elab koos puuga. Nii sünnib kukeseen:</p>
+    <ol class="si-sammud">${ELUTSYKKEL.map(([pea, tekst], i) => `<li><span class="si-nr">${i + 1}</span><div><b>${pea}</b><span>${tekst}</span></div></li>`).join("")}</ol>
+    <p class="si-lopp">Hooaeg: juulist oktoobrini, kõige rohkem augustis ja septembris.</p>${kuud}`;
+  const ajaskaalad = `
+    <p class="si-sissejuhatus">Kukeseen vajab korraga tingimusi väga erinevas ajaskaalas. Iga järgmine samm saab toimuda ainult siis, kui eelmised on olemas.</p>
+    <ol class="si-ajad">${AJASKAALAD.map(([aeg, ikoon, pea, tekst]) => `<li><span class="si-aeg">${aeg}</span><div class="si-kaart">${ikoon}<div><b>${pea}</b><span>${tekst}</span></div></div></li>`).join("")}</ol>
+    ${kuud}`;
+  const praegune = `
     <p class="si-sissejuhatus">Kukeseen ei kasva üksi: tema seeneniidistik elab koos puu juurtega ja vahetab puuga toitaineid. Seen saab puult suhkrut, puu seenelt vett ja mineraale. Seepärast leiab kukeseeni ainult elavate puude alt.</p>
     <ul class="si-read">
       <li>${SEEN_IKOON.puu}<div><b>Puu</b><span>Kõige sagedamini mänd, ka kuusk ja kask. Parim on keskealine või vanem mets – noorel metsal pole seeneniidistik veel välja kujunenud.</span></div></li>
@@ -1366,7 +1389,11 @@ function avaSeeninfo() {
       <li>${SEEN_IKOON.vihm}<div><b>Soe suvi ja vihm</b><span>Seeneniidistik vajab sooja suve ja niisket mulda. Pärast korralikku vihma tulevad seened 1–3 nädalaga – jahedaga kauem.</span></div></li>
       <li>${SEEN_IKOON.kalender}<div><b>Hooaeg</b><span>Juulist oktoobrini, kõige rohkem augustis ja septembris. Seened kasvavad aeglaselt ja püsivad metsas nädalaid.</span>${kuud}</div></li>
     </ul>`;
-  document.getElementById("seeninfo").showModal();
+  const sisu = document.getElementById("seeninfo-sisu");
+  sisu.innerHTML = valik + { praegune, elutsykkel, ajaskaalad }[vaade];
+  sisu.querySelectorAll(".si-valik button").forEach((b) => b.onclick = () => avaSeeninfo(b.dataset.v));
+  const d = document.getElementById("seeninfo");
+  if (!d.open) d.showModal();
 }
 
 // ---------- map ----------
@@ -1391,14 +1418,6 @@ function lisaAluskaardid() {
                         ...(r.scheme ? { scheme: r.scheme } : {}) });
     map.addLayer({ id, type: "raster", source: id, layout: { visibility: "none" } }, olek.siltideAlt);
   }
-}
-
-// TEMPORARY: palette changed
-function valiVaade(k, v) {
-  seaVaade({ [k]: v });
-  try { localStorage.setItem("hyyf-vaade", JSON.stringify({ varv: olek.varv })); } catch (e) { /* private mode */ }
-  document.querySelectorAll("#variandid button").forEach((b) => b.classList.toggle("aktiivne", olek[b.dataset.k] === b.dataset.v));
-  if (olek.vilj) joonista();
 }
 
 function valiAluskaart(id) {
@@ -1489,11 +1508,6 @@ document.addEventListener("click", (e) => {
   if (!aluskaartMenyy.hidden && !e.target.closest(".menyy-hoidja")) { aluskaartMenyy.hidden = true; aluskaartNupp.setAttribute("aria-expanded", "false"); }
 });
 document.getElementById("giid-nupp").onclick = () => avaGiid();
-// TEMPORARY: look variant switch
-document.getElementById("variandid").innerHTML = Object.entries(VALIK).map(([k, valikud]) =>
-  `<div class="segment">${Object.entries(valikud).map(([v, nimi]) =>
-    `<button data-k="${k}" data-v="${v}"${olek[k] === v ? ' class="aktiivne"' : ""}>${nimi}</button>`).join("")}</div>`).join("");
-document.querySelectorAll("#variandid button").forEach((b) => b.onclick = () => valiVaade(b.dataset.k, b.dataset.v));
 document.getElementById("brand").onclick = () => avaSeeninfo();
 document.getElementById("seeninfo-sulge").onclick = () => document.getElementById("seeninfo").close();
 document.getElementById("seeninfo").addEventListener("click", (e) => {
