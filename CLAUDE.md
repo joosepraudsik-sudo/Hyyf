@@ -108,6 +108,7 @@ uv run python -I skriptid/soojuskaart.py 2023-08-15 2025-09-13   # valjund/sooju
 uv run python -I skriptid/eksport.py       # leht/andmed/ (u 300 KB)
 uv run python -I skriptid/eksport_eesti.py # leht/andmed/eesti/ kogu Eesti lehtede kaupa (u 15 min; [leht ...] [--too 4])
 python -m http.server 8000 --directory leht   # leht: http://localhost:8000
+ava_kaart.cmd                                 # topeltklõps: server pordil 8765 + kogu Eesti brauseris
 ```
 
 Leht (`leht/`, staatiline, MapLibre GL 4.7.1): 50 m ruudu kohta 5 baiti S_c (ümbruse sobivus × [klass = c]) + ilmapunkt; brauser arvutab hinnangu = Σ_c indeks(punkt, c, päev) · S_c. Aluskaardid `https://tiles.maaamet.ee/tm/tms/1.0.0/{hallkaart|kaart|foto}@GMC/{z}/{x}/{y}.{png|jpg}` (TMS-skeem, CORS lubatud).
