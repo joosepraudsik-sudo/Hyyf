@@ -15,26 +15,23 @@
   <div id="kaart" aria-label="Kaart"></div>
 
   <div class="brand klaas">
-    <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
-      <path d="M5 7.5c0-2 5-3.8 11-3.8s11 1.8 11 3.8c0 2.8-6 5.4-8 8.2v5.5c0 .9-1.3 1.5-3 1.5s-3-.6-3-1.5v-5.5C11 12.9 5 10.3 5 7.5z" fill="currentColor"/>
-      <g class="logo-hyyfid">
-        <path d="M14.6 22.4C13 25 10.5 26.3 6.5 27.2"/>
-        <path d="M17.4 22.4c1.5 2.4 4 3.7 8 4.4"/>
-        <path d="M16 22.9c0 2.4.3 4.4-.6 6.6"/>
-        <path d="M10.4 25.9c-.4 1.3-1.4 2.4-3.2 3.4"/>
-        <path d="M21.6 25.6c.6 1.4 1.8 2.3 3.9 3.1"/>
+    <svg class="logo" viewBox="0 0 40 40" aria-hidden="true">
+      <!-- harilik kukeseen: wavy funnel cap, ridges running down the stem -->
+      <path class="logo-seen" d="M3.5 11.5C4.5 8.2 8 7.2 11 8.8c3-1.9 6.2-1.2 9 .4 2.8-1.6 6-2.3 9-.4 3-1.6 6.5-.6 7.5 2.7-1 3.6-7.6 7-11.6 10.6l-.5 11.4c0 1.8-1.7 3-4.4 3s-4.4-1.2-4.4-3l-.5-11.4C11.1 18.5 4.5 15.1 3.5 11.5z"/>
+      <path class="logo-lehter" d="M9 10.6c5.5 2.2 16.5 2.2 22 0"/>
+      <g class="logo-voldid">
+        <path d="M8 13.6c4 2 7 4.6 8.6 9"/><path d="M13.5 15.3c2.3 1.8 3.8 4.3 4.6 7.9"/>
+        <path d="M20 15.9v8"/><path d="M26.5 15.3c-2.3 1.8-3.8 4.3-4.6 7.9"/><path d="M32 13.6c-4 2-7 4.6-8.6 9"/>
       </g>
     </svg>
     <div class="brand-tekst">
       <strong>Hüüf</strong>
       <span>Harilik kukeseen</span>
+      <span class="ladina">Cantharellus cibarius</span>
     </div>
   </div>
 
   <div class="nurganupud">
-    <button id="kiht-nupp" class="ring klaas" aria-pressed="true" title="Näita või peida seenekaart" aria-label="Seenekaart">
-      <svg viewBox="0 0 24 24"><path d="M4 10c0-3 3.6-5 8-5s8 2 8 5c0 1.5-2.5 3-5 4.5V19a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2v-4.5C6.5 13 4 11.5 4 10z"/></svg>
-    </button>
     <div class="menyy-hoidja">
       <button id="aluskaart-nupp" class="ring klaas" aria-expanded="false" aria-controls="aluskaart" title="Aluskaart" aria-label="Aluskaart">
         <svg viewBox="0 0 24 24"><path d="M12 4l8 4-8 4-8-4z"/><path d="M4 12l8 4 8-4"/><path d="M4 16l8 4 8-4"/></svg>
@@ -66,8 +63,11 @@
       <div id="reziim" class="segment" role="group" aria-label="Mida kaart näitab">
         <button data-reziim="tana" class="aktiivne">Kus otsida</button>
         <button data-reziim="koht">Head metsad</button>
+        <button data-reziim="peidus" class="peida" title="Peida seenekaart" aria-label="Peida seenekaart">
+          <svg viewBox="0 0 24 24"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"/><circle cx="12" cy="12" r="2.6"/><path d="M4 20L20 4"/></svg>
+        </button>
       </div>
-      <label class="ring-vaike kalender" title="Vali muu kuupäev">
+      <label id="kalender" class="ring-vaike kalender" title="Vali muu kuupäev">
         <svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg>
         <input type="date" id="kuupaev" aria-label="Vali kuupäev">
       </label>
@@ -83,7 +83,8 @@
 
   <aside id="sahtel" class="sahtel klaas" hidden aria-labelledby="sahtel-pealkiri">
     <header class="sahtel-pea">
-      <div class="sahtel-pea-vasak"><span id="sahtel-hinne" class="sahtel-hinne"></span><span id="sahtel-silt" class="otsus-silt"></span></div><h2 id="sahtel-pealkiri" class="peidetud">Koha selgitus</h2>
+      <div class="sahtel-pea-vasak"><span id="sahtel-hinne" class="sahtel-hinne"></span>
+        <div class="sahtel-pea-tekst"><span id="sahtel-silt" class="otsus-silt"></span><div id="sahtel-koord" class="koord"></div></div></div><h2 id="sahtel-pealkiri" class="peidetud">Koha selgitus</h2>
       <button id="sahtel-sulge" class="ring-vaike" title="Sulge" aria-label="Sulge">
         <svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg>
       </button>

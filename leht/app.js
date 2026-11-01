@@ -22,7 +22,7 @@ const ASTE_AEG = ["väga hea", "hea", "keskmine", "vähe"];
 // text colour on a class colour
 const tekstVarv = (hex) => ([1, 3, 5].reduce((s, k, i) => s + parseInt(hex.slice(k, k + 2), 16) * [0.3, 0.59, 0.11][i], 0) < 150 ? "#fff" : "#2a1606");
 const KIHI_TUGEVUS = ["interpolate", ["linear"], ["zoom"], 11, 1, 14, 0.85, 16, 0.7];
-const SILE = 4;        // drawing resolution per 50 m cell (smooth edges)
+const SILE = 5;        // drawing resolution per 50 m cell (smooth edges)
 const SILU_KORDI = 2;  // smoothing passes for the class fields (more = rounder, small spots fade)
 const NADALAPAEV = ["P", "E", "T", "K", "N", "R", "L"];
 const NADALAPAEV_PIKK = ["pühapäev", "esmaspäev", "teisipäev", "kolmapäev", "neljapäev", "reede", "laupäev"];
@@ -40,8 +40,8 @@ const TEGUR_NIMI = { puuliik: "Puuliigid", vanus: "Puistu vanus", valgus: "Valgu
   kasvukoht: "Metsatüüp", muld: "Muld", mikroniiskus: "Maastiku niiskus", okotoon: "Soo serv (ökotoon)",
   sidusus: "Metsamassiiv", tihedus: "Võra tihedus" };
 
-const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "read" };
-try { olek.kaardiVaade = localStorage.getItem("hyyf-kaardivaade") || localStorage.getItem("siil-kaardivaade") || "read"; } catch (e) { /* private mode */ }
+const olek = { reziim: "tana", paev: 0, p0: 0, markerid: [], kihtNahtav: true, kaardiVaade: "ylevaade" };
+try { olek.kaardiVaade = localStorage.getItem("hyyf-kaardivaade") || localStorage.getItem("siil-kaardivaade") || "ylevaade"; } catch (e) { /* private mode */ }
 const canvas = document.createElement("canvas");
 
 // ---------- data ----------
@@ -118,27 +118,52 @@ function joonista() {
     kl[i] = klassKA(h[0], h[1]);
   }
   // drawing like contour lines: for each class a field "this class or better" (0/1 per 50 m cell)
-  // is smoothed on the cell grid, sampled bilinearly on a SILE x finer grid and cut at 0.5. The
-  // result is nested, rounded shapes (darkest inside) without stair steps or false rings.
+  // is smoothed on the cell grid, sampled with a cubic B-spline on a SILE x finer grid (smooth
+  // curves, no corners) and cut at 0.5 with a soft one-pixel edge. Nested, rounded shapes, darkest
+  // inside, the class edges blended into each other.
   canvas.width = W * SILE;
   canvas.height = H * SILE;
   const ctx = canvas.getContext("2d");
   const img = ctx.createImageData(canvas.width, canvas.height);
-  const nk = KLASSID[olek.reziim].length;
-  const valjad = KLASSID[olek.reziim].map((_, k) => silu(Float32Array.from(kl, (c) => (c >= 0 && c <= k ? 1 : 0)), W, H));
-  const proov = (f, i00, i10, i01, i11, fx, fy) => (f[i00] * (1 - fx) + f[i10] * fx) * (1 - fy) + (f[i01] * (1 - fx) + f[i11] * fx) * fy;
+  const kl0 = KLASSID[olek.reziim], nk = kl0.length;
+  const valjad = kl0.map((_, k) => silu(Float32Array.from(kl, (c) => (c >= 0 && c <= k ? 1 : 0)), W, H));
+  // B-spline taps and weights per fine column / row (4 cells each)
+  const kaalud = (n, N) => {
+    const idx = new Int32Array(n * 4), w = new Float32Array(n * 4);
+    for (let q = 0; q < n; q++) {
+      const x = (q + 0.5) / SILE - 0.5, x0 = Math.floor(x), t = x - x0, t2 = t * t, t3 = t2 * t;
+      const ww = [(1 - t) ** 3 / 6, (3 * t3 - 6 * t2 + 4) / 6, (-3 * t3 + 3 * t2 + 3 * t + 1) / 6, t3 / 6];
+      for (let m = 0; m < 4; m++) { idx[q * 4 + m] = Math.max(0, Math.min(N - 1, x0 - 1 + m)); w[q * 4 + m] = ww[m]; }
+    }
+    return [idx, w];
+  };
+  const [cx, cwt] = kaalud(canvas.width, W), [ry, rwt] = kaalud(canvas.height, H);
+  const proov = (f, px, py) => {
+    let s = 0;
+    for (let m = 0; m < 4; m++) {
+      const rida = ry[py * 4 + m] * W;
+      s += rwt[py * 4 + m] * (cwt[px * 4] * f[rida + cx[px * 4]] + cwt[px * 4 + 1] * f[rida + cx[px * 4 + 1]] +
+                              cwt[px * 4 + 2] * f[rida + cx[px * 4 + 2]] + cwt[px * 4 + 3] * f[rida + cx[px * 4 + 3]]);
+    }
+    return s;
+  };
+  const SERV = 0.07;   // edge softness in field units (about one fine pixel)
+  const kate = (f) => Math.max(0, Math.min(1, (f - 0.5) / SERV + 0.5));
   for (let py = 0; py < canvas.height; py++) {
-    const y = (py + 0.5) / SILE - 0.5;
-    const y0 = Math.max(0, Math.min(H - 1, Math.floor(y))), y1 = Math.min(H - 1, y0 + 1), fy = Math.max(0, Math.min(1, y - y0));
     for (let px = 0; px < canvas.width; px++) {
-      const x = (px + 0.5) / SILE - 0.5;
-      const x0 = Math.max(0, Math.min(W - 1, Math.floor(x))), x1 = Math.min(W - 1, x0 + 1), fx = Math.max(0, Math.min(1, x - x0));
-      const i00 = y0 * W + x0, i10 = y0 * W + x1, i01 = y1 * W + x0, i11 = y1 * W + x1;
-      if (proov(valjad[nk - 1], i00, i10, i01, i11, fx, fy) < 0.5) continue;
-      let c = 0;
-      while (c < nk - 1 && proov(valjad[c], i00, i10, i01, i11, fx, fy) < 0.5) c++;
-      img.data.set(varvid[c], (py * canvas.width + px) * 4);
-      img.data[(py * canvas.width + px) * 4 + 3] = Math.round(KLASSID[olek.reziim][c][2] * 255);
+      const valine = kate(proov(valjad[nk - 1], px, py));
+      if (valine <= 0) continue;
+      // from the outermost class inwards: each darker class covers the previous by its own share
+      let [r, g, bl] = varvid[nk - 1], al = kl0[nk - 1][2], eel = valine;
+      for (let k = nk - 2; k >= 0; k--) {
+        const a = Math.min(eel, kate(proov(valjad[k], px, py)));
+        if (a <= 0) break;
+        const t = a / eel;
+        r += (varvid[k][0] - r) * t; g += (varvid[k][1] - g) * t; bl += (varvid[k][2] - bl) * t; al += (kl0[k][2] - al) * t;
+        eel = a;
+      }
+      const o = (py * canvas.width + px) * 4;
+      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = bl; img.data[o + 3] = Math.round(al * valine * 255);
     }
   }
   ctx.putImageData(img, 0, 0);
@@ -232,15 +257,26 @@ function lulitaKiht(nahtav) {
   olek.kihtNahtav = nahtav;
   if (map.getLayer("hinnang")) map.setLayoutProperty("hinnang", "visibility", nahtav ? "visible" : "none");
   olek.markerid.forEach((m) => (m.getElement().hidden = !nahtav));
-  document.getElementById("kiht-nupp").setAttribute("aria-pressed", String(nahtav));
+  naitaReziim();
+}
+
+// one switch for the layer: "Kus otsida" / "Head metsad" / hidden. The panel follows: the day
+// strip and calendar only where the day matters, nothing but the switch when the layer is hidden
+function naitaReziim() {
+  const valik = olek.kihtNahtav ? olek.reziim : "peidus";
+  document.querySelectorAll("#reziim button").forEach((x) => {
+    x.classList.toggle("aktiivne", x.dataset.reziim === valik);
+    x.setAttribute("aria-pressed", String(x.dataset.reziim === valik));
+  });
+  document.getElementById("ajatelg").dataset.reziim = valik;
+  document.getElementById("parimad-kaart").style.display = olek.kihtNahtav ? "" : "none";
 }
 
 // ---------- panel ----------
 
 function uuendaPaneel(kl, kohad) {
   const { vilj, paev, p0, meta } = olek;
-  const tana = olek.reziim === "tana";
-  document.getElementById("paeva-osa").style.visibility = tana ? "" : "hidden";
+  naitaReziim();
   document.getElementById("kuupaev").value = vilj.kuupaevad[paev];
 
   // timeline: the anchor day and the forecast ahead; the past is reached through the calendar only
@@ -322,11 +358,16 @@ function uuendaKokkuvote() {
   const j = klassiS.indexOf(Math.max(...klassiS));
   const pohjus = () => aegPohjus(paev, p, j);
   const head = ha.slice(0, -1).reduce((s, x) => s + x, 0), voimalik = ha.at(-1);
-  if (!tana) kv.textContent = "Metsad, kus kasvukoht sobib kukeseenele – ilmast sõltumata.";
-  else if (p === null) {
+  if (p === null) {
     // the page holds one area (test sheet, or ?ala=...): say which, and offer to go there
     kv.innerHTML = `Siin pole hinnatud metsa. Andmed on alal <b>${meta.nimi}</b>. <button class="tekstinupp">Näita ala</button>`;
     kv.querySelector("button").onclick = () => map.fitBounds([meta.nurgad[3], meta.nurgad[1]], { padding: vaba() });
+  }
+  else if (!tana) {
+    const mets = ha.reduce((s, x) => s + x, 0);
+    kv.innerHTML = head < 5
+      ? `<b>Siin häid metsi pole.</b> Kukeseenele sobivat metsa ${Math.round(mets)} ha, aga ükski pole hea.`
+      : `<b>Häid ja paremaid metsi ${Math.round(head)} ha</b>${ha[0] >= 1 ? `, neist suurepäraseid ${Math.round(ha[0])} ha` : ""}. Värv näitab ainult metsa, ilmast sõltumata – seeneaega vaata „Kus otsida“ alt.`;
   }
   else if (head < 5 && voimalik >= 50) kv.innerHTML = `<b>Tagasihoidlik aeg.</b> Kõrge hindega kohti pole, võimalikke ${Math.round(voimalik)} ha. ${pohjus()}`;
   else if (head < 5) kv.innerHTML = `<b>Kehv aeg.</b> ${pohjus()}`;
@@ -761,7 +802,8 @@ function naitaSelgitust(lnglat) {
   // all forest properties as bars: host trees, age and light first, then the rest
   const ribad = [...kordajad.map((r) => ({ nimi: r.nimi, q: r.x, pohjus: r.pohjus })),
                  ...punktid.map((r) => ({ nimi: r.nimi, q: r.p / r.max, pohjus: r.pohjus }))];
-  const omadus = (r) => `<li><span class="tegur">${TEGUR_NIMI[r.nimi] || r.nimi}</span><span class="riba q-${kvaliteet(r.q)}"><span style="width:${Math.round(r.q * 100)}%"></span></span><span class="pohjus">${r.pohjus}</span></li>`;
+  // one line per property (name, bar, reason cut short); a click opens the whole reason
+  const omadus = (r) => `<li tabindex="0" title="Näita põhjust"><span class="tegur">${KOSK_NIMI[r.nimi] || TEGUR_NIMI[r.nimi] || r.nimi}</span><span class="riba q-${kvaliteet(r.q)}"><span style="width:${Math.round(r.q * 100)}%"></span></span><span class="pohjus">${r.pohjus}</span></li>`;
 
   // where the forecast is heading, and when today's new mushrooms are ready
   const v = olek.vilj;
@@ -779,17 +821,14 @@ function naitaSelgitust(lnglat) {
     ? `Täna alanud seened on korjatavad umbes <b>${kuupaev(aeg.kypseb)}</b>.`
     : aeg.kypseb == null ? "Liiga jahe – uued seened ei jõua enam küpseda." : `Täna uusi seeni peaaegu ei teki (${aeg.read.filter((r) => r.v < 0.4).map((r) => r.sona).join(", ")}).`;
 
-  const ylevaade = olek.kaardiVaade === "graafikud";
-  const valik = `<div class="segment vaade-valik" role="group" aria-label="Kaardi vaade">
-      <button data-vaade="read"${ylevaade ? "" : ' class="aktiivne"'}>Read</button>
-      <button data-vaade="graafikud"${ylevaade ? ' class="aktiivne"' : ""}>Graafikud</button></div>`;
-  const ylevaadeHtml = `
-    ${tana ? `<h3 class="sel-h">Mets × seeneaeg</h3>
-    ${tasand(i, d, koht)}` : ""}
-    <h3 class="sel-h">${IKOON.mets}Kuidas metsa hinne tuleb</h3>
-    ${kosk(i, koht)}`;
+  const graafikud = olek.kaardiVaade === "graafikud";
+  const valik = `<div class="segment vaade-valik" role="group" aria-label="Selgituse vaade">
+      <button data-vaade="ylevaade"${graafikud ? "" : ' class="aktiivne"'}>Ülevaade</button>
+      <button data-vaade="graafikud"${graafikud ? ' class="aktiivne"' : ""}>Graafikud</button></div>`;
+  const kypsebHtml = tana ? `<p class="kypseb">${suund ? suund + " " : ""}${korjatav}</p>` : "";
 
-  const html = valik + (ylevaade ? ylevaadeHtml : `
+  // overview: the two steps, then every property on one line each (no charts, little scrolling)
+  const ylevaadeHtml = `
     <div class="kaksik${tana ? "" : " yks"}">
       <div class="naitaja">
         <div class="n-pea">${IKOON.mets}Mets</div>
@@ -802,19 +841,25 @@ function naitaSelgitust(lnglat) {
         ${astmeriba(Math.min(1, aegV), A.aeg)}
       </div>` : ""}
     </div>
-
+    ${kypsebHtml}
     <h3 class="sel-h">${IKOON.mets}Mets</h3>
     <ul class="omadused">${ribad.map(omadus).join("")}</ul>
-
     ${tana ? `<h3 class="sel-h">${IKOON.aeg}Seeneaeg – ilma mõju</h3>
-    <ul class="omadused">${seeneajaTegurid(d, p, j).map((r) => omadus({ ...r, nimi: TEGUR_AEG[r.nimi] })).join("")}</ul>` : ""}`) + `
-    ${tana ? `
-    <h4 class="g-h">Niiskus ja soojus selles metsas</h4>
-    ${ilmaGraafik(d, p, j)}
+    <ul class="omadused">${seeneajaTegurid(d, p, j).map((r) => omadus({ ...r, nimi: TEGUR_AEG[r.nimi] })).join("")}</ul>` : ""}`;
 
-    <h4 class="g-h">Seente hulk</h4>
+  // charts: what happens over time first, then where the place sits and how the forest score adds up
+  const graafikudHtml = (tana ? `
+    <h3 class="sel-h">${IKOON.aeg}Seente hulk</h3>
     ${graafik(i, d, p, j)}
-    <p class="kypseb">${suund ? suund + " " : ""}${korjatav}</p>` : ""}`;
+    ${kypsebHtml}
+    <h3 class="sel-h">Niiskus ja soojus selles metsas</h3>
+    ${ilmaGraafik(d, p, j)}
+    <h3 class="sel-h">Mets × seeneaeg</h3>
+    ${tasand(i, d, koht)}` : "") + `
+    <h3 class="sel-h">${IKOON.mets}Kuidas metsa hinne tuleb</h3>
+    ${kosk(i, koht)}`;
+
+  const html = valik + (graafikud ? graafikudHtml : ylevaadeHtml);
   // explanation in a side drawer (bottom sheet on phones), the spot marked with a dot
   peidaSelgitus();
   const silt = document.getElementById("sahtel-silt");
@@ -828,6 +873,11 @@ function naitaSelgitust(lnglat) {
   const sisu = document.getElementById("selgitus");
   sisu.innerHTML = html;
   sisu.scrollTop = 0;
+  sisu.querySelectorAll(".omadused li").forEach((li) => {
+    li.onclick = () => li.classList.toggle("lahti");
+    li.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); li.click(); } };
+  });
+  naitaKoordinaadid(lnglat);
   sisu.querySelectorAll(".vaade-valik button").forEach((nupp) => nupp.onclick = () => {
     olek.kaardiVaade = nupp.dataset.vaade;
     try { localStorage.setItem("hyyf-kaardivaade", olek.kaardiVaade); } catch (e) { /* private mode */ }
@@ -838,6 +888,27 @@ function naitaSelgitust(lnglat) {
   const tapp = document.createElement("div");
   tapp.className = "tapp";
   olek.tapp = new maplibregl.Marker({ element: tapp }).setLngLat(lnglat).addTo(map);
+}
+
+// WGS84 coordinates of the clicked spot, ready to paste into a map app or a phone's navigator
+function naitaKoordinaadid(lnglat) {
+  const lng = lnglat[0] ?? lnglat.lng, lat = lnglat[1] ?? lnglat.lat;
+  const tekst = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+  const koht = document.getElementById("sahtel-koord");
+  koht.innerHTML = `<span>${tekst}</span><button class="kopeeri" title="Kopeeri koordinaadid" aria-label="Kopeeri koordinaadid">
+    <svg viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h8"/></svg><span>Kopeeri</span></button>`;
+  const nupp = koht.querySelector("button");
+  nupp.onclick = async () => {
+    try { await navigator.clipboard.writeText(tekst); }
+    catch (e) {   // older browsers, or no clipboard permission: select the text instead
+      const r = document.createRange(); r.selectNodeContents(koht.firstChild);
+      getSelection().removeAllRanges(); getSelection().addRange(r);
+      return;
+    }
+    nupp.classList.add("tehtud");
+    nupp.lastChild.textContent = "Kopeeritud";
+    setTimeout(() => { nupp.classList.remove("tehtud"); nupp.lastChild.textContent = "Kopeeri"; }, 1600);
+  };
 }
 
 function peidaSelgitus() {
@@ -1092,16 +1163,16 @@ document.getElementById("kuupaev").addEventListener("change", (e) => {
   else e.target.value = olek.vilj.kuupaevad[olek.paev];  // outside the season: snap back
 });
 document.querySelectorAll("#reziim button").forEach((b) => b.onclick = () => {
-  document.querySelectorAll("#reziim button").forEach((x) => x.classList.toggle("aktiivne", x === b));
+  if (b.dataset.reziim === "peidus") { lulitaKiht(false); return; }
+  const muutus = b.dataset.reziim !== olek.reziim;
   olek.reziim = b.dataset.reziim;
-  peidaSelgitus();
-  if (olek.meta) joonista();
+  lulitaKiht(true);
+  if (muutus) { peidaSelgitus(); if (olek.meta) joonista(); }
 });
 document.querySelectorAll("#aluskaart button[data-kiht]").forEach((b) => b.onclick = () => {
   document.querySelectorAll("#aluskaart button[data-kiht]").forEach((x) => x.classList.toggle("aktiivne", x === b));
   valiAluskaart(b.dataset.kiht);
 });
-document.getElementById("kiht-nupp").onclick = () => lulitaKiht(!olek.kihtNahtav);
 // area choice (andmed/alad.js, more than one exported area): reload the page with that area
 const alad = window.HYYF_ALAD || [];
 if (alad.length > 1) {
