@@ -25,7 +25,7 @@ const ASTE_KOHT = ["suurepärane", "väga hea", "hea", "keskmine"];
 const ASTE_AEG = ["väga hea", "hea", "keskmine", "vähe"];
 // text colour on a class colour
 const tekstVarv = (hex) => ([1, 3, 5].reduce((s, k, i) => s + parseInt(hex.slice(k, k + 2), 16) * [0.3, 0.59, 0.11][i], 0) < 150 ? "#fff" : "#2a1606");
-const SILE = 10;       // finest drawing resolution per 50 m cell (smooth edges up close)
+const SILE = 5;        // finest drawing resolution per 50 m cell
 const SILU_KORDI = 2;  // smoothing passes for the class fields (more = rounder, small spots fade)
 const NADALAPAEV = ["P", "E", "T", "K", "N", "R", "L"];
 const NADALAPAEV_PIKK = ["pühapäev", "esmaspäev", "teisipäev", "kolmapäev", "neljapäev", "reede", "laupäev"];
@@ -272,9 +272,8 @@ function klassKA(koht, aeg) {
 
 // ---------- map drawing ----------
 
-// drawing resolution per cell: finer up close, so the outlines stay smooth lines (about 2.5 screen
-// pixels per drawn pixel at most)
-const sileSuum = () => { const z = map.getZoom(); return z >= 15 ? SILE : z >= 14 ? 8 : z >= 13 ? 5 : z >= 12 ? 3 : 2; };
+// drawing resolution per cell: finer up close (the outlines are vector lines, crisp anyway)
+const sileSuum = () => { const z = map.getZoom(); return z >= 14 ? SILE : z >= 13 ? 4 : z >= 12 ? 3 : 2; };
 
 // a new day or mode: everything is drawn again
 function joonista() {
@@ -298,6 +297,7 @@ async function uuendaKaart() {
   // sheets far from the view leave the map (their data stays in memory for a while)
   const lahedal = new Set(vaateLehed(1));
   olek.lehed.forEach((G) => { if (G.pilt && !lahedal.has(G)) eemaldaPilt(G); });
+  uuendaJooned();
   const kohad = parimadKohad(nahtavadVorgud());
   uuendaPaneel(kohad);
   uuendaMarkerid(kohad);
@@ -324,12 +324,43 @@ function joonistaVork(G, sile, voti) {
     G.koond = k;
     const K = koonda(G, k);
     G.pildiNurgad = [[0, 0], [K.laius * k, 0], [K.laius * k, K.korgus * k], [0, K.korgus * k]].map(([x, y]) => G.lngLat(x, y));
-    naitaPilt(G, pilt(K, k === 1 ? 2 : 1));
+    const { url, jooned } = pilt(K, k === 1 ? 2 : 1, (x, y) => G.lngLat(x * k, y * k));
+    G.jooned = jooned;
+    naitaPilt(G, url);
+    olek.jooniUuendada = true;
     return;
   }
   if (G.sile >= sile && G.pilt) return;
   G.sile = sile;
-  naitaPilt(G, pilt(G, sile));
+  const { url, jooned } = pilt(G, sile);
+  G.jooned = jooned;
+  naitaPilt(G, url);
+  olek.jooniUuendada = true;
+}
+
+// all outlines of the grids on the map into one line source (the overview's shown only zoomed out,
+// the sheets' only up close)
+function uuendaJooned() {
+  if (!olek.jooniUuendada || !map.getSource("piirid")) return;
+  olek.jooniUuendada = false;
+  const features = [];
+  for (const G of [olek.yle, ...olek.lehed]) {
+    if (!G?.pilt || !G.jooned) continue;
+    for (const [k, coords] of G.jooned) {
+      features.push({ type: "Feature", properties: { k, yle: !!G.yle }, geometry: { type: "LineString", coordinates: coords } });
+    }
+  }
+  map.getSource("piirid").setData({ type: "FeatureCollection", features });
+}
+
+function lisaPiirjooneKihid() {
+  map.addSource("piirid", { type: "geojson", data: { type: "FeatureCollection", features: [] } });
+  for (const [id, yle, z] of [["piirid-yle", true, { maxzoom: Z_LEHT }], ["piirid", false, { minzoom: Z_LEHT }]]) {
+    map.addLayer({ id, type: "line", source: "piirid", filter: ["==", ["get", "yle"], yle], ...z,
+                   layout: { "line-join": "round", "line-cap": "round", visibility: olek.kihtNahtav ? "visible" : "none" },
+                   paint: { "line-color": ["match", ["get", "k"], 0, JOON_VARV[0], 1, JOON_VARV[1], JOON_VARV[2]], "line-width": 1.6 } },
+                 olek.siltideAlt);
+  }
 }
 
 // grid of the best (lowest, -1 = none) class of each k x k block of G's cells
@@ -347,75 +378,132 @@ function koonda(G, k) {
 // cell) is smoothed on the cell grid (margin cells included, so neighbouring sheets meet without
 // a seam), sampled with a cubic B-spline on a sile x finer grid (smooth curves, no corners) and cut
 // at 0.5 with a soft one-pixel edge. Nested, rounded shapes, darkest inside, class edges blended.
-function pilt(G, sile) {
+function pilt(G, sile, ll = G.lngLat) {
   const W = G.laius, H = G.korgus, kl = G.kl;
   const varvid = KLASSID[olek.reziim].map(([, c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
-  canvas.width = G.Wi * sile;
-  canvas.height = G.Hi * sile;
-  const ctx = canvas.getContext("2d");
-  const img = ctx.createImageData(canvas.width, canvas.height);
   const kl0 = KLASSID[olek.reziim], nk = kl0.length;
   const valjad = kl0.map((_, k) => silu(Float32Array.from(kl, (c) => (c >= 0 && c <= k ? 1 : 0)), W, H));
-  // B-spline taps and weights per fine column / row (4 cells each)
-  const kaalud = (n, N) => {
-    const idx = new Int32Array(n * 4), w = new Float32Array(n * 4);
-    for (let q = 0; q < n; q++) {
-      const x = (q + 0.5) / sile - 0.5 + G.varu, x0 = Math.floor(x), t = x - x0, t2 = t * t, t3 = t2 * t;
-      const ww = [(1 - t) ** 3 / 6, (3 * t3 - 6 * t2 + 4) / 6, (-3 * t3 + 3 * t2 + 3 * t + 1) / 6, t3 / 6];
-      for (let m = 0; m < 4; m++) { idx[q * 4 + m] = Math.max(0, Math.min(N - 1, x0 - 1 + m)); w[q * 4 + m] = ww[m]; }
-    }
-    return [idx, w];
-  };
-  const [cx, cwt] = kaalud(canvas.width, W), [ry, rwt] = kaalud(canvas.height, H);
-  const proov = (f, px, py) => {
-    let s = 0;
-    for (let m = 0; m < 4; m++) {
-      const rida = ry[py * 4 + m] * W;
-      s += rwt[py * 4 + m] * (cwt[px * 4] * f[rida + cx[px * 4]] + cwt[px * 4 + 1] * f[rida + cx[px * 4 + 1]] +
-                              cwt[px * 4 + 2] * f[rida + cx[px * 4 + 2]] + cwt[px * 4 + 3] * f[rida + cx[px * 4 + 3]]);
-    }
-    return s;
-  };
-  const tugevus = G.yle ? YLE_TUGEVUS : 1;
-  // outlines: half-width in field units (the field crosses 0.5 over about 2 cells), about 1 px wide
-  const JOON = 0.25 / sile;
-  // the fill edge as soft as the line is wide: no faint half-drawn spots without an outline
-  const SERV = JOON;
-  const joonVarvid = kl0.map(([, , , c]) => [1, 3, 5].map((k) => parseInt(c.slice(k, k + 2), 16)));
-  const kate = (f) => Math.max(0, Math.min(1, (f - 0.5) / SERV + 0.5));
   // rows of cells with nothing drawn are skipped quickly
   const tyhi = new Uint8Array(H);
   for (let y = 0; y < H; y++) tyhi[y] = valjad[nk - 1].subarray(y * W, (y + 1) * W).every((x) => x < 1e-4) ? 1 : 0;
-  for (let py = 0; py < canvas.height; py++) {
-    if (tyhi[ry[py * 4]] && tyhi[ry[py * 4 + 1]] && tyhi[ry[py * 4 + 2]] && tyhi[ry[py * 4 + 3]]) continue;
-    for (let px = 0; px < canvas.width; px++) {
-      const fo = proov(valjad[nk - 1], px, py), valine = kate(fo);
-      if (valine <= 0 && fo <= 0.5 - JOON) continue;
-      // from the outermost class inwards: each darker class covers the previous by its own share
+  const S = proovija(G, sile);
+  canvas.width = S.w;
+  canvas.height = S.h;
+  const ctx = canvas.getContext("2d");
+  const img = ctx.createImageData(canvas.width, canvas.height);
+  const tugevus = G.yle ? YLE_TUGEVUS : 1;
+  // the fill edge about one fine pixel soft; the crisp outline is a vector line on top (piirjooned)
+  const SERV = 0.3 / sile;
+  const kate = (f) => Math.max(0, Math.min(1, (f - 0.5) / SERV + 0.5));
+  for (let py = 0; py < S.h; py++) {
+    if (S.tyhjaRida(tyhi, py)) continue;
+    for (let px = 0; px < S.w; px++) {
+      const valine = kate(S.proov(valjad[nk - 1], px, py));
+      if (valine <= 0) continue;
+      // from the outermost class inwards: each better class covers the previous by its own share
       let [r, g, bl] = varvid[nk - 1], al = kl0[nk - 1][2], eel = valine;
       for (let k = nk - 2; k >= 0; k--) {
-        const a = Math.min(eel, kate(proov(valjad[k], px, py)));
+        const a = Math.min(eel, kate(S.proov(valjad[k], px, py)));
         if (a <= 0) break;
         const t = a / eel;
         r += (varvid[k][0] - r) * t; g += (varvid[k][1] - g) * t; bl += (varvid[k][2] - bl) * t; al += (kl0[k][2] - al) * t;
         eel = a;
       }
-      let A = Math.min(1, al * tugevus) * valine;
-      // each class edge drawn as a line in its own darker colour, over the fill
-      for (let k = nk - 1; k >= 0; k--) {
-        const f = k === nk - 1 ? fo : proov(valjad[k], px, py);
-        const l = Math.max(0, 1 - Math.abs(f - 0.5) / JOON);
-        if (l <= 0) continue;
-        const uus = l + (1 - l) * A, t = l / uus;
-        r += (joonVarvid[k][0] - r) * t; g += (joonVarvid[k][1] - g) * t; bl += (joonVarvid[k][2] - bl) * t;
-        A = uus;
-      }
-      const o = (py * canvas.width + px) * 4;
-      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = bl; img.data[o + 3] = Math.round(A * 255);
+      const o = (py * S.w + px) * 4;
+      img.data[o] = r; img.data[o + 1] = g; img.data[o + 2] = bl; img.data[o + 3] = Math.round(Math.min(1, al * tugevus) * valine * 255);
     }
   }
   ctx.putImageData(img, 0, 0);
-  return canvas.toDataURL();
+  return { url: canvas.toDataURL(), jooned: piirjooned(G, valjad, tyhi, G.yle ? 1 : Math.max(2, Math.min(4, sile)), ll) };
+}
+
+// B-spline sampling of a grid's cell fields on an s x finer grid of its inner part (sample q of a
+// row sits at cell coordinate (q + 0.5) / s - 0.5 + varu, 4 cells per sample)
+function proovija(G, s) {
+  const W = G.laius, H = G.korgus, w = G.Wi * s, h = G.Hi * s;
+  const kaalud = (n, N) => {
+    const idx = new Int32Array(n * 4), wt = new Float32Array(n * 4);
+    for (let q = 0; q < n; q++) {
+      const x = (q + 0.5) / s - 0.5 + G.varu, x0 = Math.floor(x), t = x - x0, t2 = t * t, t3 = t2 * t;
+      const ww = [(1 - t) ** 3 / 6, (3 * t3 - 6 * t2 + 4) / 6, (-3 * t3 + 3 * t2 + 3 * t + 1) / 6, t3 / 6];
+      for (let m = 0; m < 4; m++) { idx[q * 4 + m] = Math.max(0, Math.min(N - 1, x0 - 1 + m)); wt[q * 4 + m] = ww[m]; }
+    }
+    return [idx, wt];
+  };
+  const [cx, cwt] = kaalud(w, W), [ry, rwt] = kaalud(h, H);
+  const proov = (f, px, py) => {
+    let v = 0;
+    for (let m = 0; m < 4; m++) {
+      const rida = ry[py * 4 + m] * W;
+      v += rwt[py * 4 + m] * (cwt[px * 4] * f[rida + cx[px * 4]] + cwt[px * 4 + 1] * f[rida + cx[px * 4 + 1]] +
+                              cwt[px * 4 + 2] * f[rida + cx[px * 4 + 2]] + cwt[px * 4 + 3] * f[rida + cx[px * 4 + 3]]);
+    }
+    return v;
+  };
+  const tyhjaRida = (tyhi, py) => tyhi[ry[py * 4]] && tyhi[ry[py * 4 + 1]] && tyhi[ry[py * 4 + 2]] && tyhi[ry[py * 4 + 3]];
+  return { w, h, proov, tyhjaRida };
+}
+
+// Outlines of the classes as vector lines (crisp at every zoom, drawn by the map): the 0.5 contour
+// of each class field, sampled like the picture on an s x finer grid and traced with marching
+// squares, the pieces joined into polylines. Returns [[class, [[lng, lat], ...]], ...].
+function piirjooned(G, valjad, tyhi, s, ll) {
+  const S = proovija(G, s), w = S.w, h = S.h, out = [];
+  valjad.forEach((f, k) => {
+    const v = new Float32Array(w * h).fill(-0.5);
+    for (let py = 0; py < h; py++) {
+      if (S.tyhjaRida(tyhi, py)) continue;
+      for (let px = 0; px < w; px++) v[py * w + px] = S.proov(f, px, py) - 0.5;
+    }
+    // edge ids: horizontal edge from (x, y) to (x+1, y) = 2 (y w + x), vertical to (x, y+1) = +1
+    const punkt = new Map(), naaber = new Map();
+    const koht = (e) => {
+      if (!punkt.has(e)) {
+        const i = e >> 1, x = i % w, y = (i / w) | 0, a = v[i], b = e & 1 ? v[i + w] : v[i + 1], t = a / (a - b);
+        punkt.set(e, e & 1 ? [x, y + t] : [x + t, y]);
+      }
+      return e;
+    };
+    const seo = (e1, e2) => {
+      koht(e1); koht(e2);
+      (naaber.get(e1) || naaber.set(e1, []).get(e1)).push(e2);
+      (naaber.get(e2) || naaber.set(e2, []).get(e2)).push(e1);
+    };
+    for (let y = 0; y < h - 1; y++) for (let x = 0; x < w - 1; x++) {
+      const i = y * w + x, a = v[i], b = v[i + 1], c = v[i + w + 1], d = v[i + w];
+      const m = (a > 0 ? 8 : 0) | (b > 0 ? 4 : 0) | (c > 0 ? 2 : 0) | (d > 0 ? 1 : 0);
+      if (m === 0 || m === 15) continue;
+      const yl = 2 * i, al = 2 * (i + w), va = 2 * i + 1, pa = 2 * (i + 1) + 1;   // top, bottom, left, right
+      switch (m) {
+        case 1: case 14: seo(va, al); break;
+        case 2: case 13: seo(al, pa); break;
+        case 3: case 12: seo(va, pa); break;
+        case 4: case 11: seo(yl, pa); break;
+        case 6: case 9: seo(yl, al); break;
+        case 7: case 8: seo(yl, va); break;
+        case 5: case 10: {   // saddle: decided by the centre
+          const kesk = (a + b + c + d) / 4 > 0;
+          if ((m === 5) === kesk) { seo(yl, va); seo(al, pa); } else { seo(yl, pa); seo(va, al); }
+        }
+      }
+    }
+    // join the pieces: open lines start at an end, closed rings anywhere
+    const kasutatud = new Set();
+    const kaugusta = (algus) => {
+      const rida = [algus];
+      kasutatud.add(algus);
+      for (let eel = -1, praegu = algus; ;) {
+        const j = naaber.get(praegu).find((x) => x !== eel && !kasutatud.has(x));
+        if (j === undefined) break;
+        rida.push(j); kasutatud.add(j); eel = praegu; praegu = j;
+      }
+      if (naaber.get(rida.at(-1)).includes(algus) && rida.length > 2) rida.push(algus);
+      return rida.map((e) => { const [x, y] = punkt.get(e); return ll((x + 0.5) / s, (y + 0.5) / s).map((c) => Math.round(c * 1e6) / 1e6); });
+    };
+    for (const [e, n] of naaber) if (n.length === 1 && !kasutatud.has(e)) out.push([k, kaugusta(e)]);
+    for (const e of naaber.keys()) if (!kasutatud.has(e)) out.push([k, kaugusta(e)]);
+  });
+  return out;
 }
 
 // separable binomial smoothing of a cell field, SILU_KORDI passes of [1 2 1] / 4
@@ -443,7 +531,7 @@ function naitaPilt(G, url) {
     map.addLayer({ id, type: "raster", source: id, ...(G.yle ? { maxzoom: Z_LEHT } : { minzoom: Z_LEHT }),
                    layout: { visibility: olek.kihtNahtav ? "visible" : "none" },
                    paint: { "raster-opacity": KIHI_TUGEVUS, "raster-resampling": "linear", "raster-fade-duration": 0 } },
-                 olek.siltideAlt);
+                 map.getLayer("piirid-yle") ? "piirid-yle" : olek.siltideAlt);
     ootaPilt(G);
     return;
   }
@@ -452,6 +540,8 @@ function naitaPilt(G, url) {
 
 function eemaldaPilt(G) {
   const id = "hinnang-" + G.id;
+  if (G.jooned) olek.jooniUuendada = true;
+  G.jooned = null;
   if (map.getLayer(id)) map.removeLayer(id);
   if (map.getSource(id)) map.removeSource(id);
   clearTimeout(G.pilt?.taimer);
@@ -549,7 +639,7 @@ function uuendaMarkerid(kohad) {
 function lulitaKiht(nahtav) {
   olek.kihtNahtav = nahtav;
   for (const l of map.getStyle().layers) {
-    if (l.id.startsWith("hinnang-")) map.setLayoutProperty(l.id, "visibility", nahtav ? "visible" : "none");
+    if (l.id.startsWith("hinnang-") || l.id.startsWith("piirid")) map.setLayoutProperty(l.id, "visibility", nahtav ? "visible" : "none");
   }
   naitaReziim();
 }
@@ -1440,6 +1530,7 @@ function vaba() {
 // style, not for all basemap tiles ("load")
 map.once("style.load", async () => {
   lisaAluskaardid();
+  lisaPiirjooneKihid();
   const kv = document.getElementById("kokkuvote");
   try {
     kv.textContent = "Laen andmeid…";
