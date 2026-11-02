@@ -181,6 +181,6 @@ KLASS_AEG = [0.70, 0.50, 0.30, 0.15]    # mushroom time: väga hea (top of a goo
 # real temperature (physics, not adaptation).
 KLIIMA_VIIDE = "5825_2725"          # ERA5 node of the test sheet: its climate is the reference
 KLIIMA_VIIDE_MAA = "582271"         # ERA5-Land node of the test sheet (temperature reference)
-KLIIMA_AASTAD = (2016, 2025)        # normals from these summers
+KLIIMA_AASTAD = (2017, 2026)        # normals from these summers (2026 from the daily download)
 KLIIMA_KUUD = (5, 9)                # May..September
 KLIIMA_PIIRID = (0.6, 1.6)          # scaling factors kept within this range
