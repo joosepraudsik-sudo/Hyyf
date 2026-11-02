@@ -299,7 +299,7 @@ async function uuendaKaart() {
   olek.lehed.forEach((G) => { if (G.pilt && !lahedal.has(G)) eemaldaPilt(G); });
   uuendaJooned();
   const kohad = parimadKohad(nahtavadVorgud());
-  uuendaPaneel(kohad);
+  uuendaPaneel();
   uuendaMarkerid(kohad);
 }
 
@@ -639,7 +639,8 @@ function uuendaMarkerid(kohad) {
     const el = document.createElement("button");
     el.className = "marker";
     el.textContent = i + 1;
-    el.title = `${i + 1}. ${KLASSID[olek.reziim][k.kl][0].toLowerCase()}`;
+    const A = olek.meta.astmed, ms = ASTE_KOHT[aste(k.h[0], A.koht)] || "nõrk", as = ASTE_AEG[aste(k.h[1], A.aeg)] || "seeni pole";
+    el.title = `${i + 1}. ${KLASSID[olek.reziim][k.kl][0].toLowerCase()}${olek.reziim === "tana" ? ` (mets ${ms}, seeneaeg ${as})` : ""}, head metsa ümber ${Math.round(k.ha)} ha`;
     el.onclick = (e) => { e.stopPropagation(); naitaSelgitust(k.lnglat); };
     el.hidden = !olek.kihtNahtav || !olek.parimadNahtav;
     return new maplibregl.Marker({ element: el }).setLngLat(k.lnglat).addTo(map);
@@ -689,8 +690,8 @@ function lulitaParimad(nahtav) {
 
 // The panel head: two switches (mushroom layer, best spots) and the calendar button, which also
 // holds the "Head metsad" choice (forest only, no day) and shows the day or that choice. The panel
-// follows: the day strip only where the day matters, the best spots row only when they are on,
-// nothing but the head when the layer is hidden.
+// follows: the day strip only where the day matters, nothing but the head when the layer is hidden.
+// The best spots are numbers on the map only.
 function naitaReziim() {
   const valik = olek.kihtNahtav ? olek.reziim : "peidus";
   document.querySelectorAll("#reziim button").forEach((x) => {
@@ -699,7 +700,6 @@ function naitaReziim() {
   });
   const aj = document.getElementById("ajatelg");
   aj.dataset.reziim = valik;
-  aj.dataset.parimad = olek.parimadNahtav ? "jah" : "ei";
   document.getElementById("kiht-nupp").setAttribute("aria-pressed", String(olek.kihtNahtav));
   document.getElementById("parimad-nupp").setAttribute("aria-pressed", String(olek.parimadNahtav));
   olek.markerid.forEach((m) => (m.getElement().hidden = !olek.kihtNahtav || !olek.parimadNahtav));
@@ -710,7 +710,7 @@ function naitaReziim() {
 
 // ---------- panel ----------
 
-function uuendaPaneel(kohad) {
+function uuendaPaneel() {
   const { vilj, paev, p0 } = olek;
   naitaReziim();
   document.getElementById("kuupaev").value = vilj.kuupaevad[paev];
@@ -739,23 +739,6 @@ function uuendaPaneel(kohad) {
   if (valitud && nupud.scrollWidth > nupud.clientWidth) nupud.scrollLeft = valitud.offsetLeft - nupud.clientWidth / 2 + valitud.clientWidth / 2;
 
   uuendaKokkuvote();
-
-  const ol = document.getElementById("parimad");
-  // one row of small buttons under the legend, the same numbers as on the map; details in the tooltip
-  ol.innerHTML = kohad.length ? "" : `<li class="tuhi">Selles vaates häid kohti pole.</li>`;
-  kohad.forEach((k, i) => {
-    const li = document.createElement("li");
-    const A = olek.meta.astmed, ms = ASTE_KOHT[aste(k.h[0], A.koht)] || "nõrk", as = ASTE_AEG[aste(k.h[1], A.aeg)] || "seeni pole";
-    const [nimi, varv] = KLASSID[olek.reziim][k.kl];
-    li.innerHTML = `<button title="${nimi}: mets ${ms}${olek.reziim === "tana" ? `, seeneaeg ${as}` : ""}, head metsa ümber ${Math.round(k.ha)} ha"><span class="nr" style="background:${varv};color:${tekstVarv(varv)}">${i + 1}</span><span>${nimi}</span><small>${Math.round(k.ha)} ha</small></button>`;
-    li.querySelector("button").onclick = () => {
-      // keep the spot visible beside the drawer (right) or above the bottom sheet (phones)
-      const nihe = innerWidth <= 760 ? [0, -innerHeight * 0.3] : [-200, 0];
-      map.flyTo({ center: k.lnglat, zoom: Math.max(map.getZoom(), 14), offset: nihe });
-      naitaSelgitust(k.lnglat);
-    };
-    ol.append(li);
-  });
 }
 
 // day summary and legend areas for what is on screen: classes counted in the view, the reason
