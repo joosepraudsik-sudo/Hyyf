@@ -11,7 +11,8 @@ const MAA = "https://tiles.maaamet.ee/tm/tms/1.0.0";
 // its own colour, so the basemap shows through and the edges are easy to follow.
 // A class comes from two steps, forest and mushroom time (bounds in meta.astmed, from
 // parameetrid.py), so small daily changes do not repaint the map: step sum 0-1 hüüfiline,
-// 2 väga hea, 3 hea, more not drawn ("Head metsad": the forest step alone, 0-2).
+// 2 väga hea, 3 hea, more not drawn ("Head metsad": the forest step with the best time step, i.e.
+// forest step 0-1 hüüfiline, 2 väga hea, 3 hea).
 const VARV = ["#3fbd8c", "#f4c84a", "#f4a26a"];
 const JOON_VARV = ["#1d8a5f", "#cfa21f", "#e0733a"];
 const ALFA = [0.45, 0.45, 0.45];
@@ -265,7 +266,8 @@ const aste = (x, piirid) => piirid.findIndex((piir) => x >= piir);
 function klassKA(koht, aeg) {
   const A = olek.meta.astmed;
   const k = aste(koht, A.koht);
-  if (olek.reziim === "koht") return k < KLASSID.koht.length ? k : -1;
+  // "Head metsad": the class the forest would have on the best mushroom day (time step 0)
+  if (olek.reziim === "koht") return k < 0 ? -1 : SUMMA_KLASS[k] ?? -1;
   const a = aste(aeg, A.aeg);
   return k < 0 || a < 0 ? -1 : SUMMA_KLASS[k + a] ?? -1;
 }
@@ -1336,7 +1338,7 @@ function giidHtml() {
   </div>
   <p><b>Kaardi värv</b> tuleb kahest astmest: kui hea on mets ja kui hea on seeneaeg. Nii ei muuda väike päevane kõikumine värvi – värv jääb samaks, kuni seeneaeg päriselt muutub. Klasse on kolm: <b>hea</b> (punakas), <b>väga hea</b> (kollane) ja parim, <b>hüüfiline</b> (roheline) – see vajab ühes neist ülimat ja teises vähemalt järgmist astet.</p>
   ${maatriks}
-  <p class="vaike">„Head metsad“ režiimis on värv ainult metsa järgi: hüüfiline / väga hea / hea mets (metsa astmed suurepärane / väga hea / hea).</p>
+  <p class="vaike">„Head metsad“ režiimis on värv ainult metsa järgi: see klass, mis metsal oleks parima seeneajaga – hüüfiline mets (metsa aste suurepärane või väga hea), väga hea mets (hea) ja hea mets (keskmine).</p>
   ${osa("Mille järgi läved on valitud", laved())}
 
   <h3>1. Metsa punktid – kokku 100</h3>
