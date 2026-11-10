@@ -1,0 +1,104 @@
+# Every morning: new weather (Open-Meteo) -> fruiting model -> ilm.json.gz / ilm.bin.gz -> Cloudflare Pages.
+# Static map data come from the orphan branch "andmed" (skriptid/avalda_andmed.py andmed), the weather
+# cache from the orphan branch "ilm", which this workflow force-pushes as one commit when all went well.
+# If the weather download fails or is incomplete, nothing is published and the cache stays as it was;
+# the run fails, so GitHub sends an e-mail. The 07:17 UTC run is a retry and stops at once when the
+# morning run already succeeded today.
+name: Päevane uuendus
+
+on:
+  schedule:
+    - cron: "17 2 * * *"
+    - cron: "17 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: paevane
+  cancel-in-progress: false
+
+env:
+  TZ: Europe/Tallinn
+  PYTHONUNBUFFERED: "1"
+
+jobs:
+  kontroll:
+    runs-on: ubuntu-latest
+    outputs:
+      tehtud: ${{ steps.vaata.outputs.tehtud }}
+    steps:
+      - id: vaata
+        name: Kas täna on juba uuendatud?
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tehtud=0
+          if [ "${{ github.event_name }}" = "schedule" ] && [ "${{ github.event.schedule }}" = "17 7 * * *" ]; then
+            kp=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" \
+                 "https://api.github.com/repos/${{ github.repository }}/commits/ilm" | jq -r .commit.committer.date)
+            if [ "$(date -d "$kp" +%F)" = "$(date +%F)" ]; then tehtud=1; fi
+            echo "ilm haru viimane commit: $kp"
+          fi
+          echo "tehtud=$tehtud" >> "$GITHUB_OUTPUT"
+
+  uuenda:
+    needs: kontroll
+    if: needs.kontroll.outputs.tehtud != '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Kaardiandmed (haru andmed)
+        uses: actions/checkout@v4
+        with:
+          ref: andmed
+          path: leht/andmed/eesti
+
+      - name: Ilmavahemälu (haru ilm)
+        uses: actions/checkout@v4
+        with:
+          ref: ilm
+          path: andmed/eesti/ilm
+
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync
+
+      - name: Ilm (Open-Meteo, jätkab sealt, kus vahemälu lõpeb)
+        run: uv run python -I skriptid/ilmavork.py lae
+
+      - name: Viljumine
+        run: uv run python -I skriptid/ilmavork.py viljumine
+
+      - name: Eksport (ainult ilm)
+        run: uv run python -I skriptid/eksport_eesti.py --ainult-ilm
+
+      - name: Avaldatav kaust
+        run: |
+          rm -rf _site
+          cp -r leht _site
+          rm -rf _site/andmed/eesti/.git
+          find _site/andmed -name '*.js' -delete
+          echo "faile $(find _site -type f | wc -l), $(du -sh _site | cut -f1)"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if ! npx --yes wrangler@4 pages project list | grep -qw hyyf; then
+            npx --yes wrangler@4 pages project create hyyf --production-branch main
+          fi
+          npx --yes wrangler@4 pages deploy _site --project-name hyyf --branch main --commit-dirty=true
+
+      - name: Ilmavahemälu tagasi harusse ilm
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          uv run python -I skriptid/avalda_andmed.py ilm

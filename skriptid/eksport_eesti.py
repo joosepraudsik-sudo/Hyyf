@@ -18,6 +18,8 @@ match a computation over the whole country. Files are gzip, the page unpacks the
 straight from disk (js_koopiad, --js).
 
 Run: uv run python -I skriptid/eksport_eesti.py [leht ...] [--too 4]
+     uv run python -I skriptid/eksport_eesti.py --ainult-ilm   # daily: only ilm.json.gz + ilm.bin.gz
+       (needs andmed/eesti/ilm/punktid.json and valjund/eesti/viljumine.csv.gz, no site rasters)
 """
 import argparse
 import base64
@@ -27,6 +29,7 @@ import math
 import sys
 import time
 from concurrent.futures import ProcessPoolExecutor
+from datetime import datetime, timezone
 from pathlib import Path
 
 import geopandas as gpd
@@ -212,7 +215,14 @@ def ilm(nodes):
     gz(OUT / "ilm.bin.gz", to_u8(arr).tobytes())
     source = fr.groupby("kuupaev")["allikas"].agg(lambda s: s.mode()[0]).reindex(days)
     first = fr[fr["klass"] == CLASSES[0]]
+    meta = ILM / "prognoos.json"
+    if meta.exists():
+        loaded = json.loads(meta.read_text("utf-8"))["laaditud"]
+    else:   # older download without the record: the newest forecast file
+        newest = max((f.stat().st_mtime for f in ILM.glob("prognoos_*.json")), default=time.time())
+        loaded = datetime.fromtimestamp(newest, timezone.utc).isoformat(timespec="seconds")
     out = {
+        "laaditud": loaded,
         "allikas": "ERA5 / ERA5-Land kuni ~5 päeva tagasi, edasi mudelianalüüs ja prognoos (Open-Meteo), arendusandmed",
         "tana": f"{pd.Timestamp.today().normalize():%Y-%m-%d}",
         "paeva_allikas": source.fillna("era5").tolist(),
@@ -230,12 +240,12 @@ def ilm(nodes):
     return len(days)
 
 
-def js_koopiad():
+def js_koopiad(ainult=None):
     """Each .gz file also as a script (<name>.js: HYYF_FAIL("<path>", "<base64>")), so the page works
     when index.html is opened straight from disk (file:// allows script tags, not fetch). Only for
     local use: the web host gets the .gz files."""
     n = 0
-    for f in OUT.rglob("*.gz"):
+    for f in ([OUT / x for x in ainult] if ainult else OUT.rglob("*.gz")):
         js = f.with_suffix(".js")
         if js.exists() and js.stat().st_mtime >= f.stat().st_mtime:
             continue
@@ -251,9 +261,21 @@ def main():
     ap.add_argument("lehed", nargs="*", help="only these sheets (index and overview then cover only them)")
     ap.add_argument("--too", type=int, default=4, help="parallel processes")
     ap.add_argument("--js", action="store_true", help="only write the .js copies of existing files")
+    ap.add_argument("--ainult-ilm", action="store_true",
+                    help="only the daily weather files ilm.json.gz and ilm.bin.gz (no site rasters needed)")
     a = ap.parse_args()
     if a.js:
         js_koopiad()
+        return
+    if a.ainult_ilm:
+        nodes = sorted(json.loads(PUNKTID.read_text("utf-8")), key=int)
+        print(f"Ilm: {ilm(nodes)} päeva, {len(nodes)} punkti")
+        files = ["ilm.json.gz", "ilm.bin.gz"]
+        for f in files:
+            print(f"  {f}: {(OUT / f).stat().st_size / 1024:.0f} KB")
+        # .js copies only where they already exist (local use from disk), never on the web host
+        if (OUT / "ilm.json.js").exists():
+            js_koopiad(files)
         return
     t0 = time.time()
     nodes = sorted(json.loads(PUNKTID.read_text("utf-8")), key=int)

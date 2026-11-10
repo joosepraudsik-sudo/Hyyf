@@ -14,9 +14,10 @@ Open-Meteo has none for era5_land), so each node also has the nearest ERA5 node.
              parameetrid.KLIIMA_AASTAD; summers already in the daily download are taken from disk,
              the rest is resumable, ~16 000 calls = ~2 days of the free limit) and the mapping into
              the test sheet's climate: andmed/eesti/ilm/kliima.json
+  kontroll   is today's weather complete (also run at the end of lae, exit code 2 if not)
   viljumine  fruiting model for every node x water regime class -> valjund/eesti/viljumine.csv.gz
 
-Run: uv run python -I skriptid/ilmavork.py [ruudud|lae|kliima|viljumine|koik] [--algus 2026-01-01]
+Run: uv run python -I skriptid/ilmavork.py [ruudud|lae|kontroll|kliima|viljumine|koik] [--algus 2026-01-01]
 """
 import argparse
 import json
@@ -192,10 +193,18 @@ def lae_arhiiv(nodes, model, variables, key, algus, lopp, batch=10):
 
 
 def lae_prognoos(nodes, batch=50):
+    """Forecast (with the last 14 days of model analysis) for every node. Written to a side folder
+    and moved into place only when all nodes are in, so a failed run never leaves a mix of old and
+    new forecasts. prognoos.json records when it was fetched."""
+    import shutil
+    from datetime import datetime, timezone
     from lae_testala import FORECAST
     url = "https://api.open-meteo.com/v1/forecast"
     names = list(nodes)
     days = 14 + PROGNOOS_PAEVI + 1
+    tmp = ILM / "prognoos_uus"
+    shutil.rmtree(tmp, ignore_errors=True)
+    tmp.mkdir()
     for i in range(0, len(names), batch):
         part = names[i:i + batch]
         res = _paring(f"{url}?{FORECAST}", {
@@ -203,9 +212,50 @@ def lae_prognoos(nodes, batch=50):
             "longitude": ",".join(str(nodes[n][1]) for n in part),
             "past_days": 14, "forecast_days": PROGNOOS_PAEVI + 1, "timezone": "Europe/Tallinn",
         }, _kaal(len(part), 6, days))
+        if len(res) != len(part):
+            raise RuntimeError(f"prognoos: {len(part)} punkti asemel {len(res)} vastust")
         for name, r in zip(part, res):
-            (ILM / f"prognoos_{name}.json").write_text(json.dumps(r), encoding="utf-8")
+            (tmp / f"prognoos_{name}.json").write_text(json.dumps(r), encoding="utf-8")
         print(f"  prognoos: {min(i + batch, len(names))}/{len(names)}")
+    for f in tmp.iterdir():
+        f.replace(ILM / f.name)
+    tmp.rmdir()
+    (ILM / "prognoos.json").write_text(json.dumps({
+        "laaditud": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "paev": date.today().isoformat(), "punkte": len(names)}), encoding="utf-8")
+
+
+def kontroll(pts=None):
+    """Is the weather complete for today? Every node with ERA5-Land data has history up to where its
+    forecast file starts (no gap), and the forecast was fetched today and reaches 3 days ahead.
+    Returns the list of problems (empty = fine)."""
+    pts = pts or json.loads(PUNKTID.read_text("utf-8"))
+    today = date.today()
+    probleemid = []
+    meta = ILM / "prognoos.json"
+    if not meta.exists() or json.loads(meta.read_text("utf-8")).get("paev") != today.isoformat():
+        probleemid.append("prognoos pole täna laaditud")
+    eras = {}
+    for node, v in pts.items():
+        _, last_land = _viimane(ILM / f"era5land_{node}.json", "temperature_2m_mean")
+        if v["era5"] not in eras:
+            eras[v["era5"]] = _viimane(ILM / f"era5_{v['era5']}.json", "precipitation_sum")[1]
+        fc_path = ILM / f"prognoos_{node}.json"
+        if not fc_path.exists():
+            probleemid.append(f"{node}: prognoos puudub")
+            continue
+        d = json.loads(fc_path.read_text("utf-8"))["daily"]
+        ok = [t for t, p in zip(d["time"], d["precipitation_sum"]) if p is not None]
+        if not ok or date.fromisoformat(ok[-1]) < today + timedelta(days=3):
+            probleemid.append(f"{node}: prognoos ei ulatu 3 päeva ette")
+            continue
+        start = date.fromisoformat(d["time"][0])
+        for name, last in (("ERA5-Land", last_land), ("ERA5", eras[v["era5"]])):
+            if last is not None and last < start - timedelta(days=1):
+                probleemid.append(f"{node}: {name} lõpeb {last}, prognoos algab {start} (auk)")
+        if eras[v["era5"]] is None:
+            probleemid.append(f"{node}: ERA5 {v['era5']} puudub")
+    return probleemid
 
 
 def lae(algus):
@@ -222,8 +272,13 @@ def lae(algus):
         lae_arhiiv(land, "era5_land", DAILY_LAND, "temperature_2m_mean", algus, lopp)
         lae_prognoos(land)
     except Paevalimiit as e:
-        print(f"\nPäevane limiit täis ({e}). Käivita homme uuesti, laadimine jätkub samast kohast.")
+        print(f"\nPäevane limiit täis ({e}). Käivita hiljem uuesti, laadimine jätkub samast kohast.")
         sys.exit(1)
+    vead = kontroll(pts)
+    if vead:
+        print(f"\nIlm on poolik ({len(vead)} viga), ei sobi avaldamiseks:\n  " + "\n  ".join(vead[:20]))
+        sys.exit(2)
+    print("  kontroll: ilm on täielik")
 
 
 # ---------- kliima ----------
@@ -401,7 +456,7 @@ def viljumine():
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("mis", nargs="?", default="koik", choices=["ruudud", "lae", "kliima", "viljumine", "koik"])
+    ap.add_argument("mis", nargs="?", default="koik", choices=["ruudud", "lae", "kontroll", "kliima", "viljumine", "koik"])
     ap.add_argument("--algus", default="2026-01-01", help="first day of the weather history")
     a = ap.parse_args()
     if a.mis in ("ruudud", "koik"):
@@ -410,6 +465,10 @@ def main():
     if a.mis in ("lae", "koik"):
         print("Ilm (Open-Meteo, ainult arenduseks)")
         lae(date.fromisoformat(a.algus))
+    if a.mis == "kontroll":
+        vead = kontroll()
+        print("\n".join(vead) or "Ilm on täielik")
+        sys.exit(2 if vead else 0)
     if a.mis == "kliima":
         print("Kliimanormid (Open-Meteo ERA5)")
         kliima()

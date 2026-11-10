@@ -108,6 +108,19 @@ function seaIlm(v, aeg) {
   const kohalik = new Date().toLocaleDateString("sv-SE");
   if (v.kuupaevad.includes(kohalik)) v.tana = kohalik;
   Object.assign(olek, { vilj: v, aeg });
+  naitaVanus(v.laaditud);
+}
+
+// the daily update did not run: weather (and so the forecast) is older than 36 h
+const VANA_TUNDI = 36;
+function naitaVanus(laaditud) {
+  const el = document.getElementById("vananenud"), t = Date.parse(laaditud);
+  if (!el || !Number.isFinite(t)) return;
+  const tundi = (Date.now() - t) / 36e5;
+  el.hidden = tundi <= VANA_TUNDI;
+  if (el.hidden) return;
+  const d = new Date(t), kp = `${d.getDate()}.${String(d.getMonth() + 1).padStart(2, "0")}. kell ${d.toLocaleTimeString("et-EE", { hour: "2-digit", minute: "2-digit" })}`;
+  el.textContent = `Ilmaandmed on vanad (uuendatud ${kp}, ${tundi < 48 ? Math.round(tundi) + " tundi" : Math.round(tundi / 24) + " päeva"} tagasi) – prognoos ei pruugi kehtida.`;
 }
 
 // gzip files of andmed/eesti, unpacked here (any static host serves them as they are)
