@@ -6,6 +6,18 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "8000", "--bind", "127.0.0.1", "--directory", "leht"],
       "port": 8000
+    },
+    {
+      "name": "tobias",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8770", "--bind", "127.0.0.1", "--directory", "C:/Joosep/Tobias/leht"],
+      "port": 8770
+    },
+    {
+      "name": "platik",
+      "runtimeExecutable": "python",
+      "runtimeArgs": ["-m", "http.server", "8766", "--bind", "127.0.0.1", "--directory", "C:/Joosep/Platik/leht"],
+      "port": 8766
     }
   ]
 }

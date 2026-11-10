@@ -4,3 +4,5 @@ __pycache__/
 andmed/
 valjund/
 leht/andmed/
+.claude/settings.local.json
+*.pdf
