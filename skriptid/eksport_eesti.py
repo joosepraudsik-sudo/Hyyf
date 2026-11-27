@@ -203,7 +203,11 @@ def too(args):
 
 def ilm(nodes):
     fr = pd.read_csv(VALJUND / "viljumine.csv.gz", parse_dates=["kuupaev"])
-    fr = fr[fr["kuupaev"].dt.month.between(*MONTHS)]
+    # from the start of this season (1 June) to the end of the forecast: no upper month limit, the
+    # forecast runs 10 days past the end of November (it used to be cut at 30.11)
+    today = pd.Timestamp.today().normalize()
+    start = pd.Timestamp(today.year if today.month >= MONTHS[0] else today.year - 1, MONTHS[0], 1)
+    fr = fr[fr["kuupaev"] >= start]
     fr["punkt"] = fr["punkt"].astype(str)
     cube = fr.pivot_table(index="kuupaev", columns=["punkt", "klass"], values=TIME_COLS)
     days = cube.index
